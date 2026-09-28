@@ -123,16 +123,36 @@ class Story(DayScripts):
     def new_game(self, day=1):
         self.reset_run()
         self.canon_before(day)
-        self.close_title()
-        self.start_day(day)
+        self._leave_title(lambda: self.start_day(day))
 
     def continue_game(self):
         d = self.g.load_save()
         if not save_has_progress(d):
             self.new_game(1)
             return
-        self.close_title()
-        self.load_from_save(d)
+        self._leave_title(lambda: self.load_from_save(d))
+
+    def _leave_title(self, then):
+        """Fade the title to black first: closing it moves the camera into the cow's head, and that
+        view shouldn't flash up before the day card."""
+        g = self.g
+        if g.state != "title" or self.title_root is None:
+            self.close_title()
+            then()
+            return
+        def nothing():
+            pass
+        for b in self.title_buttons:
+            b.on_click = nothing
+            b.on_mouse_enter = nothing
+            b.on_mouse_exit = nothing
+        self.title_buttons = []     # no second pick while the fade runs
+
+        def go():
+            yield from g.fade_out(0.5)
+            self.close_title()
+            then()
+        g.runner.start(go(), name="title_out")
 
     def load_from_save(self, d):
         self.reset_run()
@@ -157,6 +177,11 @@ class Story(DayScripts):
         self.clear_day()
         self.day = n
         g.day = n
+        # a day restarted from a mid-day checkpoint skips its opening step, which is where the
+        # screen fades in; step() notices and fades in (and puts the light back) instead
+        self.resume_time = self.flags.get("_time")
+        self.day_skipped = False
+        self.day_ran = False
         info = DAYS[n]
         g.day_title = info["name"]
         g.day_sub = info["sub"]
@@ -411,8 +436,13 @@ class Story(DayScripts):
     def step(self, key, fn, hint="", cheat=None, save=True):
         """Run one step unless it's already done. Generator."""
         if self.done(key):
+            self.day_skipped = True
             return None
         g = self.g
+        if not getattr(self, "day_ran", True):
+            self.day_ran = True
+            if self.day_skipped:
+                yield from self._resume_in()
         self.cur = key
         self.cur_cheat = cheat
         self.hint_text = hint
@@ -427,6 +457,14 @@ class Story(DayScripts):
         if save:
             g.save_checkpoint()
         return res
+
+    def _resume_in(self):
+        g = self.g
+        rt = self.resume_time
+        if isinstance(rt, (list, tuple)) and len(rt) == 2 and rt[0] == self.day:
+            g.set_time(rt[1])
+        if g.ui.fade_alpha > 0.01:
+            yield from g.fade_in(1.0)
 
     def hook(self, name, fn):
         self.hooks[name] = fn

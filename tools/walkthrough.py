@@ -45,6 +45,7 @@ class Bot:
         self.shots = args.shots
         self.catch = set((args.caught or "").split(",")) - {""}
         self.caught_steps = set()
+        self.watch = None
         orig = g._script_error
 
         def on_err(s):
@@ -714,6 +715,8 @@ class Bot:
                 if g.player.frozen or not g.controls_enabled():
                     raise Stuck(f"no control after being caught in {key}")
                 self.plan = self.plan_for(key)
+            if self.watch is not None:
+                self.watch()
             if self.plan is not None:
                 try:
                     next(self.plan)
@@ -731,6 +734,67 @@ class Bot:
             if g.day > to_day:
                 print(f"  reached day {g.day}", flush=True)
                 return "day"
+
+
+def resume_test(bot, day):
+    """Play `day` keeping every checkpoint, then restart the day from each one (what Continue and
+    Restart checkpoint do) and play it out again. Each restart must fade in, get the light of the
+    moment back and still reach the next day."""
+    import json
+    g = bot.g
+    saves = []
+    light = {}
+    orig = g.save_checkpoint
+
+    def rec():
+        orig()
+        d = g.load_save()
+        if d and d.get("day") == day:
+            saves.append(json.loads(json.dumps(d)))
+    g.save_checkpoint = rec
+
+    def note_light():
+        # the light a step starts in (read the same way in both runs: once its first frame has run)
+        k = g.story.cur
+        if k and k not in light:
+            light[k] = g.flags.get("_time")
+    bot.watch = note_light
+    g.story.new_game(day)
+    bot.run(day)
+    bot.watch = None
+    g.save_checkpoint = orig
+    seen = set()
+    for i, d in enumerate(saves):
+        done = tuple(sorted(k for k, v in d["flags"].items() if v and k.startswith(f"d{day}_")))
+        if done in seen or not done:
+            continue
+        seen.add(done)
+        g.story.load_from_save(d)
+        for _ in range(3 * FPS):
+            if g.day == day:
+                break
+            bot.tick()
+        first = {"key": None, "light": None}
+        min_fade = [1.0]
+
+        def watch():
+            if g.story.cur and first["key"] is None:
+                first["key"] = g.story.cur
+                first["light"] = g.flags.get("_time")
+            if first["key"] is not None:
+                min_fade[0] = min(min_fade[0], g.ui.fade_alpha)
+        bot.watch = watch
+        bot.plan = None
+        bot.run(day)
+        bot.watch = None
+        k = first["key"]
+        if k is None:
+            continue    # saved after the day's last step; Continue loads the next day's save instead
+        print(f"  checkpoint {i:<2} resumed at {k}", flush=True)
+        if min_fade[0] > 0.05:
+            raise Stuck(f"screen stayed black after resuming at {k}")
+        if k in light and light[k] != first["light"]:
+            raise Stuck(f"light at {k} is {first['light']} after resume, {light[k]} in a straight run")
 
 
 def dump(g):
@@ -752,11 +816,13 @@ def main():
     ap.add_argument("--render", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--caught", default="")
+    ap.add_argument("--resume", action="store_true", help="restart each day from every checkpoint")
     args = ap.parse_args()
     t0 = _time.time()
     app, g = harness.boot(size=(960, 540))
     bot = Bot(app, g, args)
-    g.story.new_game(args.day)
+    if not args.resume:
+        g.story.new_game(args.day)
     if not args.detect:
         orig_setup = g.story.apply_world_flags
 
@@ -767,6 +833,12 @@ def main():
         g.farmer.detect = False
     print(f"walkthrough from day {args.day} to {args.to}", flush=True)
     try:
+        if args.resume:
+            for day in range(args.day, args.to + 1):
+                print(f"day {day}", flush=True)
+                resume_test(bot, day)
+            print(f"OK (resume) in {_time.time() - t0:.0f}s real, {bot.frame / FPS:.0f}s game", flush=True)
+            return 0
         res = bot.run(args.to)
         print(f"OK ({res}) in {_time.time() - t0:.0f}s real, {bot.frame / FPS:.0f}s game", flush=True)
         for line in bot.log:

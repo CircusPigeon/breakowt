@@ -812,6 +812,8 @@ class Game(Entity):
 
     def set_time(self, preset, dur=0.0):
         self.env.set_preset(preset, dur)
+        # remembered in the checkpoint so a day restarted mid-way gets its light back
+        self.flags["_time"] = [self.day, preset]
 
     def music(self, name, vol=1.0, fade=2.0):
         self.audio.music_play(name, vol, fade)

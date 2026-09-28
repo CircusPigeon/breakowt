@@ -61,6 +61,7 @@ xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 1 --to 
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 5 --to 5 --shots   # one day, screenshot per step
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 2 --to 2 --detect  # with Chuck's eyes on
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 1 --to 7 --caught all  # get caught once in every step
+xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 1 --to 7 --resume     # Continue from every checkpoint
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/uishots.py   # every UI screen
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/smoke.py     # boot + title + a few seconds of day 1
 python tools/navcheck.py                                           # nav graph connectivity
