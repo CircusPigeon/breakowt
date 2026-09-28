@@ -321,14 +321,12 @@ class Story(DayScripts):
                 d = int(save.get("day", 1))
                 opts.append((f"Continue  ({DAYS[d]['name']})", self.continue_game))
             opts.append(("New game", lambda: self.new_game(1)))
-            maxd = int((save or {}).get("max_day", 1)) if save else 1
-            if maxd > 1:
-                opts.append(("Chapter select", lambda: self.open_title("chapters")))
+            # every day is open from the start; a chapter sets up what the earlier days would have
+            opts.append(("Chapter select", lambda: self.open_title("chapters")))
             opts.append(("Settings", self._title_settings))
             opts.append(("Quit", self._quit))
         else:
-            maxd = int((save or {}).get("max_day", 1)) if save else 1
-            for d in range(1, min(7, maxd) + 1):
+            for d in range(1, 8):
                 opts.append((f"{DAYS[d]['name']}  ·  {DAYS[d]['card_sub'].split('·')[0].strip()}",
                              (lambda d=d: self.new_game(d))))
             opts.append(("Back", lambda: self.open_title("main")))
@@ -350,7 +348,8 @@ class Story(DayScripts):
         # nothing is lit until the mouse is over a button or a key picks one
         self._title_hl(None)
         Text("F11 fullscreen", parent=r, x=A / 2 - 0.03, y=-0.46, scale=0.8, color=DIM, origin=(0.5, 0))
-        Text("v1.0", parent=r, x=-A / 2 + 0.03, y=-0.46, scale=0.8, color=DIM, origin=(-0.5, 0))
+        from .engine.buildinfo import build_id
+        Text(f"v1.0  {build_id()}".strip(), parent=r, x=-A / 2 + 0.03, y=-0.46, scale=0.8, color=DIM, origin=(-0.5, 0))
 
     def _title_hl(self, i):
         """Light up button i (None: none lit). The highlight always marks what a click or Enter would pick."""
@@ -505,6 +504,10 @@ class Story(DayScripts):
     def on_headbutt(self, eye, fwd):
         fn = self._hook("headbutt")
         return bool(fn(eye, fwd)) if fn else False
+
+    def on_kick(self, pos, yaw):
+        fn = self._hook("kick")
+        return bool(fn(pos, yaw)) if fn else False
 
     def on_projectile_land(self, proj, p):
         fn = self._hook("land")

@@ -618,7 +618,7 @@ class Game(Entity):
             if e.alive and e.behind(pos, yaw, 2.8):
                 e.take_hit(2, "kick", pos)
                 hit = True
-        return hit
+        return hit or self.story.on_kick(pos, yaw)
 
     def on_projectile_move(self, proj, p0, p1):
         for e in list(self.enemies):

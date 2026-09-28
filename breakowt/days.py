@@ -283,8 +283,11 @@ class DayScripts:
                     gg.audio.play("blip_hi", vol=0.5)
                     self._toggle_door("front_door", 4)
                     gg.examine("The spare key turns. You're in.")
+                elif self.day >= 5:
+                    gg.examine("Locked. There's always a spare key somewhere. Try the doormat.")
                 else:
-                    gg.examine("Locked. There's always a spare key somewhere.")
+                    # before Friday the house is off limits: don't send anyone hunting for a key that isn't there yet
+                    gg.examine("Locked. Chuck's in and out of there all day. The house can wait until he's gone.")
                 return
             self._toggle_door("front_door", 4)
         g.on("front_door", lambda gg: ("Close the front door" if gg.world.doors["front_door"].is_open else
@@ -2070,7 +2073,7 @@ class DayScripts:
         # the objective spells out each clue as it's found, so there's always a next thing to try
         clue = {0: "   Find Chuck's spare key (try the doormat)",
                 1: "   The note says: under the flowerpot",
-                2: "   It's inside the garden gnome: headbutt him to break him open"}
+                2: "   It's inside the garden gnome: knock him over (walk into him, or headbutt him)"}
 
         def show():
             self.objectives(("in", "Get into the farmhouse"),
@@ -2097,8 +2100,8 @@ class DayScripts:
                                                                "    (Break him open. I'll buy another.)\n"
                                                                "                              - Chuck")
             found(2, (41, 24, "Gnome"))
-            gg.ui.popup_sub("The gnome's in the flowerbed by the corner of the house. Walk up to him and headbutt "
-                            "him (left click or E).", 8)
+            gg.ui.popup_sub("The gnome's in the flowerbed by the corner of the house. Knock him over: walk into "
+                            "him, headbutt him (E or left click), kick him, or throw something at him.", 9)
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
 
@@ -2125,13 +2128,23 @@ class DayScripts:
             bonk(gg)
         g.on("gnome", "Headbutt the gnome", smash, cond=lambda gg: not self.done("gnome_broken"))
         g.ia.get("gnome").on_headbutt = bonk
+        g.ia.get("gnome").on_rock = lambda gg, pt: bonk(gg)
 
         gn = g.world.gnome
         wob = {"next": 0.5, "t": 0.0}
 
+        GX, GZ = 41.0, 24.0
+        p = g.player
+
         def upd(dt):
             self.base_update(dt)
-            if self.done("gnome_broken") or self.flags.get("d5_keystate", 0) < 2:
+            if self.done("gnome_broken"):
+                return
+            # walking into him is enough: the cow's body stops about 0.9 m from his middle
+            if math.hypot(p.x - GX, p.z - GZ) < 1.05 and abs(p.y) < 1.0:
+                bonk(g)
+                return
+            if self.flags.get("d5_keystate", 0) < 2:
                 return
             # once the note points at him, the gnome rattles every few seconds: a shake and a jingle of keys
             wob["next"] -= dt
@@ -2145,8 +2158,26 @@ class DayScripts:
             else:
                 gn.rotation_z = 0
         self.hook("update", upd)
+
+        def kick(pos, yaw):
+            # a back-kick with him behind you
+            dx, dz = GX - pos[0], GZ - pos[2]
+            d = math.hypot(dx, dz)
+            fx, fz = math.sin(math.radians(yaw)), math.cos(math.radians(yaw))
+            if d < 2.4 and (dx * fx + dz * fz) / max(d, 0.01) < -0.2 and not self.done("gnome_broken"):
+                bonk(g)
+                return True
+            return False
+        self.hook("kick", kick)
+
+        def land(proj, pos):
+            # anything thrown that comes down on or next to him
+            if math.hypot(pos[0] - GX, pos[2] - GZ) < 1.4:
+                bonk(g)
+        self.hook("land", land)
         yield lambda: g.inv.has("house_key") or self.done("house_unlocked")
         g.ia.get("gnome").on_headbutt = None
+        g.ia.get("gnome").on_rock = None
         self.objectives(("in", "Get into the farmhouse"), ("in_key", "   Found the spare key"))
         g.complete("in_key", sound=False)
         self.mark((56, 29, "Front door"))
