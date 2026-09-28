@@ -191,6 +191,37 @@ FARM_SHADER = Shader(name="farm_shader", language=Shader.GLSL, vertex=VERT, frag
                      default_input={"texture_scale": (1, 1), "texture_offset": (0, 0),
                                     "u_unlit": 0.0, "u_emissive": 0.0, "u_sway": 0.0, "u_water": 0.0})
 
+SHADOWS_SUPPORTED = True
+
+_LIGHT_STRUCT = """uniform struct p3d_LightSourceParameters {
+    vec4 color;
+    sampler2DShadow shadowMap;
+    mat4 shadowViewMatrix;
+} p3d_LightSource[1];"""
+
+
+def _strip_shadows(vert, frag):
+    """The same shader without Panda's shadow-map struct (some drivers crash on it)."""
+    import re
+    v = vert.replace(_LIGHT_STRUCT, "").replace(
+        "shadow_coord = p3d_LightSource[0].shadowViewMatrix * (p3d_ModelViewMatrix * vs);", "shadow_coord = vec4(0.0);")
+    f = frag.replace(_LIGHT_STRUCT, "")
+    f = re.sub(r"float sun_visibility\(\) \{.*?\n\}\n", "float sun_visibility() { return 1.0; }\n", f, flags=re.S)
+    assert "p3d_LightSource" not in v + f, "shadow struct still referenced"
+    return v, f
+
+
+def set_shadow_support(ok):
+    """Call before any entity uses FARM_SHADER. Without support the shadow-free variant is used."""
+    global SHADOWS_SUPPORTED
+    SHADOWS_SUPPORTED = bool(ok)
+    if not ok:
+        FARM_SHADER.vertex, FARM_SHADER.fragment = _strip_shadows(VERT, FRAG)
+    else:
+        FARM_SHADER.vertex, FARM_SHADER.fragment = VERT, FRAG
+    FARM_SHADER.compiled = False
+
+
 DEPTH_VERT = """
 #version 140
 uniform mat4 p3d_ModelViewProjectionMatrix;
@@ -398,7 +429,7 @@ class Environment:
         self._apply()
 
     def set_shadows(self, on):
-        on = bool(on)
+        on = bool(on) and SHADOWS_SUPPORTED
         r = self.render
         if on and self.sun_np is None:
             try:

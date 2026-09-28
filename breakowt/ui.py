@@ -548,7 +548,13 @@ class UI:
         b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
         b2.on_click = g.toggle_fullscreen
 
+        from .engine import shading as _sh
+        if not _sh.SHADOWS_SUPPORTED:
+            b3.text = "Shadows: not supported"
+
         def _shadows():
+            if not _sh.SHADOWS_SUPPORTED:
+                return
             g.env.set_shadows(not g.env.shadows)
             b3.text = f"Shadows: {'On' if g.env.shadows else 'Off'}"
         b3.on_click = _shadows

@@ -9,7 +9,16 @@ from ursina import Entity, Text, camera, color, destroy, scene
 from .engine.shading import SHADOW_MASK
 from .interact import Interactable
 from . import models
-from .world import PASTURE, in_pond, OAK
+from .world import PASTURE, in_pond, OAK, MOOHOLE, GATE_PASTURE
+
+# spots the herd must never park in: the gap under the fence and the pasture gate.
+# A cow standing there plugs the only way through, and the player can't push cows.
+KEEP_CLEAR = [(MOOHOLE[0], (MOOHOLE[1] + MOOHOLE[2]) / 2, 4.5),
+              (GATE_PASTURE[0], (GATE_PASTURE[1] + GATE_PASTURE[2]) / 2, 5.0)]
+
+
+def in_keep_clear(x, z, pad=0.0):
+    return any(math.hypot(x - kx, z - kz) < r + pad for kx, kz, r in KEEP_CLEAR)
 
 FRIENDS = {
     # key: (display name, voice, model kwargs, ear tag)
@@ -288,9 +297,24 @@ class HerdCow(Walker):
             x = min(x1 - 2, max(x0 + 2, self.x + random.uniform(-12, 12)))
             z = min(z1 - 2, max(z0 + 2, self.z + random.uniform(-12, 12)))
             if not in_pond(x, z, 1.5) and not self.g.phys.blocked_at(x, z, 1.0) and \
-                    not (-66 < x < -38 and -12 < z < 3):
+                    not (-66 < x < -38 and -12 < z < 3) and not in_keep_clear(x, z):
                 return (x, 0, z)
         return None
+
+    def _leave_keep_clear(self):
+        """Walk out of a doorway-like spot the player needs (never while stampeding)."""
+        for kx, kz, r in KEEP_CLEAR:
+            d = math.hypot(self.x - kx, self.z - kz)
+            if d < r:
+                # step back into the pasture (it lies to the west of both spots)
+                az = (self.z - kz) / max(d, 0.1) * 0.5
+                self.path = [(kx - (r + 2.0), 0, kz + az * (r + 2.0))]
+                self.state = "walk"
+                self.walk_speed = 1.6
+                self.lie = False
+                self.model.lying_target = 0.0
+                return True
+        return False
 
     def update(self, dt, cam_x, cam_z):
         d_cam = math.hypot(cam_x - self.x, cam_z - self.z)
@@ -323,6 +347,8 @@ class HerdCow(Walker):
                             self.walk_speed = random.uniform(0.9, 1.5)
                             self.state = "walk"
                     self.timer = random.uniform(6, 16)
+        if self.state == "graze" and not self.free:
+            self._leave_keep_clear()
         # avoid Chuck: shuffle out of his way
         fm = self.g.farmer
         if fm is not None and fm.visible and self.state != "stampede":

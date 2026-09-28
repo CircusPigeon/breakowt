@@ -23,7 +23,8 @@ GEN = USER / "generated"
 AUDIO_DIR = GEN / "audio"
 TEX_DIR = GEN / "textures"
 FONT_DIR = GEN / "fonts"
-SAVE_DIR = USER / "saves"
+# tests point this elsewhere so they never overwrite the player's save
+SAVE_DIR = Path(os.environ["BREAKOWT_SAVE_DIR"]) if os.environ.get("BREAKOWT_SAVE_DIR") else USER / "saves"
 SHOT_DIR = USER / "screenshots"
 
 _tex_cache: dict = {}

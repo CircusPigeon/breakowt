@@ -72,6 +72,8 @@ class Loader:
 def run(args):
     from .engine.boot import create_app
     app = create_app(windowed=args.windowed, size=_size_arg(args))
+    from .engine import gpuprobe
+    gpuprobe.configure()
     from ursina import Text, application
     from .engine import assets
     application.fonts_folder = assets.FONT_DIR
