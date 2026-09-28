@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-TEX_VERSION = "5"
+TEX_VERSION = "6"
 _rng = np.random.default_rng(1987)
 
 FONT_DIRS = [r"C:\Windows\Fonts", "/usr/share/fonts/truetype/dejavu", "/Library/Fonts"]
@@ -939,6 +939,36 @@ ICONS = {
 }
 
 
+# character atlas: (x0, y0, x1, y1) in pixels, y measured from the top
+ATLAS_W, ATLAS_H = 1024, 512
+ATLAS = {
+    "hide_bw": (0, 0, 256, 256), "hide_brown": (256, 0, 512, 256), "hide_black": (512, 0, 768, 256),
+    "hide_gray": (768, 0, 1024, 256), "hide_red": (0, 256, 256, 512), "hide_dun": (256, 256, 512, 512),
+    "plaid": (512, 256, 640, 384), "denim": (640, 256, 768, 384), "straw": (768, 256, 896, 384),
+    "white": (896, 256, 1024, 384), "tag_47": (512, 384, 576, 448), "tag_12": (576, 384, 640, 448),
+    "tag_12_mud": (640, 384, 704, 448), "tag_blank": (704, 384, 768, 448), "bark": (768, 384, 896, 512),
+    "hay": (896, 384, 1024, 512),
+}
+
+
+def tex_atlas():
+    img = Image.new("RGB", (ATLAS_W, ATLAS_H), (255, 255, 255))
+    parts = {
+        "hide_bw": lambda: tex_cowhide(seed=21), "hide_brown": lambda: tex_cowhide(spot=(120, 70, 40), seed=22),
+        "hide_black": lambda: tex_cowhide(spot=(245, 242, 235), base=(28, 25, 25), n_spots=3, seed=23),
+        "hide_gray": lambda: tex_cowhide(spot=(90, 88, 88), base=(190, 188, 185), n_spots=7, seed=24),
+        "hide_red": lambda: tex_cowhide(spot=(245, 242, 235), base=(130, 55, 35), n_spots=5, seed=25),
+        "hide_dun": lambda: tex_cowhide(spot=(245, 240, 225), base=(185, 150, 100), n_spots=6, seed=26),
+        "plaid": tex_plaid, "denim": tex_denim, "straw": tex_straw, "white": tex_white,
+        "tag_47": lambda: tex_eartag(47), "tag_12": lambda: tex_eartag(12), "tag_12_mud": tex_eartag_mud,
+        "tag_blank": lambda: tex_eartag(""), "bark": tex_bark, "hay": tex_hay,
+    }
+    for k, (x0, y0, x1, y1) in ATLAS.items():
+        im = parts[k]().convert("RGB").resize((x1 - x0, y1 - y0))
+        img.paste(im, (x0, y0))
+    return img
+
+
 def all_textures():
     t = {
         "grass": tex_grass, "dirt": tex_dirt, "mud": tex_mud, "gravel": tex_gravel, "wood": tex_wood,
@@ -964,7 +994,7 @@ def all_textures():
         "sticky_pot": lambda: tex_sticky("Moved it.\nSpare key is in\nthe GNOME.\n-Chuck", (200, 255, 200)),
         "trophy_plaque": tex_trophy_plaque, "poster_employee": tex_poster_employee, "photo_earl": tex_photo_earl,
         "tv": tex_tv, "monitor": tex_monitor_login, "calendar": tex_calendar, "cookbook": tex_cookbook,
-        "welcome_mat": tex_welcome_mat, "road_sign": tex_road_sign_steak,
+        "welcome_mat": tex_welcome_mat, "road_sign": tex_road_sign_steak, "atlas": tex_atlas,
     }
     for name, fn in ICONS.items():
         t["icon_" + name] = fn
@@ -991,8 +1021,10 @@ def generate_all(out_dir: str, progress=None):
 
 if __name__ == "__main__":
     import time
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = os.path.join(here, "assets", "generated", "textures")
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from breakowt.engine.assets import TEX_DIR
+    out = str(TEX_DIR)
     vp = os.path.join(out, ".version")
     if os.path.exists(vp):
         os.remove(vp)

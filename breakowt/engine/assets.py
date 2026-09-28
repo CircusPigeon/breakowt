@@ -6,12 +6,25 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-GEN = ROOT / "assets" / "generated"
+
+
+def _user_dir():
+    # Documents/My Games is the conventional home for game data on Windows and,
+    # unlike AppData, is not virtualized for Microsoft Store Python.
+    docs = Path.home() / "Documents"
+    if docs.is_dir():
+        return docs / "My Games" / "BREAKOWT"
+    return Path.home() / ".breakowt"
+
+
+# generated assets, saves and screenshots live outside the project folder
+USER = _user_dir()
+GEN = USER / "generated"
 AUDIO_DIR = GEN / "audio"
 TEX_DIR = GEN / "textures"
 FONT_DIR = GEN / "fonts"
-SAVE_DIR = ROOT / "saves"
-SHOT_DIR = ROOT / "screenshots"
+SAVE_DIR = USER / "saves"
+SHOT_DIR = USER / "screenshots"
 
 _tex_cache: dict = {}
 

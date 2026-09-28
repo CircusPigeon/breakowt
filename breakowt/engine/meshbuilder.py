@@ -279,6 +279,38 @@ class MeshBuilder:
         self._push(verts, norms, uvs, color, tris)
         return self
 
+    def poly(self, points, color=(1, 1, 1, 1), uv_density=0.5, double=True):
+        """Convex planar polygon (list of 3D points), fan-triangulated."""
+        p = np.asarray(points, dtype=np.float64)
+        nrm = np.cross(p[1] - p[0], p[2] - p[0])
+        nrm = nrm / (np.linalg.norm(nrm) + 1e-9)
+        # uv: project on the two largest axes
+        ax = np.argsort(np.abs(nrm))[:2]
+        uvs = p[:, sorted(ax)] * uv_density
+        tris = [(0, i + 1, i + 2) for i in range(len(p) - 2)]
+        self._push(p, np.tile(nrm, (len(p), 1)), uvs, color, tris)
+        if double:
+            self._push(p, np.tile(-nrm, (len(p), 1)), uvs, color, [(0, i + 2, i + 1) for i in range(len(p) - 2)])
+        return self
+
+    def disk(self, center, rx, rz, color=(1, 1, 1, 1), segs=24, uv_density=0.25, uv_rect=None):
+        """Flat horizontal ellipse facing up."""
+        cx, cy, cz = center
+        verts = [(cx, cy, cz)]
+        uvs = []
+        for i in range(segs + 1):
+            a = 2 * math.pi * i / segs
+            verts.append((cx + math.sin(a) * rx, cy, cz + math.cos(a) * rz))
+        for x, y, z in verts:
+            if uv_rect:
+                u0, v0, u1, v1 = uv_rect
+                uvs.append((u0 + (x - cx + rx) / (2 * rx) * (u1 - u0), v0 + (z - cz + rz) / (2 * rz) * (v1 - v0)))
+            else:
+                uvs.append((x * uv_density, z * uv_density))
+        tris = [(0, i + 1, i + 2) for i in range(segs)]
+        self._push(verts, [(0, 1, 0)] * len(verts), uvs, color, tris)
+        return self
+
     def cone(self, pos, radius, height, color=(1, 1, 1, 1), segs=8, rot=(0, 0, 0)):
         return self.cylinder(pos, radius, height, color, segs, rot, caps=True, radius_top=0.0)
 
