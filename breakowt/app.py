@@ -75,6 +75,8 @@ def run(args):
     # the scene's post pass does the anti-aliasing when this machine is known to support it
     app = create_app(windowed=args.windowed, size=_size_arg(args), msaa=gpuprobe.cached("postfx") is not True)
     gpuprobe.configure()
+    from .engine.buildinfo import build_id
+    print(f"[breakowt] build {build_id() or 'unknown (not a git checkout)'}", flush=True)
     from ursina import Text, application
     from .engine import assets
     application.fonts_folder = assets.FONT_DIR

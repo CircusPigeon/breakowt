@@ -319,6 +319,18 @@ class DayScripts:
     def register_globals(self):
         """Wardrobe hiding and the radio: useful whenever you're around them."""
         g = self.g
+        # Before Friday the gnome is only a gnome (Chuck moves the spare key into him on Friday). Say so,
+        # instead of a headbutt doing nothing at all.
+        gn = g.ia.get("gnome")
+        if self.day < 5:
+            g.on("gnome", "Look at the gnome", lambda gg: gg.examine(
+                "A garden gnome with a fishing rod. Something small rattles inside him. Chuck's about today, "
+                "though. The house can wait until he's out."), scope="day")
+            gn.on_headbutt = lambda gg: gg.examine(
+                "Clonk. The gnome wobbles and something rattles inside him. Not today: Chuck's around. "
+                "Come back when he's out of the house.")
+        else:
+            gn.on_headbutt = None
 
         def hide(gg):
             gg.flags["_hiding"] = True
