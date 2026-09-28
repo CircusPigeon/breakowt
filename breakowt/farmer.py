@@ -246,6 +246,7 @@ class Farmer(Walker):
         self.path = []
         self.pose = "fallen"
         self.say(random.choice(TRIP_LINES), kind="surprise")
+        self.g.audio.play("slide_down", vol=0.8, pos=(self.x, 1.2, self.z), rng=40)
         self.g.audio.play("thump", vol=0.9, pos=(self.x, 0.5, self.z), rng=30)
         self.g.stats["chuck_trips"] = self.g.stats.get("chuck_trips", 0) + 1
         self.g.on_farmer_trip()

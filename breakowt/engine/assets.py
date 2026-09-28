@@ -60,7 +60,7 @@ def generation_steps():
         cat = synth.catalog()
         names = list(cat)
         for i, name in enumerate(names):
-            synth.write_wav(str(AUDIO_DIR / f"{name}.wav"), cat[name]())
+            synth.write_wav(str(AUDIO_DIR / f"{name}.wav"), cat[name](), name=name)
             yield f"Teaching cows to {name.split('_')[0]}", 0.1 + 0.9 * (i + 1) / len(names)
         (AUDIO_DIR / ".version").write_text(synth.AUDIO_VERSION)
     yield "Done", 1.0

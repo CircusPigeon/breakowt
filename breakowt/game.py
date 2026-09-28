@@ -498,6 +498,7 @@ class Game(Entity):
                 e.take_hit(2 if charge else 1, "headbutt", self.player.pos)
                 hit = True
         if hit:
+            self.audio.play("bonk", vol=0.8, pitch=random.uniform(0.9, 1.1))
             return True
         t = self.ia.find_target(eye, fwd)
         if t is not None and t.on_headbutt is not None:
@@ -634,13 +635,15 @@ class Game(Entity):
         if key == "chuck":
             fk = "question" if kind == "question" else ("angry" if kind == "exclaim" else
                                                         "short" if kind == "short" else "medium" if kind == "medium" else "long")
-            self.audio.play(f"farmer_{fk}_{random.randrange(2)}", vol=1.0, group="voice")
+            self.audio.play(f"farmer_{fk}_{random.randrange(2)}", vol=1.0, group="voice",
+                            pitch=random.uniform(0.96, 1.04))
             return
         if key == "cluck":
             self.audio.play(random.choice(["cluck_0", "cluck_1", "squawk"]), vol=0.9, group="voice")
             return
         if key == "player":
-            self.audio.play(f"moo_player_{kind}_{random.randrange(2)}", vol=0.85, group="voice")
+            self.audio.play(f"moo_player_{kind}_{random.randrange(2)}", vol=0.85, group="voice",
+                            pitch=random.uniform(0.95, 1.05))
             return
         if isinstance(ent, HerdCow):
             self.audio.play(ent.voice, vol=0.9, pitch=ent.pitch, group="voice")
@@ -649,7 +652,8 @@ class Game(Entity):
         if key in FRIENDS:
             sad = "..." in text and kind != "exclaim"
             k2 = "sad" if (sad and key in ("moozart", "moomaw", "cowleen") and random.random() < 0.5) else kind
-            self.audio.play(f"moo_{key}_{k2}_{random.randrange(2)}", vol=0.95, group="voice")
+            self.audio.play(f"moo_{key}_{k2}_{random.randrange(2)}", vol=0.95, group="voice",
+                            pitch=random.uniform(0.95, 1.05))
             b = random.choice(MOO_BUBBLES.get(key, ["Moo."]))
             if kind == "question":
                 b = "Moo?"
@@ -830,6 +834,29 @@ class Game(Entity):
             a.stop_loop("amb")
             a.stop_loop("wind")
             a.stop_loop("rain")
+        self.farm_ambience(preset)
+
+    # places on the farm that make their own noise (positional, so they also help you find your way)
+    EMITTERS = {
+        # key: (sound, position, audible range, volume by preset {day, night, rain})
+        "env_frogs": ("loop_frogs", (-45, 0.3, -60), 28, {"day": 0.25, "night": 0.6, "rain": 0.5}),
+        "env_windmill": ("loop_windmill", (6, 9, 32), 40, {"day": 0.5, "night": 0.35, "rain": 0.55}),
+        "env_chickens": ("loop_chickens", (42, 1, -33), 30, {"day": 0.6, "rain": 0.35}),
+        "env_flies": ("loop_flies", (-30, 1, -22), 8, {"day": 0.45}),
+        "env_pigeons": ("loop_pigeons", (20, 5.5, 10), 16, {"day": 0.5, "rain": 0.4}),
+        "env_owl": ("loop_owl", (-62, 9, 30), 110, {"night": 0.4}),
+        "env_clock": ("loop_clock", (45.2, 2.2, 36), 9, {"day": 0.4, "night": 0.45, "rain": 0.4}),
+        "env_fridge": ("loop_fridge", (67, 1.3, 38.6), 6, {"day": 0.35, "night": 0.35, "rain": 0.35}),
+    }
+
+    def farm_ambience(self, preset):
+        a = self.audio
+        for key, (snd, pos, rng, vols) in self.EMITTERS.items():
+            v = vols.get(preset)
+            if preset != "none" and v:
+                a.loop(key, snd, v, pos=pos, rng=rng, group="ambient", fade=2.0)
+            else:
+                a.stop_loop(key, 1.5)
 
     def teleport_player(self, spawn):
         sp = self.world.spawns.get(spawn, spawn) if isinstance(spawn, str) else spawn
@@ -857,6 +884,7 @@ class Game(Entity):
         if self.state == "loading":
             return
         self.ui.update(dt)
+        self.audio.talk_duck_target = 0.55 if self.in_dialogue else 1.0
         if self.state == "title":
             self.story.title_update(dt)
             self.env.update(dt)

@@ -13,7 +13,7 @@ import numpy as np
 from scipy import signal
 
 SR = 44100
-AUDIO_VERSION = "7"
+AUDIO_VERSION = "8"
 
 _rng = np.random.default_rng(47)
 
@@ -26,11 +26,14 @@ def tt(dur: float) -> np.ndarray:
     return np.arange(int(round(dur * SR))) / SR
 
 
-def write_wav(path: str, x: np.ndarray, peak: float = 0.89):
+def write_wav(path: str, x: np.ndarray, peak: float = 0.89, name: str | None = None):
     x = np.asarray(x, dtype=np.float64)
-    m = float(np.max(np.abs(x))) if x.size else 0.0
-    if m > 1e-9:
-        x = x * (peak / m)
+    if name is not None:
+        x = master(name, x)  # loudness by category (see LOUDNESS)
+    else:
+        m = float(np.max(np.abs(x))) if x.size else 0.0
+        if m > 1e-9:
+            x = x * (peak / m)
     x = np.clip(x, -1.0, 1.0)
     data = (x * 32767).astype("<i2")
     with wave.open(path, "wb") as w:
@@ -244,23 +247,62 @@ MOO_KINDS = {
 }
 
 
+def formant_noise(n, forms, nper=1024, hop=256):
+    """White noise shaped by the time-varying formants: breath through the vocal tract."""
+    f, ft, Z = signal.stft(noise(n), SR, nperseg=nper, noverlap=nper - hop, boundary="even")
+    idx = np.clip((ft * SR).astype(int), 0, n - 1)
+    G = np.full((len(f), len(ft)), 0.01)
+    for F, B, A in forms:
+        Fv = np.asarray(F)[idx] if np.ndim(F) else np.full(len(ft), float(F))
+        Bv = np.asarray(B)[idx] if np.ndim(B) else np.full(len(ft), float(B))
+        Av = np.asarray(A)[idx] if np.ndim(A) else np.full(len(ft), float(A))
+        G += Av[None, :] / (1.0 + ((f[:, None] - Fv[None, :]) / (Bv[None, :] * 1.6)) ** 2)
+    _, y = signal.istft(Z * G, SR, nperseg=nper, noverlap=nper - hop, boundary=True)
+    y = y[:n]
+    if len(y) < n:
+        y = np.pad(y, (0, n - len(y)))
+    return y / (np.sqrt(np.mean(y ** 2)) + 1e-9)
+
+
+def room(x, wet=0.1, size=0.55):
+    """A pasture, not a vacuum: a few reflections off a barn wall and a short open-air tail."""
+    y = np.concatenate([x, np.zeros(int(0.06 * SR))])
+    soft = lowpass(x, 2800)
+    for d, g in ((0.019, 0.22), (0.031, 0.16), (0.047, 0.1)):
+        k = int(d * SR)
+        y[k:k + len(x)] += soft * g * wet * 3.5
+    return reverb(y, decay=size, wet=wet, tone=3000)
+
+
 def moo(f0=120, kind="medium", tilt=1.0, rough=0.1, breath=0.2, vib=0.015, vr=5.0, fs=1.0,
         dur=None) -> np.ndarray:
     d, pc, fsets, ftimes = MOO_KINDS[kind]
     if dur is not None:
         d = dur
-    d *= _rng.uniform(0.92, 1.08)
+    d *= _rng.uniform(0.9, 1.1)
     n = int(d * SR)
     t = np.arange(n) / SR
-    base = contour(n, pc) * f0
-    jitter = lowpass(noise(n), 8) * 3
-    f0c = base * (1 + vib * np.sin(2 * np.pi * vr * t) * np.clip(t / 0.25, 0, 1)) * (1 + 0.004 * jitter)
-    sets = [[(F * fs, B, A) for (F, B, A) in s] for s in fsets]
+    base = contour(n, pc) * f0 * _rng.uniform(0.97, 1.03)
+    # slow wandering pitch (a cow is not a synthesizer) plus fast jitter
+    drift = lowpass(noise(n), 3) * 6
+    jitter = lowpass(noise(n), 40) * 2
+    vib_env = np.clip((t - 0.15) / 0.3, 0, 1)
+    f0c = base * (1 + vib * np.sin(2 * np.pi * vr * t + _rng.uniform(0, 6)) * vib_env) \
+        * (1 + 0.012 * drift + 0.006 * jitter)
+    sets = [[(F * fs * _rng.uniform(0.96, 1.04), B, A) for (F, B, A) in s] for s in fsets]
     forms = interp_formants(sets, ftimes, np.linspace(0, 1, n))
-    amp = contour(n, [(0, 0), (0.06, 0.45), (0.2, 0.8), (0.3, 1.0), (0.75, 0.85), (1, 0)])
+    amp = contour(n, [(0, 0), (0.07, 0.35), (0.2, 0.75), (0.32, 1.0), (0.72, 0.85), (1, 0)])
     amp = amp ** 1.2
-    x = additive_voice(f0c, forms, tilt=tilt, rough=rough, breath=breath, amp=amp)
-    return fade_edges(x)
+    shimmer = 1 + 0.08 * lowpass(noise(n), 12) * 4
+    voiced = additive_voice(f0c, forms, tilt=tilt + 0.15, rough=rough, breath=0.0, amp=amp * shimmer)
+    # breath: noise through the same formants, strongest at the onset and in the fading tail
+    br_env = amp * (0.6 + 0.8 * contour(n, [(0, 1), (0.25, 0.3), (0.7, 0.35), (1, 1)]))
+    asp = formant_noise(n, forms) * br_env
+    level = np.sqrt(np.mean(voiced ** 2)) + 1e-9
+    x = voiced + asp * level * (0.18 + 0.55 * breath)
+    # the nasal 'mm' onset is darker than the open 'oo'
+    x = lowpass(x, 3800)
+    return room(fade_edges(x), wet=0.09, size=0.5)
 
 
 def sung_moo(freq: float, dur: float, voice="moozart", open_=0.5, fs=1.0) -> np.ndarray:
@@ -268,9 +310,9 @@ def sung_moo(freq: float, dur: float, voice="moozart", open_=0.5, fs=1.0) -> np.
     v = VOICES.get(voice, VOICES["moozart"])
     n = int(dur * SR)
     t = np.arange(n) / SR
-    vib = 1 + 0.018 * np.sin(2 * np.pi * 5.2 * t) * np.clip((t - 0.15) / 0.3, 0, 1)
+    vib = 1 + 0.018 * np.sin(2 * np.pi * 5.2 * t + _rng.uniform(0, 6)) * np.clip((t - 0.15) / 0.3, 0, 1)
     scoop = 1 - 0.04 * np.exp(-t / 0.06)
-    f0c = freq * vib * scoop
+    f0c = freq * vib * scoop * (1 + 0.004 * lowpass(noise(n), 5) * 5)
     mid = [(F * (1 - open_) + G * open_, B, A) for (F, B, A), (G, _, _) in zip(MOO_OO, MOO_OA)]
     mid = [(F * fs * v["fs"], B, A) for F, B, A in mid]
     mset = [(F * fs, B, A) for F, B, A in MOO_M]
@@ -279,8 +321,10 @@ def sung_moo(freq: float, dur: float, voice="moozart", open_=0.5, fs=1.0) -> np.
     rel = min(0.25, dur * 0.3)
     amp = np.minimum(1, t / 0.06) * np.clip((dur - t) / rel, 0, 1)
     amp = amp * (0.55 + 0.45 * np.clip(t / 0.12, 0, 1))
-    return additive_voice(f0c, forms, tilt=v["tilt"], rough=v["rough"] * 0.3,
-                          breath=v["breath"] * 0.5, amp=amp)
+    voiced = additive_voice(f0c, forms, tilt=v["tilt"] + 0.1, rough=v["rough"] * 0.3, breath=0.0, amp=amp)
+    level = np.sqrt(np.mean(voiced ** 2)) + 1e-9
+    x = voiced + formant_noise(n, forms) * amp * level * (0.12 + 0.3 * v["breath"])
+    return lowpass(x, 4200)
 
 
 def trombone_voice(syllables, base=120.0, mute=True, speed=1.0) -> np.ndarray:
@@ -1065,124 +1109,517 @@ def ending_theme() -> np.ndarray:
     return reverb(tr.out(3.0), 3.0, 0.3)
 
 
-def _polka_bass(tr, t0, root, bars, beat):
-    for b in range(bars):
-        tb = t0 + b * 2 * beat
-        tr.add(tb, tuba(midi(root), beat * 0.6, 0.9))
-        tr.add(tb + beat, tuba(midi(root + 7 - 12), beat * 0.6, 0.8))
+# --------------------------------------------------------------------------
+# more instruments
+# --------------------------------------------------------------------------
+
+def harmonica(freq, dur, vel=1.0):
+    t = tt(dur + 0.08)
+    n = len(t)
+    wob = 1 + 0.011 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.2) / 0.3, 0, 1)
+    f = freq * wob * (1 - 0.025 * np.exp(-t / 0.03))
+    forms = [(np.full(n, 1150.0), 420, 1.0), (np.full(n, 2600.0), 650, 0.45)]
+    x = additive_voice(f, forms, tilt=0.6, breath=0.0)
+    x += bandpass(noise(n), 1500, 5500) * 0.03
+    env = np.minimum(1, t / 0.035) * np.clip((dur + 0.08 - t) / 0.08, 0, 1)
+    env *= 0.88 + 0.12 * np.sin(2 * np.pi * 5.5 * t)
+    return lowpass(x * env, 5000) * vel
+
+
+def fiddle(freq, dur, vel=1.0):
+    t = tt(dur + 0.15)
+    vib = 1 + 0.009 * np.sin(2 * np.pi * 5.8 * t + 1.0) * np.clip((t - 0.12) / 0.25, 0, 1)
+    ph = 2 * np.pi * np.cumsum(freq * vib) / SR
+    x = np.zeros_like(t)
+    for k in range(1, 16):
+        if freq * k > 9000:
+            break
+        x += (1 / k ** 1.05) * (1.35 if k in (2, 3) else 1.0) * np.sin(k * ph + _rng.uniform(0, 6))
+    bow = bandpass(noise(len(t)), 2200, 7000) * 0.05
+    env = np.minimum(1, t / 0.07) * np.clip((dur + 0.15 - t) / 0.15, 0, 1)
+    return lowpass((x * 0.45 + bow) * env, 5200) * vel
+
+
+def upright_bass(freq, dur, vel=1.0):
+    t = tt(dur + 0.1)
+    body = np.sin(2 * np.pi * freq * t) * np.exp(-t / 0.7) + 0.3 * np.sin(4 * np.pi * freq * t) * np.exp(-t / 0.3)
+    thump = np.sin(2 * np.pi * freq * 0.5 * t) * np.exp(-t / 0.05) * 0.3
+    env = np.minimum(1, t / 0.006) * np.clip((dur + 0.1 - t) / 0.1, 0, 1)
+    pl = pluck(freq, dur + 0.1, 0.5, bright=0.12, decay=0.995)
+    pl = np.pad(pl, (0, max(0, len(t) - len(pl))))[:len(t)]
+    return lowpass((body + thump) * env + pl * 0.4, 1600) * vel
+
+
+def clarinet(freq, dur, vel=1.0):
+    t = tt(dur + 0.07)
+    f = freq * (1 + 0.004 * np.sin(2 * np.pi * 5 * t) * np.clip((t - 0.2) / 0.3, 0, 1))
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = np.zeros_like(t)
+    for k in range(1, 16, 2):
+        if freq * k > 8000:
+            break
+        x += (1 / k ** 0.9) * np.sin(k * ph)
+    x += 0.1 * np.sin(2 * ph)
+    x += bandpass(noise(len(t)), 1000, 4000) * 0.02
+    env = np.minimum(1, t / 0.05) * np.clip((dur + 0.07 - t) / 0.07, 0, 1)
+    return lowpass(x * env, 3200) * vel * 0.6
+
+
+def muted_trumpet(freq, dur, vel=1.0):
+    t = tt(dur + 0.05)
+    n = len(t)
+    f = freq * (1 - 0.03 * np.exp(-t / 0.03))
+    op = np.clip(t / max(dur * 0.55, 0.05), 0, 1)
+    forms = [(500 + 700 * op, 150, 1.0), (1300 + 900 * op, 260, 0.8), (np.full(n, 3000.0), 400, 0.3)]
+    x = additive_voice(f, forms, tilt=0.5)
+    env = np.minimum(1, t / 0.02) * np.clip((dur + 0.05 - t) / 0.05, 0, 1)
+    return x * env * vel
+
+
+def organ(freq, dur, vel=1.0):
+    t = tt(dur + 0.04)
+    x = np.zeros_like(t)
+    for k, a in ((1, 1.0), (2, 0.7), (3, 0.45), (4, 0.3), (6, 0.15), (8, 0.12)):
+        if freq * k < 9000:
+            x += a * np.sin(2 * np.pi * freq * k * t)
+    env = np.minimum(1, t / 0.008) * np.clip((dur + 0.04 - t) / 0.04, 0, 1)
+    return x * env * vel * 0.4
+
+
+def woodblock(pitch=900.0, vel=1.0):
+    t = tt(0.14)
+    x = np.sin(2 * np.pi * pitch * t) * np.exp(-t / 0.022) + 0.45 * np.sin(2 * np.pi * pitch * 2.41 * t) * np.exp(-t / 0.01)
+    x += bandpass(noise(len(t)), 1500, 6000) * np.exp(-t / 0.003) * 0.4
+    return x * vel
+
+
+def brush(vel=1.0):
+    t = tt(0.22)
+    env = np.minimum(1, t / 0.012) * np.exp(-t / 0.08)
+    return bandpass(noise(len(t)), 2200, 9000) * env * vel
+
+
+def slide_whistle(f0, f1, dur, vel=1.0):
+    t = tt(dur)
+    k = np.clip(t / dur, 0, 1)
+    f = f0 * (f1 / f0) ** (k * k * (3 - 2 * k))
+    f *= 1 + 0.015 * np.sin(2 * np.pi * 6.5 * t)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = np.sin(ph) + 0.12 * np.sin(2 * ph) + bandpass(noise(len(t)), 800, 5000) * 0.05
+    env = np.minimum(1, t / 0.03) * np.clip((dur - t) / 0.06, 0, 1)
+    return x * env * vel
+
+
+def seq(tr, t0, beat, notes, inst, vel=1.0, transpose=0, gate=0.92, wrap=True):
+    """Lay a list of (note, beats) into a track; 'R' is a rest. Returns the end time."""
+    t = t0
+    for n, b in notes:
+        if n != "R":
+            x = inst(midi(nm(n) + transpose), b * beat * gate, vel)
+            (tr.add_wrapped if wrap else tr.add)(t, x)
+        t += b * beat
+    return t
+
+
+def stereoless_space(x, wet=0.16, size=1.4):
+    """Music gets a little hall so it doesn't sound like it's coming out of a tin can."""
+    n = len(x)
+    y = reverb(x, decay=size, wet=wet, tone=5000)
+    # fold the reverb tail back onto the start so the loop stays seamless
+    out = y[:n].copy()
+    tail = y[n:]
+    k = min(len(tail), n)
+    out[:k] += tail[:k]
+    return out
+
+
+# --------------------------------------------------------------------------
+# music (longer arrangements with real sections, so the loops don't grate)
+# --------------------------------------------------------------------------
+
+G_CHORDS = {
+    "G": ("G2", ["G3", "B3", "D4"]), "C": ("C3", ["C4", "E4", "G4"]), "D": ("D2", ["D3", "F#3", "A3"]),
+    "Em": ("E2", ["E3", "G3", "B3"]), "Bm": ("B1", ["B2", "D3", "F#3"]), "Am7": ("A1", ["A2", "C3", "E3", "G3"]),
+    "D7": ("D2", ["D3", "F#3", "C4"]),
+}
+PASTURE_A = [
+    [("B4", 1), ("D5", 1), ("G5", 1.5), ("F#5", 0.5)], [("E5", 2), ("C5", 1), ("E5", 1)],
+    [("D5", 1.5), ("B4", 0.5), ("G4", 1), ("B4", 1)], [("A4", 3), ("R", 1)],
+    [("B4", 1), ("E5", 1), ("G5", 1), ("E5", 1)], [("E5", 1.5), ("D5", 0.5), ("C5", 1), ("E5", 1)],
+    [("D5", 1), ("A4", 1), ("B4", 1), ("C5", 1)], [("B4", 3), ("R", 1)],
+]
+PASTURE_B = [
+    [("G5", 2), ("E5", 1), ("C5", 1)], [("F#5", 2), ("D5", 1), ("A4", 1)],
+    [("B4", 1), ("D5", 1), ("F#5", 1), ("D5", 1)], [("E5", 3), ("B4", 1)],
+    [("C5", 1), ("E5", 1), ("G5", 1), ("C6", 1)], [("B5", 1.5), ("A5", 0.5), ("F#5", 2)],
+    [("E5", 1), ("G5", 1), ("C5", 1), ("E5", 1)], [("D5", 2), ("F#5", 1), ("A5", 1)],
+]
+
+
+def pasture_theme() -> np.ndarray:
+    """~100 s of pastoral: intro, A (harmonica), A' (flute), B (fiddle), A'' (both), outro."""
+    bpm = 92
+    beat = 60 / bpm
+    bar = 4 * beat
+    A = ["G", "C", "G", "D", "Em", "C", "D", "G"]
+    B = ["C", "D", "Bm", "Em", "C", "D", "Am7", "D7"]
+    prog = ["G", "G", "C", "D"] + A + A + B + A + ["G", "G"]
+    tr = Track(len(prog) * bar)
+    for i, c in enumerate(prog):
+        root, tones = G_CHORDS[c]
+        tb = i * bar
+        tr.add_wrapped(tb, upright_bass(midi(nm(root)), beat * 1.7, 0.85))
+        tr.add_wrapped(tb + 2 * beat, upright_bass(midi(nm(root) + 7), beat * 1.7, 0.65))
+        pat = [0, 1, 2, 1, 0, 1, 2, 1] if i % 2 == 0 else [0, 2, 1, 2, 0, 2, 1, 2]
+        for j, p in enumerate(pat):
+            tr.add_wrapped(tb + j * beat / 2, pluck(midi(nm(tones[p % len(tones)])), 1.4, 0.55, bright=0.45),
+                           0.3 if j % 2 else 0.36)
+        if 20 <= i < 36:
+            tr.add_wrapped(tb + beat, brush(), 0.16)
+            tr.add_wrapped(tb + 3 * beat, brush(), 0.16)
+    t = 4 * bar
+    for b in PASTURE_A:
+        t = seq(tr, t, beat, b, harmonica, 0.34)
+    for b in PASTURE_A:
+        t = seq(tr, t, beat, b, flute, 0.3)
+    for b in PASTURE_B:
+        t = seq(tr, t, beat, b, fiddle, 0.4)
+    t2 = t
+    for b in PASTURE_A:
+        t = seq(tr, t, beat, b, harmonica, 0.3)
+    for b in PASTURE_A:
+        t2 = seq(tr, t2, beat, b, flute, 0.16, transpose=12)
+    seq(tr, t, beat, [("G4", 4), ("R", 4)], harmonica, 0.3)
+    return stereoless_space(tr.loop(), wet=0.14, size=1.2)
+
+
+def stealth_theme() -> np.ndarray:
+    """~38 s sneaking music that builds in layers: bass & ticks, pizzicato, clarinet, trumpet stabs."""
+    bpm = 100
+    beat = 60 / bpm
+    bar = 4 * beat
+    n_bars = 16
+    tr = Track(n_bars * bar)
+    ost = [("D2", 1), ("R", 1), ("F2", 1), ("R", 1), ("E2", 1), ("R", 1), ("A1", 1), ("R", 1)]
+    for k in range(n_bars // 2):
+        seq(tr, k * 2 * bar, beat, ost, tuba, 0.6, gate=0.35)
+        seq(tr, k * 2 * bar, beat, ost, upright_bass, 0.5, gate=0.4)
+    for i in range(n_bars * 4):
+        tr.add_wrapped(i * beat + beat / 2, woodblock(950 if i % 2 == 0 else 720), 0.22)
+    harm = [["D4", "F4", "A4"], ["C#4", "E4", "A4"]]
+    for bi in range(4, n_bars):
+        tones = harm[bi % 2]
+        for j in range(8):
+            tr.add_wrapped(bi * bar + j * beat / 2, pluck(midi(nm(tones[[0, 1, 2, 1][j % 4]])), 0.35, 0.45,
+                                                           bright=0.3, decay=0.99), 0.4)
+    mel = [
+        [("A3", 0.5), ("R", 0.5), ("A3", 0.5), ("Bb3", 0.5), ("A3", 1), ("R", 1)],
+        [("F3", 0.5), ("R", 0.5), ("G3", 0.5), ("G#3", 0.5), ("A3", 2)],
+        [("D4", 0.5), ("R", 0.5), ("C#4", 0.5), ("R", 0.5), ("C4", 0.5), ("R", 0.5), ("B3", 0.5), ("Bb3", 0.5)],
+        [("A3", 1.5), ("R", 0.5), ("E3", 1), ("R", 1)],
+        [("D4", 0.5), ("R", 0.5), ("D4", 0.5), ("Eb4", 0.5), ("D4", 1), ("R", 1)],
+        [("Bb3", 0.5), ("R", 0.5), ("C4", 0.5), ("C#4", 0.5), ("D4", 2)],
+        [("D4", 0.5), ("E4", 0.5), ("F4", 0.5), ("E4", 0.5), ("D4", 0.5), ("C#4", 0.5), ("D4", 1)],
+        [("A3", 2), ("R", 2)],
+    ]
+    t = 8 * bar
+    for b in mel:
+        t = seq(tr, t, beat, b, clarinet, 0.5)
+    for bi in range(12, n_bars):
+        tr.add_wrapped(bi * bar + 3 * beat, muted_trumpet(midi(nm("D5")), beat * 0.45, 0.3))
+        tr.add_wrapped(bi * bar + 3.5 * beat, muted_trumpet(midi(nm("C#5")), beat * 0.4, 0.25))
+    for bi in range(8, n_bars):
+        tr.add_wrapped(bi * bar + beat, brush(), 0.14)
+        tr.add_wrapped(bi * bar + 3 * beat, brush(), 0.14)
+    return stereoless_space(tr.loop(), wet=0.12, size=0.9)
+
+
+E_CHORDS = {"Em": "E2", "C": "C2", "D": "D2", "B": "B1", "Am": "A1"}
+E_TONES = {"Em": ["E4", "G4", "B4"], "C": ["C4", "E4", "G4"], "D": ["D4", "F#4", "A4"], "B": ["B3", "D#4", "F#4"],
+           "Am": ["A3", "C4", "E4"]}
+
+
+def boss_theme() -> np.ndarray:
+    """~46 s of polka-metal: riff, cowbell breakdown, kazoo shred, riff again."""
+    bpm = 168
+    beat = 60 / bpm
+    bar = 4 * beat
+    A = ["Em", "Em", "C", "D"] * 2
+    B = ["Am", "Am", "Em", "Em", "C", "C", "B", "B"]
+    Cc = ["Em", "C", "D", "B"] * 2
+    prog = A + B + Cc + A
+    tr = Track(len(prog) * bar)
+    for i, c in enumerate(prog):
+        tb = i * bar
+        r = nm(E_CHORDS[c])
+        sec = "B" if 8 <= i < 16 else ("C" if 16 <= i < 24 else "A")
+        for k in range(4):
+            if k % 2 == 0:
+                tr.add_wrapped(tb + k * beat, np.tanh(tuba(midi(r + (7 if k == 2 else 0)), beat * 0.45, 1.0) * 4), 0.35)
+            else:
+                for tn in E_TONES[c]:
+                    tr.add_wrapped(tb + k * beat, organ(midi(nm(tn)), beat * 0.35, 0.5), 0.3)
+        if sec == "B":
+            tr.add_wrapped(tb, kick(0.3, 1.0))
+            tr.add_wrapped(tb + 2 * beat, snare(0.25, 0.9))
+            for k in range(4):
+                tr.add_wrapped(tb + k * beat, bell808(0.3, 0.6))
+        else:
+            tr.add_wrapped(tb, kick(0.3, 1.0))
+            tr.add_wrapped(tb + 1.5 * beat, kick(0.3, 0.6))
+            tr.add_wrapped(tb + 2 * beat, kick(0.3, 0.9))
+            tr.add_wrapped(tb + beat, snare(0.2, 0.8))
+            tr.add_wrapped(tb + 3 * beat, snare(0.2, 0.8))
+            step = 0.25 if sec == "C" else 0.5
+            for k in range(int(4 / step)):
+                tr.add_wrapped(tb + k * step * beat, hat(0.05, 0.22 if k % 2 == 0 else 0.14))
+        if i in (0, 8, 16, 24):
+            tr.add_wrapped(tb, highpass(noise(int(1.2 * SR)), 5000) * np.exp(-tt(1.2) / 0.35), 0.35)
+    riff = [("E5", .5), ("G5", .5), ("B5", .5), ("G5", .5), ("E5", .5), ("F#5", .5), ("G5", 1),
+            ("C6", .5), ("B5", .5), ("A5", .5), ("G5", .5), ("F#5", .5), ("G5", .5), ("A5", 1)]
+    for rep in (0, 2, 4, 6, 24, 26, 28, 30):
+        seq(tr, rep * bar, beat, riff, kazoo, 0.36)
+    longs = [("A4", 4), ("C5", 4), ("B4", 4), ("G4", 4), ("E5", 4), ("G5", 4), ("F#5", 8)]
+    seq(tr, 8 * bar, beat, longs, muted_trumpet, 0.3)
+    seq(tr, 8 * bar, beat, longs, kazoo, 0.18, transpose=-12)
+    for i, c in enumerate(Cc):
+        tones = E_TONES[c]
+        up = [tones[0], tones[1], tones[2], tones[1]] * 4
+        seq(tr, (16 + i) * bar, beat, [(n, 0.25) for n in up], kazoo, 0.26, transpose=12 if i % 2 else 0)
+    tr.add_wrapped(len(prog) * bar - 2 * beat, slide_whistle(400, 1500, 2 * beat), 0.35)
+    return stereoless_space(tr.loop(), wet=0.1, size=0.8)
 
 
 def title_theme() -> np.ndarray:
-    """Absurd tuba-and-kazoo polka for the title screen (2/4)."""
+    """A tuba-and-kazoo polka with a verse, a chorus and a clarinet bridge (~36 s)."""
     bpm = 132
     beat = 60 / bpm
-    prog = ["C3", "C3", "G2", "G2", "F2", "C3", "G2", "C3"] * 2
-    mel = [
+    bar = 2 * beat
+    verse_prog = ["C3", "C3", "G2", "G2", "F2", "C3", "G2", "C3"] * 2
+    chorus_prog = ["C3", "C3", "F2", "F2", "G2", "G2", "C3", "C3"] * 2
+    bridge_prog = ["F2", "F2", "C3", "C3", "G2", "G2", "C3", "G2"]
+    prog = verse_prog + chorus_prog + bridge_prog
+    chord = {"C3": ["E4", "G4", "C5"], "G2": ["D4", "G4", "B4"], "F2": ["F4", "A4", "C5"]}
+    tr = Track(len(prog) * bar)
+    for i, root in enumerate(prog):
+        tb = i * bar
+        tr.add_wrapped(tb, tuba(midi(nm(root)), beat * 0.6, 0.9))
+        tr.add_wrapped(tb + beat, tuba(midi(nm(root) + 7 - 12), beat * 0.6, 0.8))
+        for off in (0.5, 1.5):
+            for cn in chord[root]:
+                tr.add_wrapped(tb + off * beat, strings(midi(nm(cn)), beat * 0.32, 0.12, attack=0.01, release=0.05,
+                                                        voices=2))
+        tr.add_wrapped(tb, kick(0.25, 0.5))
+        tr.add_wrapped(tb + beat, snare(0.2, 0.3))
+    verse = [
         ("E5", .5), ("G5", .5), ("G5", .5), ("E5", .5), ("D5", .5), ("F5", .5), ("F5", 1),
         ("D5", .5), ("F5", .5), ("B4", .5), ("D5", .5), ("C5", .5), ("E5", .5), ("E5", 1),
         ("A5", .5), ("A5", .5), ("G5", .5), ("E5", .5), ("F5", .5), ("D5", .5), ("E5", .5), ("C5", .5),
         ("D5", .5), ("E5", .25), ("D5", .25), ("B4", .5), ("G4", .5), ("C5", 1), ("R", 1),
     ]
-    total = len(prog) * 2 * beat
-    tr = Track(total)
-    for i, root in enumerate(prog):
-        _polka_bass(tr, i * 2 * beat, nm(root), 1, beat)
-        # off-beat chord stabs (accordion-ish via strings)
-        chord = {"C3": ["E4", "G4", "C5"], "G2": ["D4", "G4", "B4"], "F2": ["F4", "A4", "C5"]}[root]
-        for off in (0.5, 1.5):
-            for c in chord:
-                tr.add(i * 2 * beat + off * beat, strings(midi(nm(c)), beat * 0.35, 0.12, attack=0.01, release=0.05, voices=2))
-        tr.add(i * 2 * beat, kick(0.25, 0.5))
-        tr.add(i * 2 * beat + beat, snare(0.2, 0.3))
-    for rep in range(2):
-        t = rep * total / 2
-        for n, b in mel:
-            if n != "R":
-                tr.add(t, kazoo(midi(nm(n)), b * beat * 0.9, 0.55))
-            t += b * beat
-    return tr.loop()
-
-
-def pasture_theme() -> np.ndarray:
-    """Gentle pastoral loop: guitar arpeggios and a flute."""
-    bpm = 88
-    beat = 60 / bpm
-    prog = [("G2", ["G3", "B3", "D4"]), ("C3", ["C4", "E4", "G4"]), ("E2", ["E3", "G3", "B3"]), ("D2", ["D3", "F#3", "A3"])] * 2
-    total = len(prog) * 4 * beat
-    tr = Track(total)
-    for i, (bass, tones) in enumerate(prog):
-        tb = i * 4 * beat
-        tr.add_wrapped(tb, pluck(midi(nm(bass)), 2.5, 0.8, bright=0.3), 0.7)
-        pattern = [0, 1, 2, 1, 0, 1, 2, 1]
-        for j, p in enumerate(pattern):
-            tr.add_wrapped(tb + j * beat / 2, pluck(midi(nm(tones[p])), 1.5, 0.6, bright=0.5), 0.35)
-    flute_line = [("D5", 3), ("B4", 1), ("C5", 2), ("E5", 2), ("B4", 4), ("A4", 2), ("F#4", 2),
-                  ("G4", 3), ("A4", 1), ("B4", 2), ("C5", 2), ("B4", 3), ("R", 1), ("A4", 4)]
-    t = 0
-    for n, b in flute_line:
-        if n != "R":
-            tr.add_wrapped(t, flute(midi(nm(n)), b * beat * 0.95, 0.25))
-        t += b * beat
-    return tr.loop()
-
-
-def stealth_theme() -> np.ndarray:
-    """Sneaky pizzicato + tuba loop."""
-    bpm = 104
-    beat = 60 / bpm
-    total = 16 * beat
-    tr = Track(total)
-    bassline = ["D2", "R", "F2", "R", "E2", "R", "A1", "R", "D2", "R", "F2", "G2", "A2", "R", "A1", "R"]
-    for i, n in enumerate(bassline):
-        if n != "R":
-            tr.add_wrapped(i * beat, tuba(midi(nm(n)), beat * 0.35, 0.7))
-    pizz = ["A3", "D4", "F4", "D4", "G#3", "D4", "F4", "D4", "A3", "D4", "F4", "A4", "C#4", "E4", "A4", "E4"]
-    for i, n in enumerate(pizz):
-        tr.add_wrapped(i * beat + beat / 2, pluck(midi(nm(n)), 0.4, 0.5, bright=0.35, decay=0.99), 0.45)
-    for i in range(32):
-        tr.add_wrapped(i * beat / 2, hat(0.05, 0.12 if i % 2 else 0.2))
-    return tr.loop()
+    t = seq(tr, 0, beat, verse, kazoo, 0.5)
+    seq(tr, t, beat, verse, kazoo, 0.5)
+    chorus = [
+        ("G4", 1), ("E4", .5), ("G4", .5), ("C5", .5), ("B4", .5), ("A4", .5), ("G4", .5),
+        ("A4", 1), ("F4", .5), ("A4", .5), ("C5", .5), ("A4", .5), ("F4", 1),
+        ("B4", 1), ("G4", .5), ("B4", .5), ("D5", .5), ("C5", .5), ("B4", .5), ("A4", .5),
+        ("G4", .5), ("E4", .5), ("C4", .5), ("E4", .5), ("G4", 1.5), ("R", .5),
+        ("E5", .5), ("D5", .5), ("C5", .5), ("D5", .5), ("E5", 1), ("C5", 1),
+        ("F5", .5), ("E5", .5), ("D5", .5), ("C5", .5), ("A4", 1), ("F4", 1),
+        ("G4", .5), ("A4", .5), ("B4", .5), ("C5", .5), ("D5", 1), ("B4", 1),
+        ("C5", .5), ("G4", .5), ("E4", .5), ("G4", .5), ("C5", 1.5), ("R", .5),
+    ]
+    t0 = 16 * bar
+    seq(tr, t0, beat, chorus, tuba, 0.55, transpose=-12)
+    seq(tr, t0, beat, chorus, kazoo, 0.4)
+    bridge = [("A4", 1), ("C5", 1), ("F5", 2), ("E5", 1), ("D5", .5), ("C5", .5), ("G4", 2),
+              ("B4", 1), ("D5", 1), ("G5", 1), ("F5", 1), ("E5", .5), ("D5", .5), ("C5", 1), ("D5", 1), ("B4", 1)]
+    seq(tr, 32 * bar, beat, bridge, clarinet, 0.7)
+    tr.add_wrapped(len(prog) * bar - beat, slide_whistle(500, 1300, beat * 0.9), 0.3)
+    return stereoless_space(tr.loop(), wet=0.1, size=0.9)
 
 
 def night_theme() -> np.ndarray:
-    total = 32.0
+    """64 s of soft night: pads, a music box wandering, a far-off flute twice."""
+    total = 64.0
     tr = Track(total)
-    chords = [["F3", "A3", "C4"], ["D3", "F3", "A3"], ["Bb2", "D3", "F3"], ["C3", "E3", "G3"]]
+    chords = [["F3", "A3", "C4"], ["D3", "F3", "A3"], ["Bb2", "D3", "F3"], ["C3", "E3", "G3"],
+              ["A2", "C3", "E3"], ["D3", "F3", "A3"], ["G2", "Bb2", "F3"], ["C3", "E3", "Bb3"]]
     for i, ch in enumerate(chords):
         for n in ch:
-            tr.add_wrapped(i * 8, pad(midi(nm(n)), 8.5, 0.16))
-    notes = ["C6", "A5", "F5", "G5", "E5", "D5", "A5", "F5"]
-    for i, n in enumerate(notes):
-        tr.add_wrapped(i * 4 + _rng.uniform(0.5, 2.5), music_box(midi(nm(n)), 2.5, 0.3))
+            tr.add_wrapped(i * 8, pad(midi(nm(n)), 8.6, 0.15))
+        tr.add_wrapped(i * 8, upright_bass(midi(nm(ch[0]) - 12), 3.0, 0.35))
+    r = np.random.default_rng(12)
+    scale = ["F5", "G5", "A5", "C6", "D6", "F6", "A5", "C6"]
+    for i in range(22):
+        t = i * 2.9 + r.uniform(0, 0.8)
+        tr.add_wrapped(t, music_box(midi(nm(scale[r.integers(0, len(scale))])), 2.5, 0.28))
+    phrase = [("C5", 2), ("A4", 1), ("F4", 1), ("G4", 3), ("R", 1)]
+    seq(tr, 16, 0.75, phrase, flute, 0.18)
+    seq(tr, 48, 0.75, [("A4", 2), ("C5", 1), ("D5", 1), ("C5", 3), ("R", 1)], flute, 0.18)
+    return stereoless_space(tr.loop(), wet=0.22, size=2.2)
+
+
+# --------------------------------------------------------------------------
+# a livelier farm: positional ambience loops and comic stingers
+# --------------------------------------------------------------------------
+
+def loop_frogs(dur=12.0):
+    tr = Track(dur)
+    r = np.random.default_rng(3)
+    for frog in range(4):
+        base = r.uniform(170, 280)
+        t0 = r.uniform(0, dur)
+        for call in range(int(dur / r.uniform(2.5, 4.0))):
+            tc = t0 + call * r.uniform(2.6, 4.2)
+            for p in range(r.integers(2, 4)):
+                d = r.uniform(0.12, 0.2)
+                t = tt(d)
+                f = base * (1 + 0.15 * np.sin(np.pi * t / d))
+                ph = 2 * np.pi * np.cumsum(f) / SR
+                x = (np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.3 * np.sin(3 * ph)) * (np.sin(2 * np.pi * 38 * t) > -0.2)
+                x = bandpass(x, 150, 1500) * np.sin(np.pi * t / d)
+                tr.add_wrapped(tc + p * (d + 0.05), x, r.uniform(0.3, 0.6))
     return tr.loop()
 
 
-def boss_theme() -> np.ndarray:
-    """Polka-metal. Fast oompah, distorted bass, kazoo shredding."""
-    bpm = 168
-    beat = 60 / bpm
-    prog = ["E2", "E2", "C2", "D2"] * 4
-    total = len(prog) * 2 * beat
-    tr = Track(total)
-    for i, root in enumerate(prog):
-        tb = i * 2 * beat
-        r = nm(root)
-        for k in range(4):
-            dist = np.tanh(tuba(midi(r), beat * 0.4, 1.0) * 4)
-            tr.add_wrapped(tb + k * beat / 2, dist, 0.35)
-        tr.add_wrapped(tb, kick(0.3, 1.0))
-        tr.add_wrapped(tb + beat, snare(0.2, 0.8))
-        tr.add_wrapped(tb + beat * 0.5, kick(0.3, 0.6))
-        for k in range(4):
-            tr.add_wrapped(tb + k * beat / 2, hat(0.05, 0.25))
-    riff = [("E5", .5), ("G5", .5), ("B5", .5), ("G5", .5), ("E5", .5), ("F#5", .5), ("G5", 1),
-            ("C6", .5), ("B5", .5), ("A5", .5), ("G5", .5), ("F#5", .5), ("G5", .5), ("A5", 1)]
-    for rep in range(4):
-        t = rep * total / 4
-        for n, b in riff:
-            tr.add_wrapped(t, kazoo(midi(nm(n)), b * beat * 0.9, 0.35, vib=0.03))
-            t += b * beat
+def loop_chickens(dur=14.0):
+    tr = Track(dur)
+    r = np.random.default_rng(5)
+    for _ in range(9):
+        x = lowpass(chicken_cluck(int(r.integers(2, 5))), 3500)
+        tr.add_wrapped(r.uniform(0, dur), x, r.uniform(0.3, 0.7))
     return tr.loop()
+
+
+def loop_windmill(dur=9.0):
+    """The rotor turns every 9 s; the bearing complains twice a turn."""
+    tr = Track(dur)
+    for t0 in (0.4, 4.9):
+        cr = sfx_door_creak(1.3)
+        tr.add_wrapped(t0, lowpass(cr, 2500), 0.6)
+    t = tt(dur)
+    rattle = np.zeros_like(t)
+    for k in range(18):
+        i = int((k * dur / 18) * SR)
+        m = int(0.02 * SR)
+        rattle[i:i + m] += noise(m) * np.exp(-np.arange(m) / (0.004 * SR))
+    tr.add_wrapped(0, bandpass(rattle, 1500, 5000), 0.2)
+    tr.add_wrapped(0, fft_filter_periodic(noise(len(t)), lambda f: 1 / (1 + (f / 300) ** 2) * (f > 30)), 0.12)
+    return tr.loop()
+
+
+def loop_flies(dur=8.0):
+    tr = Track(dur)
+    r = np.random.default_rng(9)
+    for _ in range(5):
+        d = r.uniform(0.8, 2.0)
+        t = tt(d)
+        f = r.uniform(180, 240) * (1 + 0.08 * lowpass(noise(len(t)), 6) * 5)
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        x = sum(np.sin(k * ph) / k for k in range(1, 12))
+        x = bandpass(x, 180, 2500) * np.sin(np.pi * t / d) ** 2
+        tr.add_wrapped(r.uniform(0, dur), x, r.uniform(0.3, 0.6))
+    return tr.loop()
+
+
+def loop_owl(dur=18.0):
+    tr = Track(dur)
+    for t0, pat in ((3.0, (0.35, 0.35, 0.9)), (11.5, (0.3, 0.8))):
+        tc = t0
+        for d in pat:
+            t = tt(d)
+            f = 390 * (1 - 0.06 * t / d)
+            x = np.sin(2 * np.pi * np.cumsum(f) / SR) + 0.15 * np.sin(4 * np.pi * np.cumsum(f) / SR)
+            x *= np.sin(np.pi * t / d) ** 1.5
+            tr.add_wrapped(tc, x, 0.5)
+            tc += d + 0.25
+    return reverb(tr.loop(), 1.8, 0.3)[: int(dur * SR)]
+
+
+def loop_pigeons(dur=10.0):
+    tr = Track(dur)
+    r = np.random.default_rng(21)
+    for _ in range(4):
+        tc = r.uniform(0, dur)
+        for p, d in enumerate((0.25, 0.5)):
+            t = tt(d)
+            f = r.uniform(300, 360) * (1 - 0.1 * t / d)
+            x = np.sin(2 * np.pi * np.cumsum(f) / SR) * (0.75 + 0.25 * np.sin(2 * np.pi * 22 * t))
+            x *= np.sin(np.pi * t / d)
+            tr.add_wrapped(tc + p * 0.3, lowpass(x, 1500), 0.4)
+    return tr.loop()
+
+
+def loop_clock(dur=2.0):
+    tr = Track(dur)
+    tr.add_wrapped(0.0, woodblock(2600, 1.0) * 0.5)
+    tr.add_wrapped(1.0, woodblock(2100, 1.0) * 0.45)
+    return tr.loop()
+
+
+def loop_fridge(dur=4.0):
+    t = tt(dur)
+    x = 0.6 * np.sin(2 * np.pi * 60 * t) + 0.3 * np.sin(2 * np.pi * 120 * t) + 0.1 * np.sin(2 * np.pi * 180 * t)
+    x *= 1 + 0.05 * np.sin(2 * np.pi * 0.5 * t)
+    x += fft_filter_periodic(noise(len(t)), lambda f: (f > 80) * (f < 900) * 1.0) * 0.05
+    return x
+
+
+def sfx_bonk():
+    return mix(woodblock(560, 1.0), (sfx_thump(0.35, 70), 0.5))
+
+
+# --------------------------------------------------------------------------
+# mastering: every sound gets a loudness that fits its job, not the same peak
+# --------------------------------------------------------------------------
+
+LOUDNESS = {  # dBFS: loudest 400 ms for one-shots, average for loops and music
+    "music": -17.0, "loop": -19.0, "voice": -12.0, "foley": -17.0, "ui": -15.0, "big": -10.0, "sfx": -13.0,
+}
+UI_SOUNDS = {"blip", "blip_hi", "blip_lo", "type", "ding", "question", "clover", "fanfare", "paper"}
+BIG_SOUNDS = {"shotgun", "gate_smash", "crash", "alert", "dun_dun", "sad_trombone"}
+
+
+def sound_category(name):
+    if name.startswith(("music_", "moozart_")) or name == "final_note":
+        return "music"
+    if name.startswith("loop_"):
+        return "loop"
+    if name.startswith(("moo_", "farmer_", "cluck")) or name in ("rooster_crow", "squawk"):
+        return "voice"
+    if name.startswith(("step_", "cowbell_")):
+        return "foley"
+    if name in UI_SOUNDS:
+        return "ui"
+    if name in BIG_SOUNDS:
+        return "big"
+    return "sfx"
+
+
+def loudness_db(x, average):
+    x = np.asarray(x, dtype=np.float64)
+    if average or len(x) < int(0.4 * SR):
+        return 10 * np.log10(np.mean(x ** 2) + 1e-12)
+    win = int(0.4 * SR)
+    c = np.concatenate([[0.0], np.cumsum(x ** 2)])
+    return 10 * np.log10(np.max((c[win:] - c[:-win]) / win) + 1e-12)
+
+
+def master(name, x):
+    cat = sound_category(name)
+    x = np.asarray(x, dtype=np.float64)
+    looped = cat in ("loop",) or name.startswith("music_") and name not in ("music_ending", "music_sad")
+    if looped:  # keep loops seamless: filter around the circle
+        x = fft_filter_periodic(x - np.mean(x), lambda f: (f > 18).astype(float))
+    else:
+        x = highpass(x, 18)
+    x = x * 10 ** ((LOUDNESS[cat] - loudness_db(x, cat in ("music", "loop"))) / 20)
+    # soft ceiling at -1 dBFS
+    a = np.abs(x)
+    knee = 0.7
+    y = np.where(a > knee, np.sign(x) * (knee + 0.19 * np.tanh((a - knee) / 0.19)), x)
+    return y
 
 
 def sad_theme() -> np.ndarray:
@@ -1289,6 +1726,17 @@ def catalog():
         "loop_snore": loop_snore,
         "loop_herd": loop_hum_crowd,
         "loop_radio": radio_loop,
+        "loop_frogs": loop_frogs,
+        "loop_chickens": loop_chickens,
+        "loop_windmill": loop_windmill,
+        "loop_flies": loop_flies,
+        "loop_owl": loop_owl,
+        "loop_pigeons": loop_pigeons,
+        "loop_clock": loop_clock,
+        "loop_fridge": loop_fridge,
+        "slide_down": lambda: slide_whistle(1500, 330, 0.75),
+        "slide_up": lambda: slide_whistle(330, 1500, 0.55),
+        "bonk": sfx_bonk,
         # music
         "music_title": title_theme,
         "music_pasture": pasture_theme,
@@ -1346,7 +1794,7 @@ def generate_all(out_dir: str, progress=None):
     for i, name in enumerate(names):
         path = os.path.join(out_dir, name + ".wav")
         x = cat[name]()
-        write_wav(path, x)
+        write_wav(path, x, name=name)
         if progress:
             progress(i + 1, len(names), name)
     with open(ver_path, "w") as f:
@@ -1366,7 +1814,7 @@ if __name__ == "__main__":
         cat = catalog()
         for name in only:
             t0 = time.time()
-            write_wav(os.path.join(out, name + ".wav"), cat[name]())
+            write_wav(os.path.join(out, name + ".wav"), cat[name](), name=name)
             print(name, f"{time.time() - t0:.2f}s")
     else:
         t0 = time.time()

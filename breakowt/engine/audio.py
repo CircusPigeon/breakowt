@@ -49,6 +49,8 @@ class AudioManager:
         self._cache_ok: dict[str, bool] = {}
         self.muffle = 1.0  # global duck (e.g. during pause)
         self.music_duck = 1.0
+        self.talk_duck = 1.0          # eased toward talk_duck_target (dips music under dialogue)
+        self.talk_duck_target = 1.0
 
     # ------------------------------------------------------------------
     def _load(self, name, music=False):
@@ -218,10 +220,11 @@ class AudioManager:
             att, pan = self._spatial(v.pos, v.range)
             v.snd.setVolume(v.base_vol * att * self._gvol(v.group))
             v.snd.setBalance(pan)
+        self.talk_duck += (self.talk_duck_target - self.talk_duck) * min(1.0, dt * 3.0)
         keep = []
         for v in self.old_music:
             self._fade_step(v, dt)
-            g = self._gvol(v.group) * (self.music_duck if v.group == "music" else 1.0)
+            g = self._gvol(v.group) * (self.music_duck * self.talk_duck if v.group == "music" else 1.0)
             att, pan = self._spatial(v.pos, v.range)
             v.snd.setVolume(v.base_vol * att * g)
             if v.base_vol <= 0.001 and v.stop_after:
@@ -231,7 +234,7 @@ class AudioManager:
         self.old_music = keep
         if self.music is not None:
             self._fade_step(self.music, dt)
-            self.music.snd.setVolume(self.music.base_vol * self._gvol("music") * self.music_duck)
+            self.music.snd.setVolume(self.music.base_vol * self._gvol("music") * self.music_duck * self.talk_duck)
 
     @staticmethod
     def _fade_step(v, dt):
