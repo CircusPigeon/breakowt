@@ -255,12 +255,13 @@ class MeshBuilder:
         return self
 
     def sphere(self, pos, radius, color=(1, 1, 1, 1), segs=10, rings=7, scale=(1, 1, 1), rot=(0, 0, 0),
-               uv_density=None):
+               uv_density=None, dome=False):
+        """dome=True: only the top half, sitting on pos (for piles that rest on a floor)."""
         R = rot_matrix(*rot)
         sc = np.array(scale, dtype=np.float64) * radius
         verts, norms, uvs, tris = [], [], [], []
         for r in range(rings + 1):
-            phi = math.pi * r / rings
+            phi = (math.pi / 2 if dome else math.pi) * r / rings
             for s in range(segs + 1):
                 th = 2 * math.pi * s / segs
                 p = np.array([math.sin(phi) * math.sin(th), math.cos(phi), math.sin(phi) * math.cos(th)])

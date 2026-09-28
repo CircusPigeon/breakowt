@@ -448,12 +448,22 @@ class World:
                 return self.phys.add_box(a0, a1, z0 - 0.2, z0 + 0.2, 0, h + 0.4, sight=False)
             return self.phys.add_box(x0 - 0.2, x0 + 0.2, a0, a1, 0, h + 0.4, sight=False)
 
-    def lamp(self, key, pos, radius=10.0, col=(1.0, 0.82, 0.55), intensity=1.2, on=True, bulb=True):
+    def lamp(self, key, pos, radius=10.0, col=(1.0, 0.82, 0.55), intensity=1.2, on=True, bulb=True, hang_to=None,
+             arm_to=None):
+        """A bare bulb. hang_to: height of the beam/ceiling its cord runs up to. arm_to: (x, z) of a wall it's
+        bracketed to instead (a short drop, then an arm straight to the wall; axis-aligned)."""
         e = None
         if bulb:
             mb = MeshBuilder()
             mb.sphere((0, 0, 0), 0.13, color=(1, 0.95, 0.7, 1), segs=8, rings=6)
-            mb.cylinder((0, 0.1, 0), 0.02, 0.6, color=(0.1, 0.1, 0.1, 1), segs=4)
+            dark = (0.1, 0.1, 0.1, 1)
+            if arm_to is not None:
+                ax, az = arm_to[0] - pos[0], arm_to[1] - pos[2]
+                mb.cylinder((0, 0.1, 0), 0.02, 0.2, color=dark, segs=4)
+                mb.box((ax / 2, 0.3, az / 2), (max(abs(ax), 0.05), 0.05, max(abs(az), 0.05)), color=dark)
+            else:
+                cord = (hang_to - pos[1] - 0.1) if hang_to is not None else 0.6
+                mb.cylinder((0, 0.1, 0), 0.02, max(0.05, cord), color=dark, segs=4)
             e = Entity(model=mb.build(), texture=tex("white"), shader=FARM_SHADER, position=pos)
             self.entities.append(e)
         self.lamps[key] = dict(pos=pos, radius=radius, col=col, intensity=intensity, on=False, ent=e)
@@ -658,7 +668,10 @@ class World:
         self.add_ia("bed47", (-43.5, 0.4, 0.7), 1.0, "Your bed (stall 47)", text_key="stall_sign")
         self.spawns["bed47"] = (-43.5, 0.0, -1.2, 180)
         self.spawns["cowshed_front"] = (-52, 0, -16, 180)
-        self.lamp("cowshed", (-52, 3.7, -5), radius=13, intensity=1.1, on=False)
+        # tie beams across at wall-top height; the bulb hangs from the middle one
+        for bx in (-60, -52, -44):
+            self.mb("wood_dark").box((bx, H - 0.15, (z0 + z1) / 2), (0.25, 0.25, z1 - z0))
+        self.lamp("cowshed", (-52, 3.7, -5), radius=13, intensity=1.1, on=False, hang_to=H - 0.27)
         self.add_ia("cowshed_bulb", (-52, 3.7, -5), 0.4, "Light bulb", text_key="lamp", reach=4.0)
 
     def build_shed(self):
@@ -719,7 +732,7 @@ class World:
         self.add_ia("poster", (-6.5, 1.6, z0 + 0.15), 0.5, "Poster")
         # shelves on south wall
         self.box("wood", (-6.4, 1.0, z0 + 0.35), (2.2, 0.06, 0.5))
-        self.lamp("shed", (-8, 2.7, -22), radius=7, intensity=1.0, on=True)
+        self.lamp("shed", (-8, 2.7, -22), radius=7, intensity=1.0, on=True, hang_to=3.0)
         self.spawns["shed_in"] = (-7.5, 0, -22, 90)
         self.spawns["shed_back"] = (-14.5, 0, -22.2, 90)
 
@@ -781,8 +794,11 @@ class World:
                                (26, 12.8, 0, LOFT_Y), (24, 12.8, 0, LOFT_Y), (25, 12.8, 0, LOFT_Y + 0.9),
                                (32.5, 12.5, 90, LOFT_Y)]:
             self.hay_bale(hx, y, hz, r)
-        self.mb("hay").sphere((17, LOFT_Y, 10.5), 1.6, segs=10, rings=6, scale=(1.4, 0.7, 1.2), uv_density=0.8)
-        self.mb("hay").sphere((19, LOFT_Y, 12.5), 1.4, segs=10, rings=6, scale=(1.3, 0.6, 1.0), uv_density=0.8)
+        # loose piles: domes resting on the loft floor (a whole sphere poked through the barn ceiling)
+        self.mb("hay").sphere((17, LOFT_Y - 0.02, 10.5), 1.6, segs=12, rings=4, scale=(1.4, 0.7, 1.2), uv_density=0.8,
+                               dome=True)
+        self.mb("hay").sphere((19, LOFT_Y - 0.02, 12.5), 1.4, segs=12, rings=4, scale=(1.3, 0.6, 1.0), uv_density=0.8,
+                               dome=True)
         self.phys.add_zone("hide", 15, 21, 9, 13.5, y0=LOFT_Y - 0.5, data={"kind": "hay"})
         self.add_ia("loft_hay", (17, LOFT_Y + 0.7, 10.5), 1.2, "Hay pile")
         self.spawns["loft_hide"] = (14.8, LOFT_Y, 10.8, 200)
@@ -794,8 +810,10 @@ class World:
         self.hay_bale(14, 0, 11.5, 90)
         self.hay_bale(31.5, 0, 11.5, 0)
         self.hay_bale(31.5, 0.9, 11.5, 0)
-        self.lamp("barn", (22, 5.5, 0), radius=14, intensity=0.9, on=False)
-        self.lamp("loft", (20, 6.0, 9), radius=9, intensity=0.8, on=False)
+        # a tie beam over the main floor for the big lamp; the loft lamp hangs from the rafter at z = 10
+        self.mb("wood_dark").box(((x0 + x1) / 2, 6.3, 0.0), (x1 - x0, 0.25, 0.25))
+        self.lamp("barn", (22, 5.5, 0), radius=14, intensity=0.9, on=False, hang_to=6.18)
+        self.lamp("loft", (17.5, 5.6, 10), radius=9, intensity=0.8, on=False, hang_to=6.18)
         self.spawns["barn_in"] = (22, 0, -6, 0)
         self.spawns["ramp_top"] = (31.4, LOFT_Y, 5.2, 270)
 
@@ -885,10 +903,26 @@ class World:
         mat = MeshBuilder().box((56, y + 0.02, 29.1), (1.4, 0.03, 0.7), uv_rect=(0, 0, 1, 1), faces=[4])
         self.props["doormat"] = Entity(model=mat.build(), texture=tex("welcome_mat"), shader=FARM_SHADER)
         self.add_ia("doormat", (56, y + 0.1, 29.1), 0.5, "Doormat", reach=3.0)
-        self.mb("white").cylinder((60.6, y, 28.6), 0.3, 0.45, color=(0.75, 0.4, 0.25, 1), segs=10, radius_top=0.36)
+        # terracotta pot: tapered body, a rim, soil, leaves and petunias sitting in it
+        fx, fz = 60.6, 28.6
+        pot = (0.72, 0.38, 0.22, 1)
+        self.mb("white").cylinder((fx, y, fz), 0.24, 0.4, color=pot, segs=14, radius_top=0.31)
+        self.mb("white").cylinder((fx, y + 0.36, fz), 0.34, 0.08, color=(0.66, 0.34, 0.2, 1), segs=14)
+        self.mb("white").cylinder((fx, y + 0.38, fz), 0.3, 0.04, color=(0.25, 0.17, 0.1, 1), segs=14)
+        rnd = random.Random(60)
+        for k in range(6):
+            a = k / 6 * math.tau
+            self.mb("white").sphere((fx + math.cos(a) * 0.16, y + 0.47, fz + math.sin(a) * 0.16), 0.11,
+                                    color=(0.22, 0.45, 0.2, 1), segs=6, rings=4, scale=(1.2, 0.6, 1.2))
         for k in range(5):
-            self.mb("white").sphere((60.6 + random.uniform(-0.2, 0.2), y + 0.6, 28.6 + random.uniform(-0.2, 0.2)), 0.12,
-                                    color=(0.8, 0.3, 0.6, 1), segs=6, rings=4)
+            a = k / 5 * math.tau + 0.4
+            r = 0.12 if k else 0.0
+            self.mb("white").sphere((fx + math.cos(a) * r + rnd.uniform(-0.03, 0.03), y + 0.58,
+                                     fz + math.sin(a) * r + rnd.uniform(-0.03, 0.03)), 0.075,
+                                    color=(0.72, 0.3, 0.55, 1), segs=6, rings=4, scale=(1, 0.7, 1))
+        self.phys.add_circle(fx, fz, 0.32, y, y + 0.45)
+        for _ in range(10):
+            random.random()     # the old pot drew these from the seeded world sequence; keep the rest in place
         self.add_ia("flowerpot", (60.6, y + 0.5, 28.6), 0.5, "Flowerpot")
         self.box("wood", (52.5, y + 0.5, 28.5), (0.8, 1.0, 0.8), collide=True)
         # doghouse (RIP Biscuit)
@@ -980,7 +1014,7 @@ class World:
         self.lamp("house_office", (48, y + 2.8, 45), radius=6, intensity=0.9, on=False)
         self.lamp("house_bed", (57, y + 2.8, 45), radius=6, intensity=0.9, on=False)
         self.lamp("house_bath", (65, y + 2.8, 45), radius=5, intensity=0.9, on=False)
-        self.lamp("porch", (56, y + 2.6, 28.5), radius=9, intensity=1.1, on=False)
+        self.lamp("porch", (56, y + 2.6, 28.5), radius=9, intensity=1.1, on=False, hang_to=y + 2.85)
         self.spawns["house_front"] = (56, 0, 24, 0)
         self.spawns["house_in"] = (56, y, 32, 0)
 
@@ -1000,7 +1034,9 @@ class World:
         # cattle chute (ominous)
         self.wood_fence(50.5, -44, 56, -44, h=1.5)
         self.wood_fence(50.5, -38, 56, -38, h=1.5)
-        self.lamp("processing", (x0 - 1.0, 5.5, -41), radius=10, col=(0.9, 0.95, 1.0), intensity=1.0, on=False)
+        # a bracket light on the wall beside the sign, over the door side
+        self.lamp("processing", (x0 - 1.0, 4.6, -36.6), radius=10, col=(0.9, 0.95, 1.0), intensity=1.0, on=False,
+                  arm_to=(x0 - 0.2, -36.6))
         self.spawns["processing_front"] = (52, 0, -41, 90)
 
     def build_gate_and_boundary(self):
@@ -1065,7 +1101,8 @@ class World:
         self.mb("dirt").ground(38, 21, 44, 27, y=0.035, uv_density=0.4)
         self.flowers(38.2, 43.8, 21.2, 26.8, 40)
         gx, gz = 41, 24
-        self.gnome = Entity(position=(gx, 0, gz), rotation_y=200)
+        # a big gnome, so a cow looking straight ahead can see him
+        self.gnome = Entity(position=(gx, 0, gz), rotation_y=200, scale=1.5)
         gm = MeshBuilder()
         gm.cylinder((0, 0, 0), 0.18, 0.35, color=(0.2, 0.4, 0.8, 1), segs=8, radius_top=0.14)
         gm.sphere((0, 0.45, 0), 0.13, color=(0.95, 0.78, 0.65, 1), segs=8, rings=6)
@@ -1073,8 +1110,8 @@ class World:
         gm.cone((0, 0.52, 0), 0.14, 0.35, color=(0.85, 0.12, 0.12, 1), segs=8)
         gm.box((0.15, 0.3, 0.2), (0.02, 0.02, 0.8), color=(0.4, 0.3, 0.2, 1), rot=(-30, 0, 0))
         Entity(parent=self.gnome, model=gm.build(), texture=tex("white"), shader=FARM_SHADER)
-        self.phys.add_circle(gx, gz, 0.25, 0, 0.9)
-        self.add_ia("gnome", (gx, 0.45, gz), 0.4, "Garden gnome")
+        self.phys.add_circle(gx, gz, 0.35, 0, 1.3)
+        self.add_ia("gnome", (gx, 0.7, gz), 0.55, "Garden gnome")
         # pickup truck parked by the house
         self.pickup = models.pickup_model(position=(74, 0, 36), rotation_y=180)
         self.colliders["pickup"] = self.phys.add_box_c(74, 36.2, 2.1, 5.0, 0, 2.0)

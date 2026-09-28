@@ -1998,7 +1998,8 @@ class DayScripts:
     def day5(self):
         yield from self.step("d5_leave", self.d5_leave)
         yield from self.step("d5_key", self.d5_key,
-                             hint="Chuck keeps a spare key somewhere by the front door. Start with the doormat.")
+                             hint="Chuck's spare key is hidden by the front door. Lift the doormat and follow the "
+                                  "notes: it ends up inside the garden gnome by the corner of the house. Headbutt him.")
         yield from self.step("d5_inside", self.d5_inside,
                              hint="The spark plug's in a glass on the kitchen table. The computer's in the office; the "
                                   "password hint says 'my best friend', and there's a photo on the desk.")
@@ -2066,48 +2067,55 @@ class DayScripts:
 
     def d5_key(self):
         g = self.g
-        self.objectives(("in", "Get into the farmhouse"))
-        self.mark((56, 29, "Front door"))
-        st = self.flags.setdefault("d5_keystate", 0)
+        # the objective spells out each clue as it's found, so there's always a next thing to try
+        clue = {0: "   Find Chuck's spare key (try the doormat)",
+                1: "   The note says: under the flowerpot",
+                2: "   The note says: inside the garden gnome. Headbutt him"}
+
+        def show():
+            self.objectives(("in", "Get into the farmhouse"),
+                            ("in_key", clue[min(2, self.flags.get("d5_keystate", 0))]))
+        self.flags.setdefault("d5_keystate", 0)
+        show()
+        self.mark((56, 29, "Doormat"))
+
+        def found(stage, mark):
+            if self.flags.get("d5_keystate", 0) < stage:
+                self.flags["d5_keystate"] = stage
+                show()
+                self.mark(mark)
 
         def mat(gg):
             yield from gg.show_document("Under the doormat", "A sticky note, a bit damp:\n\n"
                                                              "    Spare key is under the FLOWERPOT.")
-            if self.flags.get("d5_keystate", 0) < 1:
-                self.flags["d5_keystate"] = 1
-                self.mark((60.6, 28.6, "Flowerpot"))
+            found(1, (60.6, 28.6, "Flowerpot"))
 
         def pot(gg):
-            if self.flags.get("d5_keystate", 0) < 1:
-                gg.examine("Petunias, wilting. Chuck waters them with coffee.")
-                return
             gg.audio.play("rock_land", vol=0.6, pitch=0.7)
             yield from gg.show_document("Under the flowerpot", "Another sticky note:\n\n"
                                                                "    Moved it. Spare key is in the GNOME.\n"
                                                                "                              - Chuck")
-            if self.flags.get("d5_keystate", 0) < 2:
-                self.flags["d5_keystate"] = 2
-                self.mark((41, 24, "Gnome"))
+            found(2, (41, 24, "Gnome"))
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
         g.on("gnome", "Look at the gnome", lambda gg: gg.examine(
-            "He's been fishing in a flowerbed for twenty years. His belly rattles. Headbutt him?"),
-            cond=lambda gg: gg.flags.get("d5_keystate", 0) >= 2)
+            "He's been fishing in a flowerbed for twenty years. His belly rattles. A headbutt (left click) would "
+            "open him up."))
+
+        if self.done("gnome_broken") and not g.inv.has("house_key") and not self.done("house_unlocked"):
+            # broken in an earlier try (the old version dropped the key in the flowerbed): hand it over
+            g.inv.add("house_key", silent=True)
 
         def bonk(gg):
-            if self.flags.get("d5_keystate", 0) < 2 or self.done("gnome_broken"):
+            # works whether or not you've read the notes: the key is in the gnome either way
+            if self.done("gnome_broken") or gg.inv.has("house_key"):
                 return
             self.setf("gnome_broken")
             gg.world.gnome.animate_rotation((80, 200, 0), duration=0.3)
             gg.audio.play("crash", vol=0.8, pos=(41, 0.4, 24), rng=30)
-
-            def take(g2):
-                self.remove_item("house_key")
-                g2.inv.add("house_key")
-                g2.complete("in_key")
-            self.item("house_key", "house_key", (41.5, 0.08, 24.8), "Spare key", "Take the spare key", take,
-                      scale=1.8, glow=0.4)
-            gg.ui.popup_sub("The gnome topples over and cracks. Something small and shiny falls out.", 4)
+            gg.inv.add("house_key")
+            gg.ui.popup_sub("The gnome topples over and cracks open. The spare key falls out. You pick it up in "
+                            "your teeth.", 5)
         g.ia.get("gnome").on_headbutt = bonk
         yield lambda: g.inv.has("house_key") or self.done("house_unlocked")
         g.ia.get("gnome").on_headbutt = None

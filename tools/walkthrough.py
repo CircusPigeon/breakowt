@@ -539,9 +539,9 @@ class Bot:
         g = self.g
         yield from self.interact("doormat")
         yield from self.interact("flowerpot")
-        yield from self.headbutt_at((41, 0.45, 24), dist=1.4)
-        yield from self.until(lambda: g.ia.get("st_house_key") is not None, 5, "gnome key")
-        yield from self.interact("st_house_key")
+        # a level look, the way a player stands in front of him (not aimed down at his hat)
+        yield from self.headbutt_at((41, 1.42, 24), dist=1.5)
+        yield from self.until(lambda: g.inv.has("house_key"), 5, "gnome key")
         yield from self.open_door("front_door")
         yield from self.until(lambda: g.world.doors["front_door"].is_open, 5, "front door")
         yield from self.wait(0.6)
