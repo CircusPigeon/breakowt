@@ -12,7 +12,7 @@ import random
 
 import time
 
-from ursina import Button, Entity, Quad, Text, application, camera, color, destroy, mouse
+from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
 from .days import DayScripts, DAYS
 from .interact import Handler, Interactable
@@ -20,6 +20,21 @@ from .items import ITEMS
 from .npc import FRIENDS, HERD_NAMES
 from .ui import C, CREAM, BRASS, DIM, PANEL, PANEL_LIGHT, txt
 from . import models
+
+
+def save_has_progress(save):
+    """True once the player has really played: at least one story step finished.
+
+    A save is written as soon as a day starts, so a bare 'New game, then quit' leaves a
+    save with no finished steps; the title screen shouldn't offer Continue for that."""
+    if not isinstance(save, dict) or not isinstance(save.get("flags"), dict):
+        return False
+    try:
+        if int(save.get("day", 1)) > 1:
+            return True
+    except (TypeError, ValueError):
+        return False
+    return any(str(k).startswith("d1_") and v for k, v in save["flags"].items())
 
 SHOP = [
     # key, label, price, description
@@ -113,7 +128,7 @@ class Story(DayScripts):
 
     def continue_game(self):
         d = self.g.load_save()
-        if not d:
+        if not save_has_progress(d):
             self.new_game(1)
             return
         self.close_title()
@@ -274,6 +289,8 @@ class Story(DayScripts):
         Text("SEVEN DAYS TO STEAK", parent=r, x=-A / 2 + 0.09, y=0.25, scale=1.5, color=BRASS, origin=(-0.5, 0))
         opts = []
         save = g.load_save()
+        if not save_has_progress(save):
+            save = None
         if mode == "main":
             if save:
                 d = int(save.get("day", 1))
@@ -292,24 +309,37 @@ class Story(DayScripts):
             opts.append(("Back", lambda: self.open_title("main")))
         self.title_buttons = []
         gap = 0.075 if len(opts) <= 6 else 0.064
+        bh = 0.054
         for i, (label, cb) in enumerate(opts):
-            b = Button(parent=r, text=label, x=-A / 2 + 0.3, y=0.1 - i * gap, scale=(0.46, 0.054),
+            b = Button(parent=r, text=label, x=-A / 2 + 0.3, y=0.1 - i * gap, scale=(0.46, bh),
                        color=PANEL_LIGHT, radius=0.25, text_origin=(-0.5, 0))
             b.text_entity.x = -0.45
+            # the clickable area reaches halfway into the gaps, so there are no dead strips between buttons
+            b.collider = BoxCollider(b, center=Vec3(0, 0, 0), size=Vec3(1, gap / bh, 1))
             b.on_click = cb
             b._cb = cb
             b.on_mouse_enter = (lambda i=i: self._title_hl(i))
+            b.on_mouse_exit = (lambda i=i: self._title_unhover(i))
             self.title_buttons.append(b)
         self.title_sel = 0
-        self._title_hl(0)
+        # nothing is lit until the mouse is over a button or a key picks one
+        self._title_hl(None)
         Text("F11 fullscreen", parent=r, x=A / 2 - 0.03, y=-0.46, scale=0.8, color=DIM, origin=(0.5, 0))
         Text("v1.0", parent=r, x=-A / 2 + 0.03, y=-0.46, scale=0.8, color=DIM, origin=(-0.5, 0))
 
     def _title_hl(self, i):
-        self.title_sel = i
+        """Light up button i (None: none lit). The highlight always marks what a click or Enter would pick."""
+        if i is not None:
+            self.title_sel = i
         for k, b in enumerate(self.title_buttons):
             b.color = C(0.98, 0.78, 0.25, 0.95) if k == i else PANEL_LIGHT
             b.text_color = C(0.1, 0.08, 0.05, 1) if k == i else CREAM
+        self.title_lit = i
+
+    def _title_unhover(self, i):
+        # leaving a button for empty space clears the highlight; moving onto a neighbour re-lights it
+        if getattr(self, "title_lit", None) == i and not any(b.hovered for b in self.title_buttons):
+            self._title_hl(None)
 
     def _title_settings(self):
         g = self.g
@@ -359,13 +389,17 @@ class Story(DayScripts):
         if not self.title_buttons:
             return
         n = len(self.title_buttons)
+        lit = getattr(self, "title_lit", None)
         if key in ("w", "up arrow", "scroll up"):
-            self._title_hl((self.title_sel - 1) % n)
+            self._title_hl((self.title_sel - 1) % n if lit is not None else n - 1)
             self.g.audio.play("blip", vol=0.3)
         elif key in ("s", "down arrow", "scroll down"):
-            self._title_hl((self.title_sel + 1) % n)
+            self._title_hl((self.title_sel + 1) % n if lit is not None else 0)
             self.g.audio.play("blip", vol=0.3)
         elif key in ("enter", "space", "e"):
+            if lit is None:
+                self._title_hl(self.title_sel)
+                return
             self.g.audio.play("blip_hi", vol=0.4)
             self.title_buttons[self.title_sel]._cb()
         elif key == "escape" and self.title_mode != "main":
