@@ -5,7 +5,7 @@ import math
 import random
 import time
 
-from ursina import Entity, destroy
+from ursina import Entity, curve, destroy
 
 from . import models
 from .combat import CluckNorris, ChuckBoss, Feathers
@@ -1882,13 +1882,42 @@ class DayScripts:
             ("moozart", "Tell Cowpernicus to redo his numbers. One fewer."),
         ])
         g.cam_set((-26, 2.5, -42), (-12, 1.4, -35))
-        mz.goto((-15.2, 0, -35.0), 1.2)
-        f.goto((-16.0, 0, -37.2), 1.2)
-        yield 5.5
+        # the tailgate drops into a ramp. The truck faces +x, so its tail (hinge 2.95 m back, 1 m up) is
+        # on the -x side; a 2.4 m gate swung 113 degrees rests its edge on the ground 2.2 m out
+        hx, tz = truck.x - 2.95, truck.z
+        foot = hx - 2.2
+        truck.door.animate_rotation((-113, 0, 0), duration=0.9, curve=curve.in_quad)
+        f.goto((foot - 0.4, 0, tz - 2.2), 1.2)
+        yield 0.9
+        g.audio.play("metal_clang", vol=0.9, pos=(foot, 0.3, tz), rng=50)
+        ramp = [g.phys.add_floor(foot, hx, tz - 1.1, tz + 1.1, 0.06, 0.97, axis="x", surface="wood"),
+                g.phys.add_floor(hx, truck.x + 2.4, tz - 1.1, tz + 1.1, 0.97, surface="wood")]
+        try:
+            yield from self.walk_npc(mz, (foot - 0.6, 0, tz), 1.2, 6)
+            # straight up the ramp: the nav graph doesn't know about this floor
+            mz.path = [(hx + 2.3, 0.97, tz)]
+            mz.walk_speed = 0.9
+            mz.look = None
+            t0 = g.env.time
+            yield lambda: not mz.path or g.env.time - t0 > 8
+        finally:
+            for fl in ramp:
+                g.phys.floors.remove(fl)
+        # he rides away with the truck: a stand-in parented to it takes his place
+        _, _, mkw, tag = FRIENDS["moozart"]
+        rider = models.CowModel(parent=truck, tag=tag, **mkw)
+        rider.world_position = (mz.x, max(mz.y, 0.97), mz.z)
+        rider.world_rotation_y = mz.yaw
+        rider.animate(0.02)
         mz.set_visible(False)
         mz.path = []
-        truck.door.animate_rotation((-80, 0, 0), duration=0.8)
-        g.audio.play("door_close", vol=1.0, pos=(-13, 1, -35), rng=60)
+        mz.look = "player"
+        yield from self.walk_npc(f, (foot - 0.3, 0, tz - 1.4), 1.2, 3)
+        f.face_target = (hx, tz)
+        yield 0.4
+        truck.door.animate_rotation((0, 0, 0), duration=0.9, curve=curve.in_out_sine)
+        yield 0.9
+        g.audio.play("door_close", vol=1.0, pos=(hx, 1.5, tz), rng=60)
         yield 1.2
         f.set_visible(False)
         g.world.doors["pasture_gate"].set_open(False)
@@ -1916,6 +1945,7 @@ class DayScripts:
         self.lock_hud_music("music_sad", 0.6, 3.0)
         yield 7.0
         yield from g.fade_out(2.0)
+        destroy(rider)
         self.remove_prop("truck")
         self.setf("moozart_gone")
         g.cutscene_end_now()
