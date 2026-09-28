@@ -11,7 +11,13 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - Windows at 200% display scaling: the process is made DPI-aware *before* `Ursina()` is created, and the
   window is opened at its final size (`breakowt/engine/boot.py`). Not testable in the Linux cloud
   container, so check it on the real machine.
-- Private repo: github.com/CircusPigeon/cow_game.
+- The player's machine: Windows 11 on a Snapdragon X (ARM64) laptop with a Qualcomm Adreno X1-85 GPU,
+  2880x1920 panel at 200%. `python` is the Microsoft Store build (x64, runs under emulation). Graphics
+  driver quirks here don't show up in the cloud's software renderer, so rendering changes need a run on
+  this machine (see Testing).
+- Private repo: github.com/CircusPigeon/cow_game. Work has happened both in a cloud session (branch
+  `claude/upbeat-allen-m6ufzp`) and locally on `main`; they're linear, and `main` was fast-forwarded to
+  the branch. Run `git fetch --all` and compare branches before starting.
 
 ## Status
 - [x] Audio synthesis (`breakowt/synth.py`)
@@ -62,7 +68,26 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   and is held up by the boot; grass/flowers no longer grow through floors; porch roof no longer pokes
   into the living room; hotbar deselect (press the selected number again); the held item follows removals.
 
+### Windows-machine round (local session, after the cloud round above)
+- Black screen after loading: Continue resumed past a day's opening step, and that step owns the fade-in,
+  so the screen stayed black. Fixed in b4ddd90 (see its message); verified on the real machine: New game
+  and Continue both fade in, and `--resume` passes for days 1-2.
+- `gpuprobe` (signature `probe3`) now also fails a feature if the probe frame comes out black, not only if
+  the child process crashes: a driver can break the offscreen path without crashing. This machine reads
+  ~134/255, the cutoff is 2.
+- `main.py` and the test harness set `sys.dont_write_bytecode`: the user doesn't want `__pycache__` in the
+  project. Test screenshots go to `Documents/My Games/BREAKOWT/test_screenshots/` (override with
+  `BREAKOWT_TEST_SHOTS`), not the repo. Tests save to a temp folder (`BREAKOWT_SAVE_DIR`), never over the
+  player's save.
+- Earlier on this machine: the title menu's click areas fill the gaps and the highlight follows the
+  cursor (measured live in fullscreen); Continue only appears once a story step is done; the sound pass
+  (mastered loudness per category, 36-100 s music, positional farm ambience, slide whistle/bonk) is
+  waiting on the player's ears.
+
 ### Verified
+- On the Windows machine (build 1a72578 + this round): `--day 1 --to 7 --detect` (passed, including a
+  real catch and the shotgun hit), `--day 1 --to 2 --resume`, fullscreen title at 2880x1920, New game and
+  Continue from the title.
 - `--day 1 --to 7` (the boss plan fires the shotgun once and checks it lands), `--resume` for days 5-7,
   `--day 6 --to 6 --caught all --detect`. The bot sneaks for the nightstand drawer, and if it's caught for
   real (not on purpose) it waits for the catch to play out and restarts the step's plan.
@@ -101,8 +126,10 @@ Graphics: Low / Medium (default) / High.
 - Herd cows beyond `herd_lod` metres switch to a merged one-piece copy of their model (1 draw call instead
   of 8). Ursina's per-frame mouse picking is skipped while the cursor is locked.
 - `engine/gpuprobe.py` checks once, in child processes, that shadows and the offscreen buffer render
-  without crashing, and caches the answer in `gpu.json` next to the saves (delete it to re-check).
-  `BREAKOWT_SHADOWS=0/1` and `BREAKOWT_POSTFX=0/1` override the check.
+  without crashing and without coming out black, and caches the answer in `gpu.json`
+  (`Documents/My Games/BREAKOWT/gpu.json`; delete it to re-check). `BREAKOWT_SHADOWS=0/1` and
+  `BREAKOWT_POSTFX=0/1` override the check. The probe opens a tiny real window for a second: offscreen
+  buffers never reach the failing driver path, so an offscreen probe passes when the real game wouldn't.
 
 ## Code map
 - `main.py` → `breakowt/app.py` (window, fonts, loading screen) → `game.py` (`Game`: state, input, update loop).
@@ -122,8 +149,15 @@ Graphics: Low / Medium (default) / High.
   inputs live on `render` and are updated every frame, and a copied attrib freezes them.
 - `engine/`: `shading.py` (GLSL, shadows, time of day), `postfx.py`, `gpuprobe.py`, `meshbuilder.py`, `physics.py`, `audio.py`, `script.py`, `assets.py`, `boot.py`.
 
-## Testing (headless, Linux)
-The tools run the real game under Xvfb at a fixed 30 fps clock.
+## Testing
+The tools run the real game at a fixed 30 fps clock. On Linux wrap them in Xvfb as below; on the Windows
+machine run them directly (`python -B tools/walkthrough.py --day 1 --to 7 --detect`), which opens a small
+game window. A full `--day 1 --to 7` takes about 2 minutes there.
+
+Real fullscreen checks on Windows: a tool call's child processes are killed when the call returns, so
+launch, capture and close inside one command. Find the game window by enumerating the process's windows
+(`FindWindow(null, "BREAKOWT")` missed it), bring it forward before `CopyFromScreen`, and make the capture
+process DPI-aware. Don't move the player's mouse or inject keys without asking first.
 ```
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 1 --to 7   # full playthrough bot
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/walkthrough.py --day 5 --to 5 --shots   # one day, screenshot per step
@@ -134,6 +168,6 @@ xvfb-run -a -s "-screen 0 1280x720x24" python tools/uishots.py   # every UI scre
 xvfb-run -a -s "-screen 0 1280x720x24" python tools/smoke.py     # boot + title + a few seconds of day 1
 python tools/navcheck.py                                           # nav graph connectivity
 ```
-Screenshots go to `screenshots/` in the repo (gitignored). The walkthrough bot has one plan per story
+Screenshots go to `Documents/My Games/BREAKOWT/test_screenshots/`. The walkthrough bot has one plan per story
 step (`p_<step key>` in `tools/walkthrough.py`); a new step needs a new plan or the run fails with a
 state dump when the step's time limit runs out.

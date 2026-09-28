@@ -76,8 +76,9 @@ class Bot:
         from breakowt.engine.boot import screenshot
         self.set_rendering(True)
         self.app.step()
-        harness.SHOTS.mkdir(exist_ok=True)
-        screenshot(str(harness.SHOTS / f"wt_{name}.png"))
+        shots = harness.shots_dir()
+        shots.mkdir(parents=True, exist_ok=True)
+        screenshot(str(shots / f"wt_{name}.png"))
         if not self.args.render:
             self.set_rendering(False)
 

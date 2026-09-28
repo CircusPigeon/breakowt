@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def _signature():
     # probe2: shadows moved off Panda's sampler2DShadow light struct onto our own packed-depth map,
     # and the scene now renders through an offscreen buffer; machines that failed probe1 get re-tested
-    return f"{platform.system()}|{platform.machine()}|{platform.processor()}|probe2"
+    # probe3: a feature also fails if the frame comes out black (a driver can fail without crashing)
+    return f"{platform.system()}|{platform.machine()}|{platform.processor()}|probe3"
 
 
 def _cache_path():
@@ -127,8 +128,26 @@ def _probe_main(feature):
     for _ in range(6):
         env.update(1 / 60)
         app.step()
+    # not crashing isn't enough: a broken path can also just draw nothing
+    level = _frame_brightness(application.base)
+    print(f"PROBE-BRIGHTNESS {level:.1f}", flush=True)
+    if level < 2.0:
+        print("PROBE-FAIL black frame", flush=True)
+        os._exit(1)
     print("PROBE-OK", flush=True)
     os._exit(0)
+
+
+def _frame_brightness(base):
+    """Mean 0-255 brightness of what the window shows (the sky alone is far above 2)."""
+    base.graphicsEngine.renderFrame()
+    tex = base.win.getScreenshot()
+    if tex is None:
+        return 0.0
+    data = bytes(tex.getRamImageAs("RGB"))
+    if not data:
+        return 0.0
+    return sum(data[::97]) / len(data[::97])
 
 
 if __name__ == "__main__":

@@ -12,7 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-SHOTS = ROOT / "screenshots"
+sys.dont_write_bytecode = True
+# test screenshots live with the game's other generated files, not in the repo
+SHOTS = Path(os.environ.get("BREAKOWT_TEST_SHOTS", "")) if os.environ.get("BREAKOWT_TEST_SHOTS") else None
 
 
 class Args:
@@ -52,10 +54,19 @@ def step(app, n=1):
         app.step()
 
 
+def shots_dir():
+    global SHOTS
+    if SHOTS is None:
+        from breakowt.engine.assets import USER
+        SHOTS = USER / "test_screenshots"
+    return SHOTS
+
+
 def shot(app, name):
     from breakowt.engine.boot import screenshot
-    SHOTS.mkdir(exist_ok=True)
-    p = SHOTS / f"{name}.png"
+    shots = shots_dir()
+    shots.mkdir(parents=True, exist_ok=True)
+    p = shots / f"{name}.png"
     app.step()
     screenshot(str(p))
     return p
