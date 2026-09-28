@@ -84,7 +84,34 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   (mastered loudness per category, 36-100 s music, positional farm ambience, slide whistle/bonk) is
   waiting on the player's ears.
 
+### Freeplay round: Moo-dals and a farm that answers back
+- `moodals.py`: 25 achievements for freeplay (moo 50 times, make Chuck trip, knock over every prop, get the
+  herd to moo back, a day without being caught, find the bathroom mirror, ...). Each pays Golden Clovers
+  into the current run (Mooriarty's shop). Progress is a profile, `saves/moodals.json`, separate from the
+  checkpoint save, so it carries across playthroughs and survives reloads. UI: banner on unlock
+  (`UI.moodal_banner`, queued), list screen `UI.open_moodals` from the pause menu and the title screen,
+  a count in the journal and a line plus a rank in the credits.
+- `Game.event(name, **kw)` is the hook: the player (moo, hop, step), farmer (chuck_trip, dale), game
+  (interact, knock, clover, caught, noise) and story (day_start, herd_talk) call it; `Moodals.on_event` and
+  `Life.on_event` listen. It swallows exceptions from those two: decoration never breaks the story. To add
+  a Moo-dal: a row in `MOODALS`, a `GOALS`/`SET_GOALS` entry or an `unlock()` in `on_event`.
+- `life.py`: birds (8 spots, ground and perched; scatter when you come close, gallop or make a noise; only
+  near the player and by day), butterflies by day, fireflies at night, water rings ahead of you when you
+  wade (and around herd cows in the pond), dust when Chuck runs, hoofprints in the mud (fade after a
+  minute). Moo and the herd moos back; after dark the frogs (near the pond) and the owl (north of the
+  cowshed) answer; the frogs hush when you walk up. A thrown thing that hits Chuck makes him yelp and
+  come looking (`Life.check_chuck_hit`, outside the boss fight); he rights knocked-over props he walks up
+  to. Headbutting Cardboard Chuck spins him. Cost measured on this laptop: ~0.8 ms/frame by day,
+  ~0.3 ms at night (fireflies and butterflies use Panda's `setPos`/`setH` directly; Ursina's property
+  setters were the expensive part).
+- Herd cows you lean on step sideways out of your path (`HerdCow.update`, `_shoved`). Two cows standing
+  shoulder to shoulder used to wall off the escort route for the bot, and are annoying for a player too.
+- Audio v9 adds `moodal`, `bird_flutter`, `frog_chorus`, `owl_hoot`.
+
 ### Verified
+- Freeplay round, on the Windows machine: `--day 1 --to 7 --detect` passes; a scratch test mooed at the
+  herd (answers), scattered a flock, hit Chuck with a rock (yelp, investigate, Moo-dal), watched him tidy a
+  knocked prop, waded (rings), got the frogs to answer at night, and opened the Moo-dals screen.
 - On the Windows machine (build 1a72578 + this round): `--day 1 --to 7 --detect` (passed, including a
   real catch and the shotgun hit), `--day 1 --to 2 --resume`, fullscreen title at 2880x1920, New game and
   Continue from the title.
@@ -145,6 +172,7 @@ Graphics: Low / Medium (default) / High.
   the footprints in `World.ROOFED`. The moo-hole's bottom wire is its own entity (`set_moohole_wire`).
   `Door.center()` / `Door.player_opened` feed Chuck's open-door check.
 - `player.py`, `farmer.py`, `npc.py`, `combat.py`, `vehicle.py`, `models.py`, `ui.py`, `items.py`.
+- `moodals.py` (achievements) and `life.py` (wildlife and reactions), both fed by `Game.event`.
 - Any node that copies a render state (like the herd LOD) must not copy the net ShaderAttrib: scene-wide
   inputs live on `render` and are updated every frame, and a copied attrib freezes them.
 - `engine/`: `shading.py` (GLSL, shadows, time of day), `postfx.py`, `gpuprobe.py`, `meshbuilder.py`, `physics.py`, `audio.py`, `script.py`, `assets.py`, `boot.py`.

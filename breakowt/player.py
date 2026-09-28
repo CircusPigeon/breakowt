@@ -371,6 +371,7 @@ class Player:
         surf = self.surface
         vol = 0.55 if self.galloping else (0.18 if self.crouching else 0.35)
         g.audio.play(f"step_{surf}_{random.randrange(4)}", vol=vol, pitch=random.uniform(0.9, 1.1), group="sfx")
+        g.event("step", surface=surf, gallop=self.galloping)
         radius = 0.0
         if self.galloping:
             radius = 7.0
@@ -391,6 +392,7 @@ class Player:
         self.hop_cd = 0.9
         self.g.audio.play("boing", vol=0.35, pitch=random.uniform(0.95, 1.1))
         self.g.stats["hops"] = self.g.stats.get("hops", 0) + 1
+        self.g.event("hop")
 
     def moo(self):
         if self.moo_cd > 0:
@@ -399,6 +401,7 @@ class Player:
         kind = random.choice(["short", "medium", "medium", "long", "exclaim"])
         self.g.audio.play(f"moo_player_{kind}_{random.randrange(2)}", vol=0.9, group="voice")
         self.g.stats["moos"] = self.g.stats.get("moos", 0) + 1
+        self.g.event("moo")
         self.lunge = 0.25
         if not self.g.on_player_moo():
             self.g.noise(self.pos, 20.0, source="moo")

@@ -2960,6 +2960,7 @@ class DayScripts:
         g.audio.play("thump", vol=1.0)
         g.audio.play("cowbell_0", vol=1.0)
         g.stats["chuck_trips"] = g.stats.get("chuck_trips", 0) + 1
+        g.event("chuck_trip")
         self.unlock_music()
         self.lock_hud_music(None, 0, 1.0)
         yield 1.5
@@ -3043,6 +3044,7 @@ class DayScripts:
         f.pose = "fallen"
         f.say("OOF!", kind="ow", force=True)
         g.stats["chuck_trips"] = g.stats.get("chuck_trips", 0) + 1
+        g.event("chuck_trip")
         yield 1.0
         sl.goto((6, 0, 50), 3.0)
 

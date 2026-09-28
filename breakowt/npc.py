@@ -425,6 +425,25 @@ class HerdCow(Walker):
                 self.walk_speed = 2.0
                 self.lie = False
                 self.model.lying_target = 0.0
+        # make way for a cow who's leaning on you: after a moment of shoving, step aside
+        pl = self.g.player
+        pd = math.hypot(pl.x - self.x, pl.z - self.z)
+        if self.state != "stampede" and pd < 1.8 and pl.speed > 0.4:
+            self._shoved = getattr(self, "_shoved", 0.0) + dt
+            if self._shoved > 0.5 and self.state != "walk":
+                # sideways relative to the way the player is heading, so she clears the path
+                yr = math.radians(pl.yaw)
+                fx, fz = math.sin(yr), math.cos(yr)
+                side = 1.0 if (self.x - pl.x) * fz - (self.z - pl.z) * fx > 0 else -1.0
+                tx, tz = self.x + fz * side * 2.8, self.z - fx * side * 2.8
+                self.path = [(tx, 0, tz)]
+                self.state = "walk"
+                self.walk_speed = 1.8
+                self.lie = False
+                self.model.lying_target = 0.0
+                self._shoved = 0.0
+        else:
+            self._shoved = 0.0
         self._apply()
         # far off and on its feet: the merged mesh; lying down, talking or close: the animated rig
         m = self.model

@@ -1,0 +1,244 @@
+"""Moo-dals: achievements for the things a cow does when nobody's making her escape.
+
+Progress lives in its own file next to the saves (moodals.json), so it carries across
+playthroughs and survives reloading a checkpoint. Each Moo-dal pays out Golden Clovers
+into the current run, which feeds Mooriarty's shop.
+"""
+from __future__ import annotations
+
+import json
+import math
+import time
+
+from .engine.assets import SAVE_DIR
+from .world import OAK, in_pond
+
+# id, name, how to earn it, clover reward, hidden until earned
+MOODALS = [
+    ("moo_50", "Moo-sical Talent", "Moo 50 times.", 1, False),
+    ("hop_30", "Olympic Hopeful", "Hop 30 times. Cows can't jump. You hop anyway.", 1, False),
+    ("gallop_2k", "Marathon Moo-ver", "Gallop 2 km in total.", 2, False),
+    ("trip_5", "Gravity's Little Helper", "Watch Chuck fall over 5 times.", 2, False),
+    ("knock_all", "Bull in a China Shop", "Knock over every bucket stack, milk can, feed bin and trash can.", 3, False),
+    ("tidy_3", "Job Security", "Make Chuck pick up after you 3 times.", 1, False),
+    ("bonk", "Sticks and Stones", "Hit Chuck with something you threw.", 2, False),
+    ("herd_20", "Census Taker", "Chat with 20 different cows in the herd.", 2, False),
+    ("choir_5", "Choir Practice", "Moo in the pasture and get the herd to moo back, 5 times.", 1, False),
+    ("frogs", "Frog Chorus", "Moo at the pond after dark and get an answer.", 1, True),
+    ("owl", "Who Goes There", "Trade hoots with the owl at night.", 1, True),
+    ("birds_10", "Bird Brain", "Scatter 10 flocks of birds.", 1, False),
+    ("wade_60", "Pond Life", "Spend a full minute wading in the pond.", 1, False),
+    ("clover_10", "Lucky Streak", "Find 10 Golden Clovers.", 2, False),
+    ("clover_all", "Pot of Gold", "Find every Golden Clover.", 5, False),
+    ("ghost_day", "Ghost Cow", "Get through a whole day (Tuesday on) without being caught.", 2, False),
+    ("caught_10", "Frequent Flyer", "Get marched back to the pasture 10 times. Winning, at something.", 1, False),
+    ("mirror", "Know Thyself", "Look in the bathroom mirror.", 1, True),
+    ("cookbook", "Required Reading", "Read '101 Ways to Cook a Cow'.", 1, True),
+    ("trough_5", "Hydration Station", "Drink from the trough 5 times.", 1, False),
+    ("tourist", "Tourist", "Tour the oak, pond, shed, loft, coop, house, plant and main gate.", 2, False),
+    ("dale_3", "Master of Disguise", "Get mistaken for Dale three times.", 2, True),
+    ("personal_space", "Personal Space", "Stay within 4 m of Chuck for 10 s where you shouldn't be, unnoticed.", 2, False),
+    ("scarecrow", "Take That, Cardboard Chuck", "Headbutt Cardboard Chuck.", 1, False),
+    ("all", "Moo-dal of Honor", "Earn every other Moo-dal.", 5, False),
+]
+BY_ID = {m[0]: m for m in MOODALS}
+
+# counters with a goal
+GOALS = {
+    "moo_50": ("moos", 50), "hop_30": ("hops", 30), "gallop_2k": ("gallop_m", 2000), "trip_5": ("chuck_trips", 5),
+    "tidy_3": ("tidies", 3), "choir_5": ("choir", 5), "birds_10": ("flocks", 10), "wade_60": ("wade_s", 60),
+    "caught_10": ("caught", 10), "trough_5": ("trough", 5), "dale_3": ("dale", 3),
+}
+# sets with a goal: (set name, size)
+SET_GOALS = {"herd_20": ("herd_talked", 20)}
+TOURIST = ("oak", "pond", "shed", "loft", "coop", "house", "processing", "gate")
+
+RANKS = [(0, "Steak-Adjacent"), (4, "Pasture Regular"), (9, "Barnyard Legend"), (15, "Moo-ster of the Universe"),
+         (len(MOODALS), "Moo-dal of Honor")]
+
+
+class Moodals:
+    def __init__(self, g):
+        self.g = g
+        self.path = SAVE_DIR / "moodals.json"
+        self.data = {"unlocked": {}, "counters": {}, "sets": {}}
+        self._dirty = False
+        self._save_t = 0.0
+        self._near_chuck = 0.0
+        self._zone_t = 0.0
+        self.load()
+
+    # ------------------------------------------------------------------
+    def load(self):
+        try:
+            d = json.loads(self.path.read_text())
+            for k in ("unlocked", "counters", "sets"):
+                if isinstance(d.get(k), dict):
+                    self.data[k] = d[k]
+        except (OSError, ValueError):
+            pass
+
+    def save(self):
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.data, indent=1))
+            self._dirty = False
+        except OSError:
+            pass
+
+    def unlocked(self, mid):
+        return mid in self.data["unlocked"]
+
+    def count_unlocked(self):
+        return len(self.data["unlocked"])
+
+    def rank(self):
+        n = self.count_unlocked()
+        name = RANKS[0][1]
+        for need, r in RANKS:
+            if n >= need:
+                name = r
+        return name
+
+    def progress(self, mid):
+        """(have, need) for Moo-dals with a count, else None."""
+        if mid in GOALS:
+            key, need = GOALS[mid]
+            return min(int(self.data["counters"].get(key, 0)), need), need
+        if mid in SET_GOALS:
+            key, need = SET_GOALS[mid]
+            return min(len(self.data["sets"].get(key, [])), need), need
+        if mid == "knock_all":
+            return len(self.data["sets"].get("knocked", [])), max(1, len(self.g.knockables))
+        if mid == "tourist":
+            return len(self.data["sets"].get("visited", [])), len(TOURIST)
+        if mid == "clover_10":
+            return min(self.g.flags.get("clovers_total", 0), 10), 10
+        if mid == "clover_all":
+            return self.g.flags.get("clovers_total", 0), len(self.g.world.clover_spots)
+        if mid == "all":
+            return min(self.count_unlocked(), len(MOODALS) - 1), len(MOODALS) - 1
+        return None
+
+    # ------------------------------------------------------------------
+    def count(self, key, n=1):
+        c = self.data["counters"]
+        c[key] = c.get(key, 0) + n
+        self._dirty = True
+        for mid, (k, need) in GOALS.items():
+            if k == key and c[key] >= need:
+                self.unlock(mid)
+
+    def add(self, set_name, item):
+        s = self.data["sets"].setdefault(set_name, [])
+        if item in s:
+            return False
+        s.append(item)
+        self._dirty = True
+        for mid, (k, need) in SET_GOALS.items():
+            if k == set_name and len(s) >= need:
+                self.unlock(mid)
+        if set_name == "knocked" and len(s) >= len(self.g.knockables) > 0:
+            self.unlock("knock_all")
+        if set_name == "visited" and all(t in s for t in TOURIST):
+            self.unlock("tourist")
+        return True
+
+    def unlock(self, mid):
+        if mid not in BY_ID or self.unlocked(mid):
+            return False
+        self.data["unlocked"][mid] = int(time.time())
+        self._dirty = True
+        _, name, desc, reward, _ = BY_ID[mid]
+        g = self.g
+        if reward:
+            g.flags["clovers"] = g.flags.get("clovers", 0) + reward
+            g.refresh_hotbar()
+        g.audio.play("moodal", vol=0.9)
+        g.ui.moodal_banner(name, desc, reward)
+        self.save()
+        if mid != "all" and self.count_unlocked() >= len(MOODALS) - 1:
+            self.unlock("all")
+        return True
+
+    # ------------------------------------------------------------------
+    def on_event(self, name, **kw):
+        g = self.g
+        if name in ("moo", "hop", "chuck_trip", "caught", "dale", "tidy", "flock", "choir"):
+            key = {"moo": "moos", "hop": "hops", "chuck_trip": "chuck_trips", "caught": "caught",
+                   "dale": "dale", "tidy": "tidies", "flock": "flocks", "choir": "choir"}[name]
+            self.count(key)
+        elif name == "knock":
+            self.add("knocked", kw.get("key"))
+        elif name == "herd_talk":
+            self.add("herd_talked", kw.get("idx"))
+        elif name == "clover":
+            n = g.flags.get("clovers_total", 0)
+            if n >= 10:
+                self.unlock("clover_10")
+            if n >= len(g.world.clover_spots):
+                self.unlock("clover_all")
+        elif name == "interact":
+            key = kw.get("key", "")
+            if key == "mirror":
+                self.unlock("mirror")
+            elif key == "cookbook":
+                self.unlock("cookbook")
+            elif key == "trough":
+                self.count("trough")
+        elif name in ("bonk", "frogs", "owl", "scarecrow"):
+            self.unlock(name)
+        elif name == "day_start":
+            n = kw.get("day", 0)
+            prev = getattr(self, "_day_prev", None)
+            caught = g.stats.get("caught", 0)
+            if prev is not None and n == prev[0] + 1 and prev[0] >= 2 and caught == prev[1]:
+                self.unlock("ghost_day")
+            self._day_prev = (n, caught)
+
+    def update(self, dt):
+        g = self.g
+        p = g.player
+        if g.state == "play" and g.controls_enabled():
+            if p.galloping and p.speed > 1:
+                self.data["counters"]["gallop_m"] = self.data["counters"].get("gallop_m", 0) + p.speed * dt
+                self._dirty = True
+                if self.data["counters"]["gallop_m"] >= 2000:
+                    self.unlock("gallop_2k")
+            if p.in_water:
+                self.data["counters"]["wade_s"] = self.data["counters"].get("wade_s", 0) + dt
+                self._dirty = True
+                if self.data["counters"]["wade_s"] >= 60:
+                    self.unlock("wade_60")
+            self._zone_t -= dt
+            if self._zone_t <= 0:
+                self._zone_t = 0.5
+                self._check_places()
+            f = g.farmer
+            close = (f.visible and math.hypot(f.x - p.x, f.z - p.z) < 4.0 and g.player_restricted()
+                     and f.susp < 0.25 and f.state in ("routine", "investigate") and f.detect)
+            self._near_chuck = self._near_chuck + dt if close else 0.0
+            if self._near_chuck >= 10.0:
+                self.unlock("personal_space")
+        self._save_t -= dt
+        if self._dirty and self._save_t <= 0:
+            self._save_t = 10.0
+            self.save()
+
+    def _check_places(self):
+        g = self.g
+        p = g.player
+        ph = g.phys
+        spots = {
+            "oak": math.hypot(p.x - OAK[0], p.z - OAK[1]) < 6.0,
+            "pond": in_pond(p.x, p.z),
+            "shed": ph.in_zone("shed", p.x, p.z),
+            "loft": ph.in_zone("loft", p.x, p.z, p.y),
+            "coop": ph.in_zone("coop", p.x, p.z),
+            "house": ph.in_zone("house", p.x, p.z),
+            "processing": math.hypot(p.x - 52, p.z + 41) < 7.0,
+            "gate": ph.in_zone("gate_area", p.x, p.z),
+        }
+        for k, inside in spots.items():
+            if inside:
+                self.add("visited", k)

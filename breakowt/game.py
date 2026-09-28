@@ -124,6 +124,10 @@ class Game(Entity):
         self._build_knockables()
         from .story import Story
         self.story = Story(self)
+        from .moodals import Moodals
+        from .life import Life
+        self.moodals = Moodals(self)
+        self.life = Life(self)
         self.load_settings()
         self._start_postfx()
         self.apply_quality()
@@ -185,6 +189,7 @@ class Game(Entity):
         self.audio.play("crash", vol=1.0, pos=(k["x"], 0.5, k["z"]), rng=60)
         self.noise((k["x"], 0.5, k["z"]), 22, source="crash")
         self.stats["knocked"] = self.stats.get("knocked", 0) + 1
+        self.event("knock", key=k["key"])
 
     def _update_knockables(self, dt):
         for k in self.knockables:
@@ -364,6 +369,19 @@ class Game(Entity):
         if self.farmer is not None:
             self.farmer.hear(pos, radius, source)
         self.story.on_noise(pos, radius, source)
+        self.event("noise", pos=pos, radius=radius, source=source)
+
+    def event(self, name, **kw):
+        """Something happened that the Moo-dals or the farm's wildlife might care about.
+        Decoration only: an error in there must never break the story."""
+        for sub in (getattr(self, "moodals", None), getattr(self, "life", None)):
+            if sub is None:
+                continue
+            try:
+                sub.on_event(name, **kw)
+            except Exception:
+                import traceback
+                traceback.print_exc()
 
     def mask_noise(self, key, pos, radius, until_fn):
         self.noise_masks = [m for m in self.noise_masks if m[0] != key]
@@ -461,6 +479,7 @@ class Game(Entity):
         ia.handlers.append(Handler(prompt, action, cond, scope))
 
     def interact(self, ia):
+        self.event("interact", key=ia.key)
         h = ia.active_handler(self)
         if h is not None:
             res = h.action(self)
@@ -531,6 +550,7 @@ class Game(Entity):
         self.audio.play("clover", vol=0.8)
         n = self.flags["clovers_total"]
         self.ui.toast(f"Golden Clover! ({n}/{len(self.world.clover_spots)})", "clover", col=BRASS)
+        self.event("clover")
         self.refresh_hotbar()
 
     def drop_item_at(self, kind, p):
@@ -660,6 +680,8 @@ class Game(Entity):
             if e.alive and e.segment_hit(p0, p1):
                 e.take_hit(1, "rock", p0)
                 return True
+        if self.life.check_chuck_hit(p0, p1):
+            return True
         for ia in self.ia.items.values():
             if ia.on_rock is not None and ia.enabled:
                 px, py, pz = ia.world_pos()
@@ -712,6 +734,7 @@ class Game(Entity):
             self.examine("Chuck lunges... and trips on Big Earl's lucky horseshoe! RUN!")
             return
         self.stats["caught"] = self.stats.get("caught", 0) + 1
+        self.event("caught")
         self.cutscene = True
         p.frozen = True
         self.audio.play("alert", vol=1.0)
@@ -953,6 +976,7 @@ class Game(Entity):
 
     def ambience(self, preset):
         a = self.audio
+        self.amb_preset = preset
         if preset == "day":
             a.loop("amb", "loop_birds", 0.35)
             a.loop("wind", "loop_wind", 0.15)
@@ -1055,6 +1079,12 @@ class Game(Entity):
         self._update_knockables(dt)
         self.runner.update(dt)
         self.story.update(dt)
+        for sub in (self.life, self.moodals):
+            try:
+                sub.update(dt)
+            except Exception:
+                import traceback
+                traceback.print_exc()
         p = self.player
         lis = camera.world_position
         self.audio.update(dt, (lis.x, lis.y, lis.z), p.yaw if not self.cam_free else camera.world_rotation_y)
@@ -1209,7 +1239,7 @@ class Game(Entity):
             if key in ("tab", "j", "escape"):
                 ui.close_modal()
                 self.set_mouse(True)
-        elif m in ("pause", "settings", "shop", "menu"):
+        elif m in ("pause", "settings", "shop", "menu", "moodals"):
             if key == "escape":
                 st = getattr(ui, "_modal_state", {}) or {}
                 if st.get("back_cb"):
@@ -1235,6 +1265,7 @@ class Game(Entity):
         self.ui.open_menu("PAUSED", [
             ("Resume", self.close_pause),
             ("Settings", lambda: self.ui.open_settings(self._back_to_pause)),
+            ("Moo-dals", lambda: self.ui.open_moodals(self, self._back_to_pause)),
             ("Restart checkpoint", self._restart_checkpoint),
             ("Quit to title", self._quit_to_title),
             ("Quit game", self._quit_game),

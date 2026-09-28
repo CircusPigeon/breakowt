@@ -13,7 +13,7 @@ import numpy as np
 from scipy import signal
 
 SR = 44100
-AUDIO_VERSION = "8"
+AUDIO_VERSION = "9"
 
 _rng = np.random.default_rng(47)
 
@@ -1566,6 +1566,53 @@ def loop_fridge(dur=4.0):
     return x
 
 
+def sfx_moodal():
+    """Achievement jingle: two cowbell dings and a proud little kazoo run."""
+    tr = Track(1.8)
+    tr.add(0.0, bell808(0.5, 0.9))
+    tr.add(0.12, bell808(0.6, 0.9, f1=660, f2=950))
+    for i, (n, d) in enumerate((("G5", 0.11), ("C6", 0.11), ("E6", 0.11), ("G6", 0.55))):
+        tr.add(0.26 + i * 0.12, kazoo(midi(nm(n)), d, 0.65))
+    return tr.out(0.3)
+
+
+def sfx_bird_flutter():
+    """A small flock taking off: a burst of wingbeats that thins out, and a couple of alarm chirps."""
+    tr = Track(1.2)
+    r = np.random.default_rng(31)
+    for b in range(5):
+        t0 = r.uniform(0, 0.12)
+        rate = r.uniform(13, 18)
+        for k in range(int(0.8 * rate)):
+            m = int(0.018 * SR)
+            x = bandpass(noise(m), 400, 3000) * np.exp(-np.arange(m) / (0.005 * SR))
+            tr.add(t0 + k / rate, x, 0.6 * (1 - k / (0.8 * rate)))
+    for c in range(2):
+        d = 0.08
+        t = tt(d)
+        f = r.uniform(3000, 4200) * (1 + 0.2 * t / d)
+        tr.add(0.05 + c * 0.14, np.sin(2 * np.pi * np.cumsum(f) / SR) * np.sin(np.pi * t / d), 0.3)
+    return tr.out(0.2)
+
+
+def sfx_frog_chorus():
+    x = loop_frogs(3.0)
+    n = len(x)
+    return x * np.clip(np.linspace(3.0, 0.0, n), 0, 1) * np.minimum(1, np.arange(n) / (0.05 * SR))
+
+
+def sfx_owl_hoot():
+    tr = Track(2.2)
+    tc = 0.0
+    for d in (0.3, 0.3, 0.85):
+        t = tt(d)
+        f = 385 * (1 - 0.06 * t / d)
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        tr.add(tc, (np.sin(ph) + 0.15 * np.sin(2 * ph)) * np.sin(np.pi * t / d) ** 1.5, 0.6)
+        tc += d + 0.22
+    return reverb(tr.out(0.2), 1.6, 0.28)
+
+
 def sfx_bonk():
     return mix(woodblock(560, 1.0), (sfx_thump(0.35, 70), 0.5))
 
@@ -1577,7 +1624,7 @@ def sfx_bonk():
 LOUDNESS = {  # dBFS: loudest 400 ms for one-shots, average for loops and music
     "music": -17.0, "loop": -19.0, "voice": -12.0, "foley": -17.0, "ui": -15.0, "big": -10.0, "sfx": -13.0,
 }
-UI_SOUNDS = {"blip", "blip_hi", "blip_lo", "type", "ding", "question", "clover", "fanfare", "paper"}
+UI_SOUNDS = {"blip", "blip_hi", "blip_lo", "type", "ding", "question", "clover", "fanfare", "paper", "moodal"}
 BIG_SOUNDS = {"shotgun", "gate_smash", "crash", "alert", "dun_dun", "sad_trombone"}
 
 
@@ -1737,6 +1784,10 @@ def catalog():
         "slide_down": lambda: slide_whistle(1500, 330, 0.75),
         "slide_up": lambda: slide_whistle(330, 1500, 0.55),
         "bonk": sfx_bonk,
+        "moodal": sfx_moodal,
+        "bird_flutter": sfx_bird_flutter,
+        "frog_chorus": sfx_frog_chorus,
+        "owl_hoot": sfx_owl_hoot,
         # music
         "music_title": title_theme,
         "music_pasture": pasture_theme,

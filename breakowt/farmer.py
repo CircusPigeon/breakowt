@@ -272,6 +272,7 @@ class Farmer(Walker):
         self.g.audio.play("slide_down", vol=0.8, pos=(self.x, 1.2, self.z), rng=40)
         self.g.audio.play("thump", vol=0.9, pos=(self.x, 0.5, self.z), rng=30)
         self.g.stats["chuck_trips"] = self.g.stats.get("chuck_trips", 0) + 1
+        self.g.event("chuck_trip")
         self.g.on_farmer_trip()
 
     # ------------------------------------------------------------------
@@ -582,6 +583,7 @@ class Farmer(Walker):
                 if not self.dale_greeted and dist < 14:
                     self.dale_greeted = True
                     self.say(random.choice(DALE_LINES))
+                    self.g.event("dale")
                 v = 0.0
             else:
                 self.dale_t += dt

@@ -532,6 +532,76 @@ class UI:
             b.on_click = cb
         self._modal_state = {"back": back}
 
+    # ------------------------------------------------------------------
+    # Moo-dals
+    # ------------------------------------------------------------------
+    def moodal_banner(self, name, desc, reward):
+        """A banner under the day header: queued so two unlocks don't overlap."""
+        q = getattr(self, "_banner_q", None)
+        if q is None:
+            q = self._banner_q = []
+        q.append((name, desc, reward))
+        if getattr(self, "_banner", None) is None:
+            self._next_banner()
+
+    def _next_banner(self):
+        q = self._banner_q
+        if not q:
+            self._banner = None
+            return
+        name, desc, reward = q.pop(0)
+        e = Entity(parent=self.root, position=(0, 0.2, -0.05))
+        w = 0.78
+        Entity(parent=e, model=Quad(radius=0.02, aspect=w / 0.13), scale=(w, 0.13), color=C(0.1, 0.08, 0.05, 0.9))
+        Entity(parent=e, model=Quad(radius=0.02, aspect=w / 0.13), scale=(w + 0.008, 0.138), color=BRASS, z=0.01)
+        txt(e, "MOO-DAL EARNED", 0, 0.045, 0.85, BRASS, origin=(0, 0))
+        txt(e, name, 0, 0.012, 1.45, CREAM, origin=(0, 0), font=self.fonts.get("ui"))
+        txt(e, desc, 0, -0.025, 0.78, DIM, origin=(0, 0), wrap=90)
+        if reward:
+            txt(e, f"+{reward} Golden Clover{'s' if reward > 1 else ''}", 0, -0.052, 0.8, BRASS, origin=(0, 0))
+        self._banner = [e, 4.2]
+
+    def _update_banner(self, dt):
+        b = getattr(self, "_banner", None)
+        if not b:
+            return
+        b[1] -= dt
+        e = b[0]
+        e.y = 0.2 + max(0.0, b[1] - 3.9) * 0.4
+        e.enabled = self.modal is None
+        if b[1] <= 0:
+            destroy(e)
+            self._next_banner()
+
+    def open_moodals(self, g, on_close):
+        from . import moodals as M
+        r = self.open_modal("moodals")
+        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.78), scale=(3, 2), z=0.1)
+        md = g.moodals
+        n = md.count_unlocked()
+        txt(r, "MOO-DALS", 0, 0.47, 2.0, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
+        txt(r, f"{n} of {len(M.MOODALS)}  ·  rank: {md.rank()}  ·  they carry over between playthroughs",
+            0, 0.395, 0.95, DIM, origin=(0, 0.5))
+        cols = 2
+        per = (len(M.MOODALS) + cols - 1) // cols
+        colw = 0.66
+        for i, (mid, name, desc, reward, hidden) in enumerate(M.MOODALS):
+            c, row = divmod(i, per)
+            x = (c - (cols - 1) / 2) * (colw + 0.04) - colw / 2
+            y = 0.33 - row * 0.061
+            got = md.unlocked(mid)
+            if hidden and not got:
+                name, desc = "???", "A secret. Moo at things. Look at things. Live a little."
+            Entity(parent=r, model=Quad(radius=0.2), scale=0.022, position=(x + 0.012, y - 0.013),
+                   color=BRASS if got else C(0.3, 0.28, 0.25, 1))
+            txt(r, name, x + 0.035, y, 0.95, CREAM if got else DIM, origin=(-0.5, 0.5))
+            prog = md.progress(mid)
+            right = f"+{reward}" if got else (f"{prog[0]}/{prog[1]}" if prog else "")
+            txt(r, right, x + colw, y, 0.8, BRASS if got else DIM, origin=(0.5, 0.5))
+            txt(r, desc, x + 0.035, y - 0.025, 0.68, DIM, origin=(-0.5, 0.5))
+        txt(r, "[Esc] back", 0, -0.47, 0.9, DIM, origin=(0, 0))
+        self._modal_state = {"back_cb": on_close}
+
     def open_settings(self, on_close):
         r = self.open_modal("settings")
         from ursina import Slider
@@ -672,11 +742,13 @@ class UI:
         txt(r, "You", px + 0.012, py - 0.012, 0.7, RED)
         txt(r, "[Tab] close", 0, -0.47, 0.9, DIM, origin=(0, 0))
         st = g.stats
-        txt(r, f"Times caught: {st.get('caught', 0)}   Rocks thrown: {st.get('thrown', 0)}   Moos: {st.get('moos', 0)}",
+        txt(r, f"Times caught: {st.get('caught', 0)}   Moos: {st.get('moos', 0)}   "
+               f"Moo-dals: {g.moodals.count_unlocked()} (pause menu)",
             mx, my - mw * MAP_H / MAP_W / 2 - 0.04, 0.8, DIM, origin=(0, 0))
 
     # ------------------------------------------------------------------
     def update(self, dt):
+        self._update_banner(dt)
         # dialogue typewriter
         if self.dlg.enabled and self.dlg_shown < len(self.dlg_full):
             before = int(self.dlg_shown)

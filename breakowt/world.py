@@ -692,7 +692,7 @@ class World:
         # Cardboard Chuck
         scx, scz = -28, -66
         self.box("wood_dark", (scx, 0.6, scz), (0.08, 1.2, 0.08))
-        self.sign("poster_employee", (scx, 1.4, scz - 0.05), (1.0, 1.4), rot_y=0, double=True)
+        self.props["scarecrow"] = self.sign("poster_employee", (scx, 1.4, scz - 0.05), (1.0, 1.4), rot_y=0, double=True)
         self.add_ia("scarecrow", (scx, 1.4, scz), 0.7, "Cardboard Chuck")
         # rock piles
         for i, (rx_, rz_) in enumerate([(-27, -27), (-40, -44), (-14, -31), (8, -13), (40, 22), (31, -31), (-8, 18)]):

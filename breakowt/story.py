@@ -20,6 +20,7 @@ from .items import ITEMS
 from .npc import FRIENDS, HERD_NAMES
 from .ui import C, CREAM, BRASS, DIM, PANEL, PANEL_LIGHT, txt
 from . import models
+from .moodals import MOODALS
 
 
 def save_has_progress(save):
@@ -187,6 +188,7 @@ class Story(DayScripts):
         g.day_sub = info["sub"]
         g.ui.set_day(info["name"], info["sub"])
         self.setf("max_day", max(n, self.flags.get("max_day", 1)))
+        g.event("day_start", day=n)
         self.apply_world_flags()
         getattr(self, f"setup_day{n}")()
         g.refresh_hotbar()
@@ -323,6 +325,7 @@ class Story(DayScripts):
             opts.append(("New game", lambda: self.new_game(1)))
             # every day is open from the start; a chapter sets up what the earlier days would have
             opts.append(("Chapter select", lambda: self.open_title("chapters")))
+            opts.append(("Moo-dals", self._title_moodals))
             opts.append(("Settings", self._title_settings))
             opts.append(("Quit", self._quit))
         else:
@@ -364,6 +367,16 @@ class Story(DayScripts):
         # leaving a button for empty space clears the highlight; moving onto a neighbour re-lights it
         if getattr(self, "title_lit", None) == i and not any(b.hovered for b in self.title_buttons):
             self._title_hl(None)
+
+    def _title_moodals(self):
+        g = self.g
+        self.close_title_ui()
+
+        def back():
+            g.ui.close_modal()
+            g.set_mouse(False)
+            self.open_title("main")
+        g.ui.open_moodals(g, back)
 
     def _title_settings(self):
         g = self.g
@@ -646,6 +659,7 @@ class Story(DayScripts):
             res = yield from fn(cow)
             if res:
                 return True
+        g.event("herd_talk", idx=cow.idx)
         line = HERD_LINES[(cow.idx * 7 + self.talk_i.get(f"herd{cow.idx}", 0)) % len(HERD_LINES)]
         self.talk_i[f"herd{cow.idx}"] = self.talk_i.get(f"herd{cow.idx}", 0) + 1
         yield from g.talk([(cow, line)])
@@ -933,6 +947,7 @@ class Story(DayScripts):
             (f"Times Chuck fell over: {st.get('chuck_trips', 0)}", "small"),
             (f"Things knocked over: {st.get('knocked', 0)}", "small"),
             (f"Favors done: {sum(1 for k in ('sq_helm', 'sq_specs', 'sq_photo') if self.done(k))} of 3", "small"),
+            (f"Moo-dals: {g.moodals.count_unlocked()} of {len(MOODALS)}  (rank: {g.moodals.rank()})", "small"),
             ("", ""),
             ("No cows were harmed in the making of this game.", "small"),
             ("One farmer was.", "small"),
