@@ -2070,7 +2070,7 @@ class DayScripts:
         # the objective spells out each clue as it's found, so there's always a next thing to try
         clue = {0: "   Find Chuck's spare key (try the doormat)",
                 1: "   The note says: under the flowerpot",
-                2: "   The note says: inside the garden gnome. Headbutt him"}
+                2: "   It's inside the garden gnome: headbutt him to break him open"}
 
         def show():
             self.objectives(("in", "Get into the farmhouse"),
@@ -2094,13 +2094,13 @@ class DayScripts:
             gg.audio.play("rock_land", vol=0.6, pitch=0.7)
             yield from gg.show_document("Under the flowerpot", "Another sticky note:\n\n"
                                                                "    Moved it. Spare key is in the GNOME.\n"
+                                                               "    (Break him open. I'll buy another.)\n"
                                                                "                              - Chuck")
             found(2, (41, 24, "Gnome"))
+            gg.ui.popup_sub("The gnome's in the flowerbed by the corner of the house. Walk up to him and headbutt "
+                            "him (left click or E).", 8)
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
-        g.on("gnome", "Look at the gnome", lambda gg: gg.examine(
-            "He's been fishing in a flowerbed for twenty years. His belly rattles. A headbutt (left click) would "
-            "open him up."))
 
         if self.done("gnome_broken") and not g.inv.has("house_key") and not self.done("house_unlocked"):
             # broken in an earlier try (the old version dropped the key in the flowerbed): hand it over
@@ -2116,7 +2116,35 @@ class DayScripts:
             gg.inv.add("house_key")
             gg.ui.popup_sub("The gnome topples over and cracks open. The spare key falls out. You pick it up in "
                             "your teeth.", 5)
+        def smash(gg):
+            # E does the same as a left click here: the prompt tells you what's going to happen
+            p = gg.player
+            p.lunge = 1.0
+            p.shake = 0.3
+            gg.audio.play("headbutt", vol=0.9)
+            bonk(gg)
+        g.on("gnome", "Headbutt the gnome", smash, cond=lambda gg: not self.done("gnome_broken"))
         g.ia.get("gnome").on_headbutt = bonk
+
+        gn = g.world.gnome
+        wob = {"next": 0.5, "t": 0.0}
+
+        def upd(dt):
+            self.base_update(dt)
+            if self.done("gnome_broken") or self.flags.get("d5_keystate", 0) < 2:
+                return
+            # once the note points at him, the gnome rattles every few seconds: a shake and a jingle of keys
+            wob["next"] -= dt
+            if wob["next"] <= 0:
+                wob["next"] = 2.5
+                wob["t"] = 0.5
+                g.audio.play("cowbell_1", vol=0.4, pitch=2.4, pos=(41, 0.8, 24), rng=20)
+            if wob["t"] > 0:
+                wob["t"] = max(0.0, wob["t"] - dt)
+                gn.rotation_z = math.sin(wob["t"] * 45) * 9 * (wob["t"] / 0.5)
+            else:
+                gn.rotation_z = 0
+        self.hook("update", upd)
         yield lambda: g.inv.has("house_key") or self.done("house_unlocked")
         g.ia.get("gnome").on_headbutt = None
         self.objectives(("in", "Get into the farmhouse"), ("in_key", "   Found the spare key"))

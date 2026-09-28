@@ -91,15 +91,28 @@ class InteractionSystem:
                 continue
             ang = math.degrees(math.acos(max(-1.0, min(1.0, cosang))))
             allow = math.degrees(math.atan2(ia.radius, max(dist, 0.3))) + 7
+            assist = 0.0
             if ang > allow:
-                continue
+                # Something low, right under your nose (a gnome, a doormat): a cow walking up to it and
+                # looking straight ahead should still get the prompt, so judge those by direction on the
+                # ground alone. They score a little worse than things you're actually looking at.
+                dh = math.hypot(dx, dz)
+                fh = math.hypot(fx, fz)
+                if not (dy < -0.3 and 1e-3 < dh < 2.4 and fh > 1e-3):
+                    continue
+                cos_h = (dx * fx + dz * fz) / (dh * fh)
+                ang = math.degrees(math.acos(max(-1.0, min(1.0, cos_h))))
+                allow = math.degrees(math.atan2(ia.radius, max(dh, 0.3))) + 10
+                if ang > allow:
+                    continue
+                assist = 0.5
             # don't interact through walls: stop the ray just short of the target
             back = max(0.0, dist - ia.radius - 0.2) / dist
             if back > 0.05:
                 end = (ex + dx * back, ey + dy * back, ez + dz * back)
                 if not phys.line_of_sight(eye, end, include_dynamic=False):
                     continue
-            score = ang / allow + dist * 0.05
+            score = ang / allow + dist * 0.05 + assist
             if score < best_score:
                 best, best_score = ia, score
         return best
