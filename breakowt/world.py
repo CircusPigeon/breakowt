@@ -1547,16 +1547,13 @@ class World:
         self.mb("quilt").box((bx2, y + 0.45, bz2 - 1.605), (2.06, 0.36, 0.02), uv_density=1.0)
         self.mb("white").box((bx2, y + 0.66, bz2 + 0.98), (2.0, 0.05, 0.25), color=(0.96, 0.95, 0.92, 1))
         for s in (-1, 1):
-            self.mb("white").sphere((bx2 + s * 0.48, y + 0.72, bz2 + 1.35), 0.4, segs=10, rings=6,
+            self.mb("white").sphere((bx2 + s * 0.48, y + 0.72, bz2 + 1.25), 0.4, segs=10, rings=6,
                                     scale=(1.0, 0.28, 0.55), color=(0.97, 0.97, 0.95, 1))
         self.phys.add_box_c(bx2, bz2, 2.2, 3.4, y, y + 0.7)
         self.add_ia("bed_farmer", (58.5, y + 0.8, 46), 1.0, "Chuck's bed")
-        # the quilt pulled up over Chuck when he's in bed (the farmer turns it on and off)
-        cov = MeshBuilder().sphere((bx2, y + 0.635, 46.15), 1.0, segs=20, rings=6, scale=(0.68, 0.3, 0.95), dome=True,
-                                   uv_density=0.9)
-        cov.sphere((bx2, y + 0.635, 45.72), 1.0, segs=14, rings=5, scale=(0.42, 0.38, 0.32), dome=True, uv_density=0.9)
-        self.bed_covers = Entity(model=cov.build(), texture=tex("quilt"), shader=FARM_SHADER, enabled=False)
-        self.entities.append(self.bed_covers)
+        # the quilt pulled up over Chuck when he's in bed: shaped to him the first time he lies down
+        # (fit_bed_covers), then the farmer shows and hides it
+        self.bed_covers = None
         # nightstand with a drawer, a lamp and the alarm clock
         f("wood", 60.9, 47.4, y, "s", 0, 0, 0, 0.6, 0.66, 0.55)
         f("white", 60.9, 47.4, y, "s", 0, 0.42, -0.285, 0.5, 0.18, 0.02, color=(0.62, 0.44, 0.28, 1))
@@ -1691,6 +1688,63 @@ class World:
         self.lamp("porch", (56, y + 2.35, 28.5), radius=9, intensity=1.1, on=False, hang_to=y + 2.6)
         self.spawns["house_front"] = (56, 0, 24, 0)
         self.spawns["house_in"] = (56, y, 32, 0)
+
+    def show_bed_covers(self, on, model=None):
+        if on and self.bed_covers is None and model is not None:
+            self.fit_bed_covers(model)
+        if self.bed_covers is not None and self.bed_covers.enabled != on:
+            self.bed_covers.enabled = on
+
+    def fit_bed_covers(self, model):
+        """Drape the quilt over Chuck lying in bed: a height field over the mattress, lifted wherever a part of
+        him is (so there are two legs and a belly under it), stopping below his shoulders with the sheet turned
+        down over his chest."""
+        import numpy as np
+        from scipy.interpolate import RegularGridInterpolator
+        from scipy.ndimage import gaussian_filter
+        from ursina import scene
+        y = HOUSE_Y
+        x0, x1, z0 = 57.47, 59.53, 44.6
+        base = y + 0.662                      # just over the made-up quilt
+        boxes = []
+        parts = model.findAllMatches("**/+GeomNode")
+        for i in range(parts.getNumPaths()):
+            a, b = parts[i].getTightBounds(scene)
+            if b.y - a.y > 0.02 and a.y < y + 1.5:      # not the blob shadow under him
+                boxes.append((a, b))
+        if not boxes:
+            return
+        head = max(boxes, key=lambda ab: ab[1].z)
+        edge = min(47.1, head[0].z - 0.3)     # a hand's width below the neck
+        step = 0.03
+        xs = np.arange(x0, x1 + 1e-6, step)
+        zs = np.arange(z0, edge + 0.3, step)
+        X, Z = np.meshgrid(xs, zs, indexing="ij")
+        H = np.full(X.shape, base)
+        for ab in boxes:
+            if ab is head:
+                continue
+            a, b = ab
+            # over each part the cloth sits on top of it; off to the side it falls away in a soft curve,
+            # spreading further the taller the part is (like a quilt over a belly)
+            top = b.y + 0.03 - base
+            if top <= 0:
+                continue
+            dx = np.maximum(np.maximum(a.x - X, X - b.x), 0.0)
+            dz = np.maximum(np.maximum(a.z - Z, Z - b.z), 0.0)
+            t = np.clip(1.0 - np.hypot(dx, dz) / max(0.18, top * 0.95), 0.0, 1.0)
+            H = np.maximum(H, base + top * t * t * (3 - 2 * t))
+        H = np.maximum(gaussian_filter(H, 1.2), base)
+        fn = RegularGridInterpolator((xs, zs), H, bounds_error=False, fill_value=None)
+        mb = MeshBuilder()
+        mb.heightfield(x0, z0, x1, edge, lambda x, z: float(fn((x, z))), res=48, uv_density=1.0)
+        band = MeshBuilder()
+        band.heightfield(x0, edge - 0.02, x1, edge + 0.16, lambda x, z: float(fn((x, z))) + 0.012, res=24,
+                         color_fn=lambda *_: (0.96, 0.95, 0.9, 1))
+        cov = Entity(model=mb.build(), texture=tex("quilt"), shader=FARM_SHADER, enabled=False)
+        Entity(parent=cov, model=band.build(), texture=tex("white"), shader=FARM_SHADER)
+        self.entities.append(cov)
+        self.bed_covers = cov
 
     def build_processing(self):
         x0, x1, z0, z1 = PROC

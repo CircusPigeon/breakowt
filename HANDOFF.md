@@ -32,8 +32,10 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - HUD: the stamina bar sits bottom-left (it used to collide with the hotbar on 3:2 / 16:10 screens), and
   `UI.relayout()` re-anchors edge-pinned HUD pieces when the window changes shape (fullscreen toggle).
 - Chuck in bed: `BED_SLEEP` / `BED_GETUP` in `days.py`. The "sleep" pose lays him out along +z from his
-  feet, 0.8 m up, so the position is his feet at mattress height. A quilt (`world.bed_covers`) covers him
-  while he's asleep in bed (`Farmer.update` toggles it). Stirring uses the `sleep_look` pose (head turns
+  feet, 0.8 m up; boots to nightcap he's 2.7 m long lying down, so his feet go at z 45.1 to keep the cap
+  off the headboard. The quilt over him (`World.fit_bed_covers`) is built the first time he lies down:
+  a height field over the mattress lifted over each of his parts' bounding boxes with a soft fall-off,
+  ending below the shoulders with a turned-down sheet. `Farmer.update` shows it while he's asleep in bed. Stirring uses the `sleep_look` pose (head turns
   on the pillow) instead of standing him up in the bed.
 - Light sleeper (`farmer.py`: `_hear_asleep`, `_disturbance`, `get_up`, `back_to_bed`): noises inside the
   house add to `drowse`; a thrown item, a moo, the radio, the toilet or a gunshot wakes him outright,
@@ -49,8 +51,8 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   day kept daylight after dark. It now takes just the shader plus the per-entity inputs.
 - Boss fight (`ChuckBoss` in `combat.py`, `d7_boss` in `days.py`): Chuck has 6 HP and the bar empties
   exactly when he goes down (it used to hand over to the finale at 4 of 12, so the bar sat at a third);
-  longer openings (windup 0.95 s, stuck 3.2 s, winded every 2 throws for 3.5 s). You get 5 hearts for the
-  fight. Losing resets the whole fight (Chuck to full, your shells back).
+  longer openings (windup 0.95 s, stuck 3.2 s, winded every 2 throws for 3.5 s). Still 3 hearts (the
+  player asked to keep it at 3). Losing resets the whole fight (Chuck to full, your shells back).
 - Ol' Bessie fires: Q with the shotgun selected (`Game.fire_shotgun`). Two shells (`flags["shells"]`, set
   when you take her from the cabinet and in the chapter-select preset). 3 damage and knocks Chuck flat
   whatever state he's in; a big noise (radius 60) anywhere else, so firing in the house wakes Chuck.
@@ -65,11 +67,11 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   `--day 6 --to 6 --caught all --detect`. The bot sneaks for the nightstand drawer, and if it's caught for
   real (not on purpose) it waits for the catch to play out and restarts the step's plan.
 - Boss: a scratch test shot him (6 -> 3 HP, knocked flat, 1 shell left), lost the fight, and got Chuck
-  back at 6/6, phase 1, 5 hearts and 2 shells; the bar hits 0 exactly when he goes down.
+  back at 6/6, phase 1, full hearts and 2 shells; the bar hits 0 exactly when he goes down.
 - Credits with a stale key press: about 110 s including the epilogue (it used to be a few seconds).
 - Chuck: rock in the living room -> gets up, investigates, back to bed under the quilt; galloping in the
   house wakes him after a few strides; a front door left open gets noticed and shut.
-- If the full `--caught all --detect` run below this line isn't marked as passed, run it first.
+- Full `--day 1 --to 7 --caught all --detect` passed after the drawer fix.
 
 ## Run
 ```

@@ -42,7 +42,8 @@ COUNT_LINES = ["Thirty-one, thirty-two...", "...thirty-eight, thirty-nine. Hold 
                "Forty, forty-one... no, I counted you.", "...forty-two, forty-three..."]
 
 MOOHOLE_POS = (-18.0, -66.1)
-BED_SLEEP = (58.5, Y - 0.1, 45.65)    # where Chuck's feet go in bed: the sleep pose lays him out along +z, 0.8 up
+BED_SLEEP = (58.5, Y - 0.02, 45.1)    # where Chuck's feet go in bed: the sleep pose lays him out along +z, 0.8 up
+#                                      (boots to nightcap he's 2.7 m lying down; this keeps the cap off the headboard)
 BED_GETUP = (56.95, Y, 45.7)          # where he stands when something gets him out of bed (by the rug)
 OAK_MEET = {
     "cowpernicus": (-46.8, 0, -35.2, 270), "cowleen": (-50.0, 0, -39.5, 0), "sirloin": (-53.6, 0, -36.5, 70),
@@ -2870,9 +2871,7 @@ class DayScripts:
         f.set_tool("pitchfork")
         g.enemies.append(boss)
         self.enemy = boss
-        # a fair fight: five hearts for this one, and whatever shells you've kept in Ol' Bessie
-        prev_max = p.max_health
-        p.max_health = max(prev_max, 5)
+        # whatever shells you've kept in Ol' Bessie
         p.health = p.max_health
         start_shells = g.flags.get("shells", 2) if g.inv.has("shotgun") else 0
         g.ui.set_boss("CHUCK", 1.0)
@@ -2926,7 +2925,6 @@ class DayScripts:
                 g.ui.popup_sub("Round two. From the top.", 3)
             yield None
         self.hooks.pop("defeated", None)
-        p.max_health = prev_max
         # the cowbell
         g.cutscene_start(letterbox=True)
         boss.remove()

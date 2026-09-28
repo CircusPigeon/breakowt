@@ -467,10 +467,10 @@ class Farmer(Walker):
 
     # ------------------------------------------------------------------
     def update(self, dt):
-        covers = self.g.world.bed_covers
         tucked = self.visible and self.state == "sleep" and getattr(self, "sleep_pose", "") == "sleep"
-        if covers.enabled != tucked:
-            covers.enabled = tucked
+        # a couple of frames in, so the model is already lying down when the quilt is shaped to him
+        self._tuck_n = getattr(self, "_tuck_n", 0) + 1 if tucked else 0
+        self.g.world.show_bed_covers(self._tuck_n > 2, self.model)
         if not self.visible:
             return
         g = self.g
