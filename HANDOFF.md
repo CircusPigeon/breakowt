@@ -3,7 +3,9 @@
 Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file tracks build status.
 
 ## Stack
-- Python 3.13, Ursina 8.3 (Panda3D 1.10.16), numpy, scipy, Pillow.
+- Python 3.13, Ursina 8.3 (Panda3D 1.10.16), numpy, scipy, Pillow (`requirements.txt`; Ursina 8.3 needs
+  Python 3.12+). `README.md` is the player-facing download/install/controls guide. Keep its controls table
+  in step with `Game.input` when keys change.
 - All audio, textures and fonts are generated procedurally on first run (about a minute, with a
   progress bar) into `Documents/My Games/BREAKOWT/generated/` (falls back to `~/.breakowt/`).
   Saves (`saves/`) and F12 screenshots (`screenshots/`) live next to it. Bump `TEX_VERSION` in
