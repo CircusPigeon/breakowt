@@ -15,21 +15,22 @@ from .world import in_pond
 EYE = 1.42
 EYE_SNEAK = 0.95
 RADIUS = 0.55
+SNOUT_Y = -0.38
 
 MOO_THOUGHTS = [
     "Moo. (Just checking my voice still works.)",
-    "Moo. (I am a cow. This is fine.)",
-    "Moo. (Somewhere, a steak is being ordered. Not today.)",
+    "Moo. (Nobody answered. Fair enough.)",
+    "Moo. (That came out louder than I meant.)",
     "Moo. (Anyone else hungry? Rhetorical. I'm always hungry.)",
-    "Moo. (The walls have ears. The cows have ears too. Big ones.)",
+    "Moo. (Somebody moos back from the far side of the pasture.)",
     "Moo. (I had a thought and then I mooed it away.)",
     "Moo. (Sound check. One, two. Moo, moo.)",
-    "Moo. (Freedom is a state of mind. Also a road.)",
+    "Moo. (Moozart would say that was flat.)",
     "Moooo. (That one was for Big Earl.)",
     "Moo. (Chuck, if you can hear this: no.)",
 ]
 
-THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0}
+THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0, "shoes": 12.0}
 
 
 class Projectile:
@@ -79,7 +80,8 @@ class Projectile:
         g = self.g
         self.ent.position = p
         self.pos = list(p)
-        snd = {"rock": "rock_land", "cowbell": "cowbell_drop", "egg": "splash", "rubber_chicken": "squawk"}.get(self.kind, "rock_land")
+        snd = {"rock": "rock_land", "cowbell": "cowbell_drop", "egg": "splash", "rubber_chicken": "squawk",
+               "shoes": "thump"}.get(self.kind, "rock_land")
         g.audio.play(snd, vol=1.0, pos=p, rng=45)
         loud = {"rock": 15, "cowbell": 22, "egg": 9, "rubber_chicken": 18}.get(self.kind, 14)
         g.noise(p, loud, source="thrown")
@@ -148,28 +150,29 @@ class Player:
 
     # ------------------------------------------------------------------
     def _build_snout(self):
-        root = Entity(parent=camera, position=(0, -0.3, 0.5), rotation_x=-8)
+        root = Entity(parent=camera, position=(0, SNOUT_Y, 0.56), rotation_x=-6)
         mb = MeshBuilder()
-        P = (0.96, 0.68, 0.72, 1)
-        mb.box((0, 0, 0), (0.3, 0.14, 0.2), color=P, uv_rect=models.WHITE)
-        mb.box((0, -0.01, 0.03), (0.32, 0.12, 0.16), color=(0.93, 0.62, 0.67, 1), uv_rect=models.WHITE)
+        P = (0.95, 0.66, 0.7, 1)
+        # the bridge of the nose, in your own brown-and-white hide
+        mb.box((0, 0.07, -0.2), (0.34, 0.12, 0.34), uv_rect=models.uvr("hide_brown", 0.3))
+        # the muzzle: a wide, soft pink dome, mostly below the bottom of the screen
+        mb.sphere((0, 0, 0), 0.2, color=P, segs=18, rings=10, scale=(1.3, 0.55, 0.95))
+        mb.sphere((0, -0.02, 0.1), 0.16, color=(0.93, 0.6, 0.65, 1), segs=16, rings=8, scale=(1.35, 0.5, 0.7))
         for sx in (-1, 1):
-            mb.box((sx * 0.07, 0.03, 0.101), (0.055, 0.04, 0.01), color=(0.35, 0.12, 0.16, 1), uv_rect=models.WHITE)
-        # fur edge at the sides
-        for sx in (-1, 1):
-            mb.box((sx * 0.2, 0.04, -0.06), (0.12, 0.2, 0.2), color=(0.92, 0.9, 0.86, 1), uv_rect=models.WHITE)
-        e = Entity(parent=root, model=mb.build(), texture=tex("atlas"), shader=FARM_SHADER)
+            mb.sphere((sx * 0.085, 0.05, 0.15), 0.03, color=(0.5, 0.22, 0.27, 1), segs=10, rings=6,
+                      scale=(1.5, 0.45, 1.0))
+        e = Entity(parent=root, model=mb.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER)
         e.set_shader_input("u_unlit", 0.35)
         self.stache = Entity(parent=root, enabled=False)
         sm = MeshBuilder()
         sm.box((0, 0.1, 0.06), (0.34, 0.04, 0.05), color=models.MUSTACHE, uv_rect=models.WHITE)
         for sx in (-1, 1):
             sm.box((sx * 0.18, 0.07, 0.06), (0.05, 0.08, 0.05), color=models.MUSTACHE, uv_rect=models.WHITE, rot=(0, 0, sx * 20))
-        Entity(parent=self.stache, model=sm.build(), texture=tex("atlas"), shader=FARM_SHADER)
+        Entity(parent=self.stache, model=sm.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER)
         self.hat_brim = Entity(parent=camera, position=(0, 0.42, 0.45), enabled=False)
         hm = MeshBuilder()
         hm.box((0, 0, 0), (1.4, 0.03, 0.5), color=(0.9, 0.78, 0.48, 1), uv_rect=models.WHITE, rot=(-12, 0, 0))
-        Entity(parent=self.hat_brim, model=hm.build(), texture=tex("atlas"), shader=FARM_SHADER)
+        Entity(parent=self.hat_brim, model=hm.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER)
         return root
 
     def set_disguise(self, on):
@@ -191,6 +194,8 @@ class Player:
         self.held = models.item_model(name, parent=camera, position=(0.02, -0.22, 0.62), rotation=rot, scale=scale)
         for c in self.held.children:
             c.set_shader_input("u_unlit", 0.3)
+        # the held item rides on the camera, so hide it while the camera is off doing a cutscene
+        self.held.enabled = not self.g.cam_free and not self.driving
 
     # ------------------------------------------------------------------
     @property
@@ -339,11 +344,13 @@ class Player:
         self._apply()
         self.head.y = self.cam_y + bob + random.uniform(-1, 1) * sh * 0.1
         self.head.rotation_z = roll + random.uniform(-1, 1) * sh * 4
-        camera.z = lunge_off
-        target_fov = self.fov_base + (7 if self.galloping else 0)
-        camera.fov += (target_fov - camera.fov) * min(1, dt * 5)
+        if not g.cam_free:
+            # first-person camera effects only while the camera is on our head (not in cutscenes)
+            camera.z = lunge_off
+            target_fov = self.fov_base + (7 if self.galloping else 0)
+            camera.fov += (target_fov - camera.fov) * min(1, dt * 5)
         # snout wiggle
-        self.snout.y = -0.3 + math.sin(self.bob_t * 2) * 0.008 - (0.03 if self.crouching else 0)
+        self.snout.y = SNOUT_Y + math.sin(self.bob_t * 2) * 0.008 - (0.03 if self.crouching else 0)
         # footsteps + cowbell noise
         if moved > 0 and self.y_vel == 0:
             self.step_acc += moved

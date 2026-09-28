@@ -20,14 +20,24 @@ in vec2 p3d_MultiTexCoord0;
 in vec4 p3d_Color;
 uniform vec2 texture_scale;
 uniform vec2 texture_offset;
+uniform float u_sway;
+uniform float u_time;
 out vec2 uv;
 out vec3 wpos;
 out vec3 wnorm;
 out vec4 vcol;
 void main() {
-    gl_Position = p3d_ModelViewProjectionMatrix * p3d_Vertex;
+    vec4 v = p3d_Vertex;
+    if (u_sway > 0.0) {
+        // wind: displacement grows with height above the ground
+        float h = max(v.y, 0.0);
+        float ph = u_time * 1.6 + v.x * 0.31 + v.z * 0.23;
+        v.x += (sin(ph) + 0.35 * sin(ph * 2.7)) * u_sway * h;
+        v.z += cos(ph * 0.83) * u_sway * h * 0.6;
+    }
+    gl_Position = p3d_ModelViewProjectionMatrix * v;
     uv = p3d_MultiTexCoord0 * texture_scale + texture_offset;
-    wpos = (p3d_ModelMatrix * p3d_Vertex).xyz;
+    wpos = (p3d_ModelMatrix * v).xyz;
     wnorm = mat3(p3d_ModelMatrix) * p3d_Normal;
     vcol = p3d_Color;
 }
@@ -55,15 +65,50 @@ uniform vec4 u_lamp_pos[6];
 uniform vec4 u_lamp_col[6];
 uniform float u_unlit;
 uniform float u_emissive;
+uniform float u_water;
+uniform float u_time;
+uniform vec3 u_sky_top;
+uniform vec3 u_sky_hor;
+uniform vec3 u_sun_disc;
 out vec4 frag;
+
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise2(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash2(i), hash2(i + vec2(1, 0)), f.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), f.x), f.y);
+}
+
+vec3 tonemap(vec3 c) {
+    // gentle filmic shoulder so bright sun and lamps roll off instead of clipping
+    c = max(c, vec3(0.0));
+    vec3 t = c * (1.0 + c / 5.0) / (1.0 + c);
+    t = mix(c, t, 0.55);
+    float l = dot(t, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(l), t, 1.08);
+}
+
 void main() {
     vec4 base = texture(p3d_Texture0, uv) * p3d_ColorScale * vcol;
     if (base.a < 0.03) discard;
     vec3 n = normalize(wnorm);
     if (!gl_FrontFacing) n = -n;
+    vec3 V = normalize(u_cam - wpos);
+    if (u_water > 0.0) {
+        // ripples: perturb the normal with two drifting layers of noise
+        vec2 q = wpos.xz * 0.9;
+        float e = 0.15;
+        float h0 = vnoise2(q + vec2(u_time * 0.35, u_time * 0.2)) + 0.5 * vnoise2(q * 2.3 - vec2(u_time * 0.5, 0.0));
+        float hx = vnoise2(q + vec2(e, 0) + vec2(u_time * 0.35, u_time * 0.2)) + 0.5 * vnoise2((q + vec2(e, 0)) * 2.3 - vec2(u_time * 0.5, 0.0));
+        float hz = vnoise2(q + vec2(0, e) + vec2(u_time * 0.35, u_time * 0.2)) + 0.5 * vnoise2((q + vec2(0, e)) * 2.3 - vec2(u_time * 0.5, 0.0));
+        n = normalize(vec3(-(hx - h0) / e * 0.08, 1.0, -(hz - h0) / e * 0.08));
+    }
     float ndl = max(dot(n, u_sun_dir), 0.0);
     float hemi = n.y * 0.5 + 0.5;
     vec3 light = mix(u_amb_ground, u_amb_sky, hemi) + u_sun_col * ndl;
+    // contact shadow where upright surfaces meet the ground
+    float ao = mix(0.62, 1.0, smoothstep(0.0, 0.85, wpos.y));
+    light *= mix(1.0, ao, (1.0 - abs(n.y)) * (1.0 - u_unlit));
     if (u_flash.w > 0.0) {
         vec3 fl = wpos - u_flash_pos;
         float fd = length(fl);
@@ -89,6 +134,16 @@ void main() {
     }
     vec3 lit = base.rgb * light;
     vec3 col = mix(lit, base.rgb, u_unlit) + base.rgb * u_emissive;
+    if (u_water > 0.0) {
+        // sky reflection at grazing angles plus a sun glint
+        float fres = pow(1.0 - max(dot(n, V), 0.0), 4.0);
+        vec3 R = reflect(-V, n);
+        vec3 sky = mix(u_sky_hor, u_sky_top, clamp(R.y * 1.6, 0.0, 1.0));
+        col = mix(col, sky, 0.18 + 0.6 * fres);
+        float spec = pow(max(dot(R, u_sun_dir), 0.0), 180.0);
+        col += u_sun_disc * spec * 2.2 * u_water;
+    }
+    col = tonemap(col);
     float dist = length(wpos - u_cam);
     float f = clamp((dist - u_fog.x) / max(u_fog.y - u_fog.x, 0.01), 0.0, 1.0);
     col = mix(col, u_fog_col, f * f * (3.0 - 2.0 * f));
@@ -98,7 +153,7 @@ void main() {
 
 FARM_SHADER = Shader(name="farm_shader", language=Shader.GLSL, vertex=VERT, fragment=FRAG,
                      default_input={"texture_scale": (1, 1), "texture_offset": (0, 0),
-                                    "u_unlit": 0.0, "u_emissive": 0.0})
+                                    "u_unlit": 0.0, "u_emissive": 0.0, "u_sway": 0.0, "u_water": 0.0})
 
 SKY_VERT = """
 #version 140

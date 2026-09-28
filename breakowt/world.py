@@ -24,10 +24,11 @@ SHED = (-12, -4, -26, -18)
 BARN = (10, 34, -10, 14)
 LOFT_Y = 3.2
 COOP_HUT = (38, 44, -32, -27)
-COOP_RUN = (34, 52, -42, -24)
+COOP_RUN = (34, 48, -42, -24)
 SILO = (42, 8)
 HOUSE = (44, 68, 30, 48)
 HOUSE_Y = 0.3
+KX = 57.6          # x of the wall between the living room and the kitchen
 PROC = (56, 76, -50, -32)
 GATE_Z = 86
 FARM = (-80, 80, -78, 86)
@@ -56,8 +57,8 @@ def in_pond(x, z, pad=0.0):
 
 
 DEFAULT_TEXT = {
-    "oak": ["The Old Oak. Older than the farm. Older than Chuck. Somehow less wooden than Chuck.",
-            "Carved into the bark: 'B.E. + M. 1998'. Big Earl and Moomaw. Adorable."],
+    "oak": ["The Old Oak. Every calf on the farm has tried to climb it. None of them managed, being cows.",
+            "Carved into the bark: 'B.E. + M. 1998'. Big Earl and Moomaw."],
     "trough": ["The trough. Today's water has a leaf in it. And a sock. Whose sock?",
                "You drink. It tastes like trough."],
     "saltlick": ["A salt lick. The closest thing this farm has to a nightclub."],
@@ -65,32 +66,32 @@ DEFAULT_TEXT = {
                   "The new calves salute it. You don't have the heart to tell them."],
     "hay_bed": ["Somebody else's bed. It smells like somebody else."],
     "cowshed_sign": ["COWSHED. Chuck named it himself. He was very proud."],
-    "stall_sign": ["Stall 47. Yours. Home, for about six more days."],
-    "shed_door": ["The tool shed door. Padlocked. Chuck's security is, for once, adequate."],
-    "generator": ["The generator. It hums the fence to life. 8,000 volts of 'please stay'.",
-                  "A label: 'MAIN FUSE — PULL TO KILL FENCE (DON'T)'. Chuck writes very honest labels."],
+    "stall_sign": ["Stall 47. Chuck painted the number himself and got the 4 backwards the first time."],
+    "shed_door": ["The tool shed door. Padlocked, and the padlock is newer than the door."],
+    "generator": ["The generator. The fence runs off this. It hums a low note all day and all night.",
+                  "A label: 'MAIN FUSE: PULL TO KILL FENCE (DON'T)'. Chuck writes very honest labels."],
     "workbench": ["Chuck's workbench. Every tool is labeled 'MINE'."],
     "poster": ["EMPLOYEE OF THE MONTH: CHUCK. Every month since 1987. The only employee since 1987."],
     "trophy": ["A bowling trophy. The plaque reads: 'CHUCK · 1998 · HIGH SCORE: 117'."],
-    "tractor": ["A JOHN STEER tractor. Green, loud, and the only thing on this farm Chuck loves more than himself."],
+    "tractor": ["A JOHN STEER tractor. Chuck polishes it on Sundays. He has never once polished a cow."],
     "windmill": ["The windmill creaks in a key you almost recognize. B-flat minor, maybe."],
-    "silo": ["The silo. Full of grain. Or secrets. Probably grain."],
-    "processing_door": ["The big door is locked. You don't want to know. You already know."],
+    "silo": ["The silo. Chuck climbed it in 2004 and the fire brigade had to talk him down."],
+    "processing_door": ["The big door is locked. It smells of bleach from here."],
     "processing_sign": ["'Happy Cows Come From Happy Acres!' You have never seen a cow come back from in there."],
     "pickup": ["Chuck's pickup. There's a bumper sticker: 'I BRAKE FOR BARBECUE'."],
     "mailbox": ["The mailbox. A catalog: 'GRILLS & MORE'. Chuck has circled everything."],
-    "road_sign": ["'FREEDOM 12'. Twelve what? Twelve miles? Twelve steps? You'll take it."],
+    "road_sign": ["'FREEDOM 12'. The next town over is called Freedom. It's twelve miles up the road."],
     "doghouse": ["A tiny doghouse. 'BISCUIT'. There's a food bowl, and it's been empty for a long time."],
-    "main_gate": ["The main gate. Chained and padlocked. Beyond it: the road, and everything else."],
+    "main_gate": ["The main gate. Chained and padlocked. The road starts on the other side."],
     "cattle_grid": ["A cattle grid. Metal bars over a pit. Hooves slip right through.",
                     "Humanity's second most diabolical invention, after the hamburger."],
     "tv": ["The TV is on: 'BEEF TONIGHT with Cooking Carl'. You change the channel with your nose. It's also beef."],
-    "couch": ["The couch has a Chuck-shaped dent. It's a deep dent. It's a sad dent."],
+    "couch": ["The couch has a Chuck-shaped dent in it, and a TV dinner tray wedged down the side."],
     "rug": ["A cowhide rug. Black and white. Large. Bull-sized.", "...You'd rather not think about who this was."],
     "fireplace": ["The fireplace. A stocking hangs from it, labeled 'CHUCK'. Only the one."],
     "fridge": ["The fridge. Milk. Cheese. Butter. Yogurt. You feel extremely conflicted.",
                "There's a steak in the freezer. You close the door very gently."],
-    "stove": ["The stove. A pan sits on it, ready. Waiting. Patient. Like a predator."],
+    "stove": ["The stove. There's a cast-iron pan on it the size of a manhole cover."],
     "cookbook": ["'101 WAYS TO COOK A COW'. Recipe 47 is dog-eared. Of course it is."],
     "calendar": ["A calendar. Sunday is circled in red and labeled 'BBQ!!!'. Next to it, a doodle of a cow. It's crying. No wait, it's laughing. No, crying."],
     "dentures": ["Chuck's spare dentures, in a glass. They're smiling at you."],
@@ -99,29 +100,29 @@ DEFAULT_TEXT = {
     "bed_farmer": ["Chuck's bed. The sheets have tractors on them."],
     "wardrobe": ["A wardrobe full of plaid. Seven identical shirts. One is labeled 'SUNDAY BEST'. It's also plaid."],
     "toilet": ["A human toilet. You understand it in principle."],
-    "mirror": ["You look in the mirror. A cow looks back. She looks tired. She has a plan."],
+    "mirror": ["You look in the mirror. There's hay in your ear. There's always hay in your ear."],
     "duck": ["A rubber duck. Squeak. It's the only one on this farm who's ever been happy."],
     "bathtub": ["A bathtub. There's a ring. There's always a ring."],
-    "chimes": ["Wind chimes. They sing when the wind moves. They sound like somewhere else."],
+    "chimes": ["Wind chimes made of seashells. Chuck has never been to the sea."],
     "gnome": ["A garden gnome with a fishing rod. He's been fishing in a flowerbed for 20 years. No bites."],
     "flowerpot": ["A flowerpot. Petunias. Wilting. Chuck waters them with coffee."],
     "doormat": ["WELCOME, it says. You don't believe it."],
     "front_door": ["Chuck's front door. Locked."],
     "back_door": ["The back door. Locked. It has a little doggy flap, much too small for you."],
     "woodpile": ["A pile of lumber. Some good planks in there."],
-    "coop": ["The chicken coop. It smells like judgement."],
-    "hens": ["A hen. She stares at you with the dead eyes of a tiny dinosaur."],
+    "coop": ["The chicken coop. Twelve hens and one rooster, and the rooster is in charge."],
+    "hens": ["A hen. She stares at you without blinking."],
     "barn_door": ["The big barn doors. Closed."],
-    "lamp": ["A light bulb. It buzzes. You feel seen."],
+    "lamp": ["A bare light bulb on a wire. There are moths in it."],
     "rockpile": ["A pile of good throwing rocks."],
     "gun_cabinet": ["A gun cabinet. Locked. Inside, Chuck's shotgun, 'Ol' Bessie'. You know three Bessies. None of them would approve."],
     "computer": ["Chuck's computer. ChuckOS 95. The fan sounds like a tractor with asthma."],
     "alarm_clock": ["An alarm clock shaped like a rooster. Cluck Norris would be furious."],
     "nightstand": ["A nightstand. The drawer is shut."],
-    "grinder": ["A grinding wheel. For sharpening. You'd rather not think about what."],
+    "grinder": ["A grinding wheel on a stand. The dirt around it is full of little burn marks."],
     "truck": ["The truck. 'PROCESSING TRANSPORT'. Its engine is still warm."],
-    "loft_hay": ["Soft hay. A good place to hide something. Or someone."],
-    "fence": ["The electric fence. It ticks, softly, once a second. Like a clock."],
+    "loft_hay": ["Soft hay, piled high. You could hide a whole cow in here."],
+    "fence": ["The electric fence. It ticks once a second. Everybody touches it once."],
 }
 
 
@@ -356,37 +357,48 @@ class World:
 
     def tall_grass(self, x0, x1, z0, z1, density=2.5, height=1.25, name="grass"):
         n = int((x1 - x0) * (z1 - z0) * density)
-        mbw = self.mb("white")
+        mb = self.mb("blades")
         for _ in range(n):
             x = random.uniform(x0, x1)
             z = random.uniform(z0, z1)
-            h = height * random.uniform(0.7, 1.15)
-            c = (0.35 + random.random() * 0.15, 0.55 + random.random() * 0.2, 0.2 + random.random() * 0.1, 1)
-            for k in range(2):
-                mbw.box((x, h / 2, z), (0.05, h, 0.35), color=c, rot=(random.uniform(-10, 10), random.uniform(0, 180) + k * 90, 0))
+            g = random.uniform(0.85, 1.1)
+            for _k in range(6):
+                h = height * random.uniform(0.6, 1.15)
+                mb.blade((x + random.uniform(-0.25, 0.25), 0, z + random.uniform(-0.25, 0.25)), h,
+                         random.uniform(0.07, 0.12), yaw=random.uniform(0, 360), lean=random.uniform(0.05, 0.3),
+                         col_bottom=(0.16 * g, 0.28 * g, 0.1 * g, 1),
+                         col_top=(0.52 * g, 0.68 * g, 0.3 * g, 1))
         self.phys.add_zone("hide", x0, x1, z0, z1, data={"kind": name})
 
     def grass_tufts(self, x0, x1, z0, z1, n):
-        mbw = self.mb("white")
+        mb = self.mb("blades")
         for _ in range(n):
             x = random.uniform(x0, x1)
             z = random.uniform(z0, z1)
             if in_pond(x, z, 1):
                 continue
-            c = (0.4 + random.random() * 0.15, 0.62 + random.random() * 0.15, 0.25, 1)
-            for k in range(3):
-                h = random.uniform(0.25, 0.5)
-                mbw.box((x + random.uniform(-0.15, 0.15), h / 2, z + random.uniform(-0.15, 0.15)), (0.04, h, 0.2),
-                        color=c, rot=(random.uniform(-15, 15), random.uniform(0, 180), 0))
+            g = random.uniform(0.85, 1.12)
+            for _k in range(5):
+                h = random.uniform(0.18, 0.42)
+                mb.blade((x + random.uniform(-0.12, 0.12), 0, z + random.uniform(-0.12, 0.12)), h,
+                         random.uniform(0.05, 0.08), yaw=random.uniform(0, 360), lean=random.uniform(0.1, 0.45),
+                         col_bottom=(0.22 * g, 0.36 * g, 0.12 * g, 1), col_top=(0.55 * g, 0.74 * g, 0.3 * g, 1))
 
     def flowers(self, x0, x1, z0, z1, n, y=0.0):
-        mbw = self.mb("white")
+        mb = self.mb("blades")
         for _ in range(n):
             x = random.uniform(x0, x1)
             z = random.uniform(z0, z1)
-            col = random.choice([(1, 0.3, 0.35, 1), (1, 0.85, 0.2, 1), (0.95, 0.95, 1, 1), (0.7, 0.4, 0.95, 1)])
-            mbw.box((x, y + 0.2, z), (0.03, 0.4, 0.03), color=(0.3, 0.6, 0.25, 1))
-            mbw.box((x, y + 0.42, z), (0.14, 0.08, 0.14), color=col)
+            col = random.choice([(1, 0.35, 0.4, 1), (1, 0.85, 0.25, 1), (0.97, 0.97, 1, 1), (0.72, 0.5, 0.95, 1)])
+            h = random.uniform(0.28, 0.42)
+            mb.blade((x, y, z), h, 0.025, yaw=random.uniform(0, 180), lean=0.05,
+                     col_bottom=(0.25, 0.42, 0.18, 1), col_top=(0.35, 0.6, 0.25, 1), top_width=0.6)
+            for k in range(5):
+                a = k / 5 * 360 + random.uniform(-10, 10)
+                ar = math.radians(a)
+                px, pz = x + math.sin(ar) * 0.045, z + math.cos(ar) * 0.045
+                mb.box((px, y + h, pz), (0.05, 0.012, 0.075), color=col, rot=(0, a, 0))
+            mb.box((x, y + h + 0.008, z), (0.035, 0.014, 0.035), color=(1, 0.8, 0.2, 1))
 
     def elec_fence(self, x0, z0, x1, z1, skip=()):
         """Electric fence along an axis-aligned line; skip: list of (a,b) running-coordinate gaps (no wire)."""
@@ -471,12 +483,18 @@ class World:
         if it:
             it.remove()
 
+    # batches that share a texture but need their own draw settings
+    BATCH_TEX = {"blades": "white"}
+    BATCH_SWAY = {"blades": 0.07, "leaves": 0.012}
+
     def finalize(self):
         for texname, mb in self.batches.items():
             m = mb.build()
             if m is None:
                 continue
-            e = Entity(model=m, texture=tex(texname), shader=FARM_SHADER)
+            e = Entity(model=m, texture=tex(self.BATCH_TEX.get(texname, texname)), shader=FARM_SHADER)
+            if texname in self.BATCH_SWAY:
+                e.set_shader_input("u_sway", self.BATCH_SWAY[texname])
             self.entities.append(e)
         self.batches.clear()
 
@@ -561,6 +579,7 @@ class World:
         cx, cz, rx, rz = POND
         self.pond = Entity(model=MeshBuilder().disk((cx, 0.06, cz), rx, rz, segs=40, uv_density=0.15).build(),
                            texture=tex("water"), shader=FARM_SHADER)
+        self.pond.set_shader_input("u_water", 1.0)
         self.entities.append(self.pond)
         for _ in range(9):
             a = random.uniform(0, 6.28)
@@ -579,7 +598,10 @@ class World:
         # trough
         tx, tz = -30, -22
         self.box("wood", (tx, 0.35, tz), (1.1, 0.7, 3.4), collide=True)
-        self.mb("water").box((tx, 0.66, tz), (0.9, 0.05, 3.2), uv_density=0.3)
+        tw = Entity(model=MeshBuilder().box((tx, 0.66, tz), (0.9, 0.05, 3.2), uv_density=0.3, faces=[4]).build(),
+                    texture=tex("water"), shader=FARM_SHADER)
+        tw.set_shader_input("u_water", 0.6)
+        self.entities.append(tw)
         self.add_ia("trough", (tx, 0.8, tz), 1.2, "Trough")
         self.spawns["trough"] = (tx + 1.6, 0, tz)
         # salt lick
@@ -733,11 +755,13 @@ class World:
         self.mb("floorboards").box(((rx0 + rx1) / 2, LOFT_Y / 2 - 0.1, (rz0 + rz1) / 2), (rx1 - rx0, 0.2, L),
                                    rot=(-ang, 0, 0), uv_density=0.5)
         self.phys.add_floor(rx0, rx1, rz0, rz1, 0.0, LOFT_Y, axis="z", surface="wood")
+        # keep things from walking underneath the ramp. Each blocker's top sits below the ramp surface
+        # one body-radius before it starts, so someone walking up the slope never bumps into it.
         for k in range(1, 4):
             za = rz0 + (rz1 - rz0) * k / 4
             zb = rz0 + (rz1 - rz0) * (k + 1) / 4
-            hmin = LOFT_Y * (za - rz0) / (rz1 - rz0)
-            self.phys.add_box(rx0 + 0.05, rx1 - 0.05, za, zb, 0, hmin - 0.08, sight=False)
+            top = LOFT_Y * (za - 0.9 - rz0) / (rz1 - rz0) - 0.1
+            self.phys.add_box(rx0 + 0.05, rx1 - 0.05, za, zb, 0, top, sight=False)
         self.mb("wood_dark").box((rx0, LOFT_Y / 2, (rz0 + rz1) / 2), (0.12, 0.12, L), rot=(-ang, 0, 0))
         # rafters
         for rzz in (6.0, 10.0):
@@ -802,8 +826,9 @@ class World:
         inside = ((x0 + x1) / 2, (z0 + z1) / 2)
         # foundation + floor
         self.box("stone", ((x0 + x1) / 2, y / 2, (z0 + z1) / 2), (x1 - x0 + 0.3, y, z1 - z0 + 0.3))
-        self.mb("floorboards").ground(x0, z0, 56, 40, y=y + 0.01, uv_density=0.5)
-        self.mb("tiles").ground(56, z0, x1, 40, y=y + 0.01, uv_density=0.5)
+        # living room | kitchen split at x=KX (the front door opens into the living room)
+        self.mb("floorboards").ground(x0, z0, KX, 40, y=y + 0.01, uv_density=0.5)
+        self.mb("tiles").ground(KX, z0, x1, 40, y=y + 0.01, uv_density=0.5)
         self.mb("floorboards").ground(x0, 40, x1, 42, y=y + 0.01, uv_density=0.5)
         self.mb("carpet").ground(x0, 42, 62, z1, y=y + 0.01, uv_density=0.5)
         self.mb("tiles").ground(62, 42, x1, z1, y=y + 0.01, uv_density=0.6)
@@ -814,7 +839,7 @@ class World:
         self.wall(x0, z0, x0, z1, H, 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
         self.wall_gaps(x1, z0, x1, z1, H, [(40.2, 41.8, 2.3)], 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
         # interior walls
-        self.wall_gaps(56, z0, 56, 40, H, [(33.9, 35.9, 2.3)], 0.15, "wallpaper", y0=y)
+        self.wall_gaps(KX, z0, KX, 40, H, [(33.9, 35.9, 2.3)], 0.15, "wallpaper", y0=y)
         self.wall_gaps(x0, 40, x1, 40, H, [(47.9, 49.9, 2.3), (61.9, 63.9, 2.3)], 0.15, "wallpaper", y0=y)
         self.wall_gaps(x0, 42, x1, 42, H, [(46.9, 48.9, 2.3), (55.9, 57.9, 2.3), (63.9, 65.9, 2.3)], 0.15, "wallpaper", y0=y)
         self.wall(52, 42, 52, z1, H, 0.15, "wallpaper", y0=y)
@@ -824,14 +849,18 @@ class World:
         self.gable_roof(x0 - 0.3, x1 + 0.3, z0 - 0.3, z1 + 0.3, y + H + 0.1, 2.8, "shingles", along="x", end_tex="siding")
         # windows (frames + glass that glows at night)
         glass = MeshBuilder()
-        for (wx, wz, ry) in [(47, z0 - 0.14, 0), (52, z0 - 0.14, 0), (61, z0 - 0.14, 0), (65, z0 - 0.14, 0),
-                             (48, z1 + 0.14, 180), (57, z1 + 0.14, 180), (65, z1 + 0.14, 180)]:
-            glass.quad((wx, y + 1.6, wz), (1.4, 1.1), rot=(0, ry, 0))
-            self.mb("white").box((wx, y + 1.6, wz), (1.6, 1.3, 0.06), color=(0.95, 0.95, 0.95, 1))
-        for (wx, wz, ry) in [(x0 - 0.14, 35, 90), (x0 - 0.14, 45, 90), (x1 + 0.14, 35, -90)]:
-            glass.quad((wx, y + 1.6, wz), (1.4, 1.1), rot=(0, ry, 0))
-            self.mb("white").box((wx, y + 1.6, wz), (0.06, 1.3, 1.6), color=(0.95, 0.95, 0.95, 1))
-        self.house_glass = Entity(model=glass.build(), texture=tex("white"), shader=FARM_SHADER, color=(0.35, 0.45, 0.55, 1))
+        # (x, z, yaw of the outward-facing quad, outward normal)
+        wins = [(47, z0, 0, (0, -1)), (52, z0, 0, (0, -1)), (61, z0, 0, (0, -1)), (65, z0, 0, (0, -1)),
+                (48, z1, 180, (0, 1)), (57, z1, 180, (0, 1)), (65, z1, 180, (0, 1)),
+                (x0, 35, 90, (-1, 0)), (x0, 45, 90, (-1, 0)), (x1, 35, -90, (1, 0))]
+        for (wx, wz, ry, (nx, nz)) in wins:
+            # white frame proud of the siding, glass just in front of it, and glass on the inside wall face
+            fx, fz = wx + nx * 0.16, wz + nz * 0.16
+            fsize = (1.6, 1.3, 0.06) if nz else (0.06, 1.3, 1.6)
+            self.mb("white").box((fx, y + 1.6, fz), fsize, color=(0.95, 0.95, 0.95, 1))
+            glass.quad((wx + nx * 0.195, y + 1.6, wz + nz * 0.195), (1.4, 1.1), rot=(0, ry, 0))
+            glass.quad((wx - nx * 0.135, y + 1.6, wz - nz * 0.135), (1.4, 1.1), rot=(0, ry + 180, 0))
+        self.house_glass = Entity(model=glass.build(), texture=tex("window"), shader=FARM_SHADER)
         self.entities.append(self.house_glass)
         # porch
         px0, px1, pz0, pz1 = 50, 62, 26, 30
@@ -957,8 +986,8 @@ class World:
         self.add_ia("processing_door", (x0 - 0.3, 1.5, -41), 2.0, "Big door", reach=3.5)
         self.add_ia("processing_sign", (x0 - 0.3, 5.2, -41), 2.5, "Sign", reach=8.0)
         # cattle chute (ominous)
-        self.wood_fence(48, -44, 56, -44, h=1.5)
-        self.wood_fence(48, -38, 56, -38, h=1.5)
+        self.wood_fence(50.5, -44, 56, -44, h=1.5)
+        self.wood_fence(50.5, -38, 56, -38, h=1.5)
         self.lamp("processing", (x0 - 1.0, 5.5, -41), radius=10, col=(0.9, 0.95, 1.0), intensity=1.0, on=False)
         self.spawns["processing_front"] = (52, 0, -41, 90)
 
@@ -1208,7 +1237,7 @@ class World:
             (-76, 0.25, -73), (-60, 0.25, 1.5), (-20.5, 0.25, -73), (-44, 0.25, -59),   # pasture (one in the pond)
             (-11, 0.25, -19), (-17, 0.25, -45),                                          # shed area
             (33, LOFT_Y + 0.3, 13.2), (11, 0.25, 13), (45.5, 0.25, 8),                  # barn / silo
-            (51, 0.25, -40), (49, 0.25, -26),                                            # coop
+            (51, 0.25, -47), (46.5, 0.25, -26),                                          # coop
             (77, 0.25, -34), (60, 0.25, -52),                                            # processing
             (45, HOUSE_Y + 0.25, 31), (67, HOUSE_Y + 0.25, 47.6), (40, 0.25, 34.2),      # house
             (78, 0.25, 84), (-78, 0.25, 84), (5, 0.25, 84),                              # far corners
@@ -1221,23 +1250,36 @@ class World:
         nodes = [
             # pasture
             (-22, 0, -35), (-30, 0, -30), (-40, 0, -40), (-50, 0, -25), (-52, 0, -15), (-52, 0, -6), (-30, 0, -55),
-            (-60, 0, -45), (-35, 0, -20), (-45, 0, -68), (-65, 0, -20), (-70, 0, -60), (-30, 0, -70), (-38, 0, -10),
+            (-60, 0, -45), (-35, 0, -20), (-45, 0, -68), (-65, 0, -20), (-70, 0, -60), (-30, 0, -70), (-35, 0, -10),
             # yard
             (-14, 0, -35), (-2, 0, -22), (-7, 0, -22), (0, 0, -30), (-8, 0, -44), (0, 0, -10), (14, 0, -14),
             (22, 0, -14), (22, 0, -7), (15, 0, 3), (29, 0, 5), (31.4, 0, -7.5), (5.5, 0, 0.7), (12.5, 0, 0.7),
-            (30, 0, -20), (32, 0, -35), (38, 0, -35), (45, 0, -38), (48, 0, -26), (0, 0, 10), (0, 0, 30),
+            (30, 0, -20), (32, 0, -35), (38, 0, -35), (45, 0, -38), (46, 0, -26), (0, 0, 10), (0, 0, 30),
             (0, 0, 50), (0, 0, 75), (0, 0, 80), (20, 0, 23), (40, 0, 18), (56, 0, 23), (56, Y, 28),
-            (56, Y, 32), (50, Y, 35), (56, Y, 34.9), (62, Y, 35), (48.9, Y, 38.5), (48.9, Y, 41), (57, Y, 41),
+            (56, Y, 32), (50, Y, 35), (KX, Y, 34.9), (63.5, Y, 37), (48.9, Y, 39.2), (51.2, Y, 38.9), (48.9, Y, 41),
+            (57, Y, 41),
             (62.9, Y, 38.5), (64.9, Y, 41), (47.9, Y, 43.5), (48, Y, 45), (56.9, Y, 43.5), (56.5, Y, 44.8),
-            (61.4, Y, 45.8), (64.9, Y, 43.5), (65.5, Y, 45.0), (70, 0, 41), (74, 0, 32), (70, 0, 25), (52, 0, -41),
-            (52, 0, -30), (40, 0, -12), (-14, 0, -22), (-14, 0, -66), (-8, 0, -60), (8, 0, -40), (20, 0, -30),
+            (61.0, Y, 43.4), (64.9, Y, 43.5), (65.5, Y, 45.0), (70, 0, 41), (74, 0, 32), (70, 0, 25), (54, 0, -28), (49.5, 0, -47), (40, 0, -12), (-14, 0, -22), (-14, 0, -66), (-8, 0, -60), (8, 0, -40), (20, 0, -30),
             (-17, 0, 0), (-20, 0, 10), (60, 0, -20), (78, 0, 20), (40, 0, 55), (-40, 0, 20), (-10, 0, 60),
             # loft
             (31.4, L, 5.2), (25, L, 8), (18, L, 8), (13, L, 9),
+            # either side of the moo-hole, the pasture gate, the shed's back wall and the cattle grid
+            (-21, 0, -66.1), (-15, 0, -66.1), (-21, 0, -35), (-15, 0, -35), (-16, 0, -22.2),
+            (0, 0, 88), (0, 0, 100), (0, 0, 130),
         ]
         self.nav_nodes = nodes
         n = len(nodes)
         edges = {i: [] for i in range(n)}
+        # Openings (doors, gates, the moo-hole...) are built open so edges can pass through them;
+        # find_path skips an edge while any opening it crosses is shut.
+        gates = {k: d.col for k, d in self.doors.items()}
+        for k in ("moohole", "shed_board", "cattle_grid"):
+            if k in self.colliders:
+                gates[k] = self.colliders[k]
+        saved = {k: c.enabled for k, c in gates.items()}
+        for c in gates.values():
+            c.enabled = False
+        self.edge_gates: dict[tuple, list] = {}
         for i in range(n):
             for j in range(i + 1, n):
                 a, b = nodes[i], nodes[j]
@@ -1249,6 +1291,12 @@ class World:
                 if self._segment_clear(a, b):
                     edges[i].append(j)
                     edges[j].append(i)
+                    crossed = [c for c in gates.values() if _seg_hits_box(a, b, c, 0.45)]
+                    if crossed:
+                        self.edge_gates[(i, j)] = crossed
+                        self.edge_gates[(j, i)] = crossed
+        for k, c in gates.items():
+            c.enabled = saved[k]
         # the ramp
         ib = nodes.index((31.4, 0, -7.5))
         it = nodes.index((31.4, L, 5.2))
@@ -1303,6 +1351,9 @@ class World:
             if cur == t:
                 break
             for nb in self.nav_edges[cur]:
+                blockers = self.edge_gates.get((cur, nb))
+                if blockers and any(b.enabled for b in blockers):
+                    continue
                 c = cost[cur] + math.dist(N[cur], N[nb])
                 if nb not in cost or c < cost[nb]:
                     cost[nb] = c
@@ -1334,6 +1385,24 @@ class World:
         self.windmill_rotor.rotation_z += dt * 40
         self.pond.set_shader_input("texture_offset", (self.t * 0.01, self.t * 0.006))
         self.chimes.rotation_z = math.sin(self.t * 1.3) * 4
+
+
+def _seg_hits_box(a, b, box, r=0.0):
+    """Does the XZ segment a->b pass within r of the box?"""
+    x0, x1, z0, z1 = box.x0 - r, box.x1 + r, box.z0 - r, box.z1 + r
+    t0, t1 = 0.0, 1.0
+    for p, d, lo, hi in ((a[0], b[0] - a[0], x0, x1), (a[2], b[2] - a[2], z0, z1)):
+        if abs(d) < 1e-9:
+            if p < lo or p > hi:
+                return False
+            continue
+        ta, tb = (lo - p) / d, (hi - p) / d
+        if ta > tb:
+            ta, tb = tb, ta
+        t0, t1 = max(t0, ta), min(t1, tb)
+        if t0 > t1:
+            return False
+    return True
 
 
 def _slab_neg(mb, length, height):

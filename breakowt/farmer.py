@@ -20,6 +20,8 @@ SUSPICIOUS_LINES = ["Huh?", "Wha—?", "Hey...", "Is that a...?", "Hold on now..
 TRIP_LINES = ["OOF!", "Whoa-OA-oa!", "Dang it!", "Who put the GROUND there?!", "My back!"]
 GETUP_LINES = ["I'm okay!", "Nobody saw that.", "Meant to do that.", "Ground's gettin' lower every year."]
 DALE_LINES = ["Mornin', Dale!", "Dale! Lookin' good, buddy!", "Hey Dale. You lose weight?", "Dale! Save some room for Sunday!"]
+SLEEP_TALK = ["zzz... Dale... that's MY potato salad...", "mmf... strike... STRIKE...", "...no, Mama, I did feed 'em...",
+              "zzz... hnk... Big Earl... good boy...", "...forty-seven... forty-eight... zzz..."]
 DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale."]
 
 
@@ -135,12 +137,17 @@ class Farmer(Walker):
         self.set_marker("")
         self.susp = 0.0
 
-    def sleep(self, pos, yaw):
+    def sleep(self, pos, yaw, pose="sleep", outfit="pajamas"):
         self.teleport(pos, yaw)
         self.state = "sleep"
         self.sleeping = True
-        self.pose = "sleep"
-        self.set_outfit("pajamas")
+        self.wake_timer = 0.0
+        self.sleep_pose = pose
+        self.pose = pose
+        self.susp = 0.0
+        self.set_marker("")
+        if outfit:
+            self.set_outfit(outfit)
         self.set_tool(None)
         self.g.audio.loop("snore", "loop_snore", vol=0.9, pos=(pos[0], pos[1] + 0.8, pos[2]), rng=18)
 
@@ -254,7 +261,7 @@ class Farmer(Walker):
         """0..1 how clearly Chuck can see the player right now."""
         g = self.g
         p = g.player
-        if not self.detect or not self.visible or self.sleeping:
+        if not self.detect or not self.visible or (self.sleeping and self.wake_timer <= 0) or g.flags.get("_hiding"):
             return 0.0, 99.0
         ex, ey, ez = self.eye()
         dx, dz = p.x - ex, p.z - ez
@@ -386,15 +393,17 @@ class Farmer(Walker):
                 if self.state == "routine" and not self.path:
                     self.r_started = False
         elif self.state == "sleep":
+            sp = getattr(self, "sleep_pose", "sleep")
             if self.wake_timer > 0:
                 self.wake_timer -= dt
-                self.pose = "look"
-                self.model.rig.rotation_x = -30
+                self.pose = sp if sp != "sleep" else "look"
+                if sp == "sleep":
+                    self.model.rig.rotation_x = -30
                 if self.wake_timer <= 0:
-                    self.pose = "sleep"
-                    self.say("zzz... Dale... that's MY potato salad...", kind="sleepy")
+                    self.pose = sp
+                    self.say(random.choice(SLEEP_TALK), kind="sleepy")
             else:
-                self.pose = "sleep"
+                self.pose = sp
         elif self.state in ("scripted", "catch", "disabled"):
             spd = self._step(dt, self.col)
             if self.path:

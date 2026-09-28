@@ -7,7 +7,7 @@ import random
 import sys
 import time as _time
 
-from ursina import Entity, Text, application, camera, color, destroy, mouse, scene, window
+from ursina import Button, Entity, Text, application, camera, color, destroy, mouse, scene, window
 import time
 
 from .engine.assets import SAVE_DIR, SHOT_DIR, tex, FONT_DIR
@@ -30,7 +30,7 @@ MOO_BUBBLES = {
     "moomaw": ["Mooo~", "Moo, dear.", "Mooo..."],
     "mooriarty": ["psst. moo.", "moo.", "...moo."],
     "cowpernicus": ["Moo (technically).", "Moo.", "Moo?"],
-    "moozart": ["Mooo ♪", "Moo.", "Mooo..."],
+    "moozart": ["Mooo~", "Moo.", "Mooo..."],
     "cowleen": ["Moo.", "Moo!", "Moo?"],
 }
 
@@ -61,8 +61,8 @@ class Game(Entity):
         self.audio = AudioManager()
         self.phys = Physics()
         self.ia = InteractionSystem(self)
-        self.scripts = ScriptRunner()
-        self.scripts.on_error = self._script_error
+        self.runner = ScriptRunner()
+        self.runner.on_error = self._script_error
         self.flags: dict = {}
         self.stats: dict = {}
         self.inv = Inventory(self)
@@ -105,7 +105,7 @@ class Game(Entity):
                 if not in_pond(x, z, 2) and not self.phys.blocked_at(x, z, 1.2) and math.hypot(x + 50, z + 35) > 4:
                     break
             self.herd.append(HerdCow(self, i, (x, z), rnd.uniform(0, 360)))
-        self.hens = [Hen(self, (rnd.uniform(38, 50), rnd.uniform(-40, -34))) for _ in range(4)]
+        self.hens = [Hen(self, (rnd.uniform(38, 46), rnd.uniform(-40, -34))) for _ in range(4)]
         self._build_knockables()
         from .story import Story
         self.story = Story(self)
@@ -131,7 +131,7 @@ class Game(Entity):
     # ------------------------------------------------------------------
     def _build_knockables(self):
         spots = [("buckets", (-2.6, -26.5), "Stack of buckets"), ("milkcans", (14.5, -12.5), "Milk cans"),
-                 ("feedbin", (33, -24.5), "Feed bin"), ("trashcan", (47.5, 26.5), "Trash can"),
+                 ("feedbin", (33, -24.5), "Feed bin"), ("trashcan", (63.2, 29.0), "Trash can"),
                  ("milkcans2", (-15.5, -40), "Milk cans"), ("buckets2", (36.5, 3), "Stack of buckets"),
                  ("trashcan2", (70.5, 43), "Trash can")]
         for key, (x, z), name in spots:
@@ -149,7 +149,7 @@ class Game(Entity):
                 mb.cylinder((0, 0.9, 0), 0.35, 0.06, color=(0.35, 0.4, 0.35, 1), segs=10)
             else:
                 mb.box((0, 0.45, 0), (0.9, 0.9, 0.7), color=(0.6, 0.5, 0.3, 1), uv_rect=models.WHITE)
-            Entity(parent=ent, model=mb.build(), texture=tex("atlas"), shader=FARM_SHADER)
+            Entity(parent=ent, model=mb.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER)
             col = self.phys.add_circle(x, z, 0.45, 0, 1.0, sight=False)
             ia = self.ia.add(Interactable(f"knock_{key}", (x, 0.6, z), 0.6, name, None, "Knock over", 2.4))
             k = {"key": key, "ent": ent, "col": col, "ia": ia, "down": False, "t": 0.0, "x": x, "z": z}
@@ -397,16 +397,16 @@ class Game(Entity):
             res = h.action(self)
             if hasattr(res, "__next__"):
                 self.busy = True
-                s = self.scripts.start(self._wrap_busy(res), name="interact")
+                s = self.runner.start(self._wrap_busy(res), name="interact")
             return
         if ia.key.startswith("cow_"):
             self.busy = True
-            self.scripts.start(self._wrap_busy(self.story.default_talk(ia.key[4:])), name="interact")
+            self.runner.start(self._wrap_busy(self.story.default_talk(ia.key[4:])), name="interact")
             return
         if ia.key.startswith("herd_"):
             idx = int(ia.key.split("_")[1])
             self.busy = True
-            self.scripts.start(self._wrap_busy(self.story.herd_talk(self.herd[idx])), name="interact")
+            self.runner.start(self._wrap_busy(self.story.herd_talk(self.herd[idx])), name="interact")
             return
         if ia.key.startswith("rockpile"):
             self.take_rock()
@@ -554,11 +554,11 @@ class Game(Entity):
     # caught
     # ------------------------------------------------------------------
     def on_caught(self, farmer):
-        if self.scripts.running("caught"):
+        if self.runner.running("caught"):
             return
         if self.story.on_caught():
             return
-        self.scripts.start(self._caught_seq(farmer), name="caught")
+        self.runner.start(self._caught_seq(farmer), name="caught")
 
     def _caught_seq(self, f):
         p = self.player
@@ -835,8 +835,22 @@ class Game(Entity):
     # ------------------------------------------------------------------
     # main loop
     # ------------------------------------------------------------------
+    def prune_entity_updates(self):
+        """Ursina visits every entity each frame looking for update()/input(). Most of ours are
+        static meshes; flag those so the engine skips them."""
+        for e in scene.entities:
+            if e.ignore or isinstance(e, Button):
+                continue
+            if hasattr(e, "update") or hasattr(e, "input") or getattr(e, "scripts", None):
+                continue
+            e.ignore = True
+
     def update(self):
         dt = min(time.dt, 0.05)
+        self._prune_t = getattr(self, "_prune_t", 0.0) - dt
+        if self._prune_t <= 0:
+            self._prune_t = 1.5
+            self.prune_entity_updates()
         if self.state == "loading":
             return
         self.ui.update(dt)
@@ -846,7 +860,7 @@ class Game(Entity):
             self.world.update(dt)
             self._update_herd(dt)
             self.audio.update(dt, camera.world_position, camera.world_rotation_y)
-            self.scripts.update(dt)
+            self.runner.update(dt)
             return
         if self.state == "paused":
             self.audio.update(0, (self.player.x, self.player.y + 1.4, self.player.z), self.player.yaw)
@@ -873,7 +887,7 @@ class Game(Entity):
         for e in list(self.enemies):
             e.update(dt)
         self._update_knockables(dt)
-        self.scripts.update(dt)
+        self.runner.update(dt)
         self.story.update(dt)
         p = self.player
         lis = camera.world_position

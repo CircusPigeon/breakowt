@@ -16,6 +16,7 @@ CREAM = C(0.98, 0.95, 0.86, 1)
 BRASS = C(0.98, 0.78, 0.25, 1)
 DIM = C(0.75, 0.72, 0.65, 1)
 RED = C(0.95, 0.3, 0.25, 1)
+DLG_WRAP = 74
 GREEN = C(0.5, 0.9, 0.45, 1)
 
 SPEAKER_COLORS = {
@@ -37,12 +38,41 @@ def panel(parent, x, y, w, h, col=PANEL, radius=0.02, origin=(0, 0), z=0):
                   position=(x, y, z), color=col, origin=origin)
 
 
+def wrap_str(s, width):
+    """Greedy word wrap by character count (keeps existing line breaks)."""
+    if not width or not s:
+        return s
+    out = []
+    for line in s.split("\n"):
+        indent = line[:len(line) - len(line.lstrip(" "))]
+        cur = indent
+        for word in line.lstrip(" ").split(" "):
+            if cur.strip() and len(cur) + 1 + len(word) > width:
+                out.append(cur)
+                cur = indent + word
+            else:
+                cur = f"{cur} {word}" if cur.strip() else cur + word
+        out.append(cur)
+    return "\n".join(out)
+
+
+class WText(Text):
+    """Text that re-wraps every time it is set (Ursina's wordwrap only applies once)."""
+    _wrap_chars = None
+
+    def _set_wrapped(self, value):
+        Text.text_setter(self, wrap_str(value, self._wrap_chars) if self._wrap_chars else value)
+
+    text = property(Text.text_getter, _set_wrapped)
+
+
 def txt(parent, s, x, y, scale=1.0, col=CREAM, origin=(-0.5, 0.5), wrap=None, font=None, z=-0.01, tags=False):
-    t = Text(s, parent=parent, position=(x, y, z), scale=scale, color=col, origin=origin, use_tags=tags)
+    t = WText("", parent=parent, position=(x, y, z), scale=scale, color=col, origin=origin, use_tags=tags)
     if font:
         t.font = font
-    if wrap:
-        t.wordwrap = wrap
+    t._wrap_chars = wrap
+    if s:
+        t.text = s
     return t
 
 
@@ -55,6 +85,8 @@ class UI:
         self.L = -A / 2
         self.R = A / 2
         self.root = Entity(parent=camera.ui)
+        self.vignette = Entity(parent=self.root, model="quad", texture=tex("vignette"), scale=(A + 0.02, 1.02), z=1,
+                               color=C(1, 1, 1, 1))
         self.hud = Entity(parent=self.root)
         self.modal = None
         self.modal_root = None
@@ -111,7 +143,7 @@ class UI:
         self.dlg_bg = Entity(parent=self.dlg, model=Quad(radius=0.02, aspect=1.25 / 0.2), scale=(1.25, 0.2), position=(0, -0.36),
                              color=PANEL)
         self.dlg_name = txt(self.dlg, "", -0.6, -0.27, 1.25, BRASS, font=fonts.get("ui"))
-        self.dlg_text = txt(self.dlg, "", -0.6, -0.31, 1.18, CREAM, wrap=72, font=fonts.get("body"))
+        self.dlg_text = txt(self.dlg, "", -0.6, -0.31, 1.18, CREAM, font=fonts.get("body"))
         self.dlg_hint = txt(self.dlg, "[Space]", 0.6, -0.44, 0.8, DIM, origin=(0.5, 0))
         self.dlg_full = ""
         self.dlg_shown = 0.0
@@ -202,7 +234,19 @@ class UI:
         self.susp_icon.color = RED if state == "!" else BRASS
 
     def set_health(self, n, mx, visible):
-        self.hearts.text = ("♥ " * n + "♡ " * (mx - n)).strip() if visible else ""
+        key = (n, mx, visible)
+        if getattr(self, "_hearts_key", None) == key:
+            return
+        self._hearts_key = key
+        for e in getattr(self, "_heart_ents", []):
+            destroy(e)
+        self._heart_ents = []
+        if not visible:
+            return
+        for i in range(mx):
+            t = tex("icon_heart" if i < n else "icon_heart_empty")
+            e = Entity(parent=self.hud, model="quad", texture=t, scale=0.055, position=(self.L + 0.06 + i * 0.062, -0.4))
+            self._heart_ents.append(e)
 
     def set_boss(self, name, frac, visible=True):
         for e in (self.boss_bg, self.boss_bar):
@@ -265,7 +309,7 @@ class UI:
         self.dlg.enabled = True
         self.dlg_name.text = name
         self.dlg_name.color = SPEAKER_COLORS.get(name, CREAM)
-        self.dlg_full = text
+        self.dlg_full = wrap_str(text, DLG_WRAP)
         self.dlg_shown = 0.0
         self.dlg_text.text = ""
         self.dlg_hint.enabled = False
@@ -349,12 +393,12 @@ class UI:
 
     def show_document(self, title, body, footer="[E] / [Space] to close", paper=True):
         r = self.open_modal("document")
-        w, h = 0.95, 0.9
+        w, h = 0.95, 0.84
         if paper:
-            Entity(parent=r, model="quad", texture=tex("paper"), scale=(w, h), color=C(1, 1, 1, 1))
+            Entity(parent=r, model="quad", texture=tex("paper"), scale=(w, h), color=C(1, 1, 1, 1), z=0.05)
             ink = C(0.15, 0.15, 0.3, 1)
         else:
-            Entity(parent=r, model=Quad(radius=0.02, aspect=w / h), scale=(w, h), color=C(0.12, 0.28, 0.5, 0.97))
+            Entity(parent=r, model=Quad(radius=0.02, aspect=w / h), scale=(w, h), color=C(0.12, 0.28, 0.5, 0.97), z=0.05)
             ink = C(0.95, 0.97, 1, 1)
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.55), scale=(3, 2), z=0.1)
         txt(r, title, 0, h / 2 - 0.05, 1.6, ink, origin=(0, 0.5), font=self.fonts.get("hand") if paper else self.fonts.get("ui"))
@@ -366,12 +410,13 @@ class UI:
     def open_combo(self, digits=3, title="Combination lock"):
         r = self.open_modal("combo")
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        Entity(parent=r, model=Quad(radius=0.03, aspect=0.8 / 0.5), scale=(0.8, 0.5), color=C(0.55, 0.08, 0.08, 0.97))
+        Entity(parent=r, model=Quad(radius=0.03, aspect=0.8 / 0.5), scale=(0.8, 0.5), color=C(0.55, 0.08, 0.08, 0.97), z=0.05)
         txt(r, title, 0, 0.2, 1.4, CREAM, origin=(0, 0))
         st = {"vals": [0] * digits, "sel": 0, "texts": [], "result": None, "frames": []}
         for i in range(digits):
             x = (i - (digits - 1) / 2) * 0.16
-            f = Entity(parent=r, model=Quad(radius=0.2), scale=(0.12, 0.16), position=(x, 0), color=C(0.9, 0.88, 0.8, 1))
+            f = Entity(parent=r, model=Quad(radius=0.2), scale=(0.12, 0.16), position=(x, 0, -0.005),
+                       color=C(0.9, 0.88, 0.8, 1))
             t = txt(r, "0", x, 0, 3.0, C(0.1, 0.1, 0.1, 1), origin=(0, 0), font=self.fonts.get("title"))
             st["texts"].append(t)
             st["frames"].append(f)
@@ -410,10 +455,10 @@ class UI:
     def open_password(self, title="ChuckOS 95", prompt="Password:"):
         r = self.open_modal("password")
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        Entity(parent=r, model=Quad(radius=0.02, aspect=1.0 / 0.6), scale=(1.0, 0.6), color=C(0.16, 0.36, 0.66, 0.98))
+        Entity(parent=r, model=Quad(radius=0.02, aspect=1.0 / 0.6), scale=(1.0, 0.6), color=C(0.16, 0.36, 0.66, 0.98), z=0.05)
         txt(r, title, 0, 0.22, 2.2, CREAM, origin=(0, 0), font=self.fonts.get("title"))
         txt(r, prompt, -0.3, 0.07, 1.2, CREAM, origin=(-0.5, 0))
-        Entity(parent=r, model="quad", color=C(1, 1, 1, 1), scale=(0.6, 0.06), y=0.0)
+        Entity(parent=r, model="quad", color=C(1, 1, 1, 1), scale=(0.6, 0.06), y=0.0, z=-0.005)
         t = txt(r, "", -0.29, 0.0, 1.3, C(0.05, 0.05, 0.05, 1), origin=(-0.5, 0), font=self.fonts.get("body"))
         msg = txt(r, "(You type with your nose. Slowly. Carefully.)", 0, -0.1, 0.9, CREAM, origin=(0, 0))
         txt(r, "Enter to log in   Esc to give up", 0, -0.22, 0.85, DIM, origin=(0, 0))
@@ -445,13 +490,13 @@ class UI:
         r = self.open_modal(name)
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.55), scale=(3, 2), z=0.1)
         h = 0.2 + len(options) * 0.07
-        Entity(parent=r, model=Quad(radius=0.02, aspect=0.7 / h), scale=(0.7, h), color=PANEL)
+        Entity(parent=r, model=Quad(radius=0.02, aspect=0.7 / h), scale=(0.7, h), color=PANEL, z=0.05)
         txt(r, title, 0, h / 2 - 0.04, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
         if subtitle:
             txt(r, subtitle, 0, h / 2 - 0.11, 0.9, DIM, origin=(0, 0.5))
         for i, (label, cb) in enumerate(options):
             y = h / 2 - 0.17 - i * 0.07
-            b = Button(parent=r, text=label, position=(0, y), scale=(0.5, 0.055), color=PANEL_LIGHT, radius=0.25)
+            b = Button(parent=r, z=-0.02, text=label, position=(0, y), scale=(0.5, 0.055), color=PANEL_LIGHT, radius=0.25)
             b.on_click = cb
         self._modal_state = {"back": back}
 
@@ -460,14 +505,14 @@ class UI:
         from ursina import Slider
         g = self.g
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        Entity(parent=r, model=Quad(radius=0.02, aspect=0.9 / 0.72), scale=(0.9, 0.72), color=PANEL)
+        Entity(parent=r, model=Quad(radius=0.02, aspect=0.9 / 0.72), scale=(0.9, 0.72), color=PANEL, z=0.05)
         txt(r, "Settings", 0, 0.32, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
         rows = [("Master volume", "master"), ("Music", "music"), ("Sound effects", "sfx"), ("Voices (moos)", "voice"),
                 ("Ambience", "ambient")]
         for i, (label, key) in enumerate(rows):
             y = 0.2 - i * 0.075
             txt(r, label, -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
-            s = Slider(0, 1, default=g.audio.volumes[key], step=0.05, parent=r, x=0.0, y=y, scale=0.7, dynamic=True)
+            s = Slider(0, 1, default=g.audio.volumes[key], step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
             s.knob.color = BRASS
 
             def _set(s=s, key=key):
@@ -475,22 +520,22 @@ class UI:
             s.on_value_changed = _set
         y = 0.2 - len(rows) * 0.075
         txt(r, "Mouse sensitivity", -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
-        s2 = Slider(0.2, 3.0, default=g.player.sensitivity, step=0.05, parent=r, x=0.0, y=y, scale=0.7, dynamic=True)
+        s2 = Slider(0.2, 3.0, default=g.player.sensitivity, step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
 
         def _sens():
             g.player.sensitivity = s2.value
         s2.on_value_changed = _sens
         y -= 0.075
-        b = Button(parent=r, text=f"Invert Y: {'On' if g.player.invert_y else 'Off'}", position=(-0.2, y), scale=(0.3, 0.05),
+        b = Button(parent=r, z=-0.02, text=f"Invert Y: {'On' if g.player.invert_y else 'Off'}", position=(-0.2, y), scale=(0.3, 0.05),
                    color=PANEL_LIGHT, radius=0.25)
 
         def _inv():
             g.player.invert_y = not g.player.invert_y
             b.text = f"Invert Y: {'On' if g.player.invert_y else 'Off'}"
         b.on_click = _inv
-        b2 = Button(parent=r, text="Toggle fullscreen (F11)", position=(0.2, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
+        b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0.2, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
         b2.on_click = g.toggle_fullscreen
-        bb = Button(parent=r, text="Back", position=(0, -0.3), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
+        bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.3), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
 
         def _back():
             g.save_settings()
@@ -503,7 +548,7 @@ class UI:
         r = self.open_modal("shop")
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
         h = 0.3 + len(entries) * 0.085
-        Entity(parent=r, model=Quad(radius=0.02, aspect=1.2 / h), scale=(1.2, h), color=PANEL)
+        Entity(parent=r, model=Quad(radius=0.02, aspect=1.2 / h), scale=(1.2, h), color=PANEL, z=0.05)
         txt(r, title, 0, h / 2 - 0.04, 1.7, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
         txt(r, f"Your Golden Clovers: {clovers}", 0, h / 2 - 0.11, 1.0, CREAM, origin=(0, 0.5))
         for i, (key, label, price, desc, owned) in enumerate(entries):
@@ -515,10 +560,13 @@ class UI:
             if owned:
                 txt(r, "SOLD", 0.46, y, 1.0, GREEN, origin=(0, 0))
             else:
-                b = Button(parent=r, text=f"{price} ☘", position=(0.46, y), scale=(0.14, 0.05),
+                b = Button(parent=r, z=-0.02, text=f"Buy  {price}", position=(0.45, y), scale=(0.15, 0.05),
                            color=PANEL_LIGHT if clovers >= price else C(0.3, 0.1, 0.1, 0.9), radius=0.25)
+                b.text_entity.x = -0.12
                 b.on_click = (lambda key=key: on_buy(key))
-        bb = Button(parent=r, text="Leave", position=(0, -h / 2 + 0.05), scale=(0.25, 0.05), color=PANEL_LIGHT, radius=0.25)
+                if tex("icon_clover"):
+                    Entity(parent=r, model="quad", texture=tex("icon_clover"), scale=0.036, position=(0.495, y, -0.02))
+        bb = Button(parent=r, z=-0.02, text="Leave", position=(0, -h / 2 + 0.05), scale=(0.25, 0.05), color=PANEL_LIGHT, radius=0.25)
         bb.on_click = on_close
         self._modal_state = {"back_cb": on_close}
 

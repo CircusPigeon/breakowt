@@ -37,8 +37,21 @@ METAL = (0.62, 0.64, 0.68, 1)
 WOOD = (0.6, 0.43, 0.26, 1)
 
 
+def blob_shadow(parent, w, d, alpha=0.5, y=0.045):
+    """A soft dark ellipse on the ground under a character."""
+    mb = MeshBuilder().box((0, y, 0), (w, 0.001, d), uv_rect=(0, 0, 1, 1), faces=[4])
+    e = Entity(parent=parent, model=mb.build(), texture=tex("blob_shadow"), shader=FARM_SHADER,
+               color=(0, 0, 0, alpha))
+    e.set_shader_input("u_unlit", 1.0)
+    from panda3d.core import TransparencyAttrib
+    e.setTransparency(TransparencyAttrib.MAlpha)
+    e.setDepthWrite(False)
+    e.setBin("transparent", 0)
+    return e
+
+
 def part(parent, mb: MeshBuilder, texture="atlas", **kw):
-    m = mb.build()
+    m = mb.build(solid_rect=WHITE if texture == "atlas" else None)
     if m is None:
         return Entity(parent=parent, **kw)
     return Entity(parent=parent, model=m, texture=tex(texture), shader=FARM_SHADER, **kw)
@@ -52,7 +65,7 @@ class CowModel(Entity):
     def __init__(self, hide="hide_bw", bull=False, horns=False, tag="tag_blank", acc=(), scale_=1.0,
                  bell=False, pupils=None, parent=None, **kw):
         super().__init__(parent=parent or scene, **kw)
-        self.hide = hide
+        self.hide_key = hide
         self.bull = bull
         self.horns = horns or bull
         self.tag = tag
@@ -70,14 +83,17 @@ class CowModel(Entity):
         self.talk_t = 0.0
         self.lying = 0.0
         self.lying_target = 0.0
+        self._leg_rx = [0.0, 0.0, 0.0, 0.0]
+        self._body_y = 0.0
         self.rig = Entity(parent=self, scale=scale_)
+        self.shadow = blob_shadow(self, 1.5 * scale_ * (1.1 if bull else 1.0), 2.5 * scale_ * (1.1 if bull else 1.0), 0.6)
         self.build()
 
     def build(self):
         for c in list(self.rig.children):
             c.parent = None
             c.remove_node()
-        H = uvr(self.hide, 0.02)
+        H = uvr(self.hide_key, 0.02)
         sz = 1.1 if self.bull else 1.0
         self.body = Entity(parent=self.rig)
         mb = MeshBuilder()
@@ -130,7 +146,7 @@ class CowModel(Entity):
         for c in list(self.head.children):
             c.parent = None
             c.remove_node()
-        H = uvr(self.hide, 0.02)
+        H = uvr(self.hide_key, 0.02)
         hm = MeshBuilder()
         hm.box((0, 0.02, 0.28), (0.52, 0.52, 0.6), uv_rect=H)
         hm.box((0, -0.13, 0.65), (0.48, 0.32, 0.24), color=PINK, uv_rect=WHITE)
@@ -207,35 +223,42 @@ class CowModel(Entity):
         self.build_head()
 
     # ------------------------------------------------------------------
-    def animate(self, dt, speed=0.0, look_target=None):
-        """speed in m/s; look_target: world (x,z) to turn the head toward."""
+    def animate(self, dt, speed=0.0, look_target=None, world_yaw=None):
+        """speed in m/s; look_target: world (x,z) to turn the head toward.
+
+        Writes rotations straight to Panda (setHpr) instead of through Ursina's property setters,
+        which matters with ~50 cows on screen. Ursina rotation (x, y, z) == Panda HPR (-y, -x, z)."""
         self.t += dt
         self.phase += dt * (2.6 + speed * 2.6) if speed > 0.05 else 0
         amp = min(1.0, speed / 2.5) * 26
         s = math.sin(self.phase)
+        lr = self._leg_rx
         if speed > 0.05:
-            self.legs[0].rotation_x = s * amp
-            self.legs[3].rotation_x = s * amp
-            self.legs[1].rotation_x = -s * amp
-            self.legs[2].rotation_x = -s * amp
-            self.body.y = abs(math.cos(self.phase)) * 0.035 * min(1.0, speed / 2)
+            lr[0] = lr[3] = s * amp
+            lr[1] = lr[2] = -s * amp
+            by = abs(math.cos(self.phase)) * 0.035 * min(1.0, speed / 2)
         else:
-            for lg in self.legs:
-                lg.rotation_x *= max(0, 1 - dt * 8)
-            self.body.y *= max(0, 1 - dt * 8)
-        self.tail.rotation_z = math.sin(self.t * 2.1) * 14 + math.sin(self.t * 5.3) * 4
-        self.tail.rotation_x = 12
+            k = max(0.0, 1 - dt * 8)
+            for i in range(4):
+                lr[i] *= k
+            by = self._body_y * k
+        self._body_y = by
         # lying down
         self.lying += (self.lying_target - self.lying) * min(1, dt * 2)
         if self.lying > 0.01:
-            self.body.y -= self.lying * 0.55
-            for i, lg in enumerate(self.legs):
-                lg.rotation_x = (-80 if i < 2 else 80) * self.lying
+            by -= self.lying * 0.55
+            for i in range(4):
+                lr[i] = (-80 if i < 2 else 80) * self.lying
+        self.body.setY(by)
+        for i, lg in enumerate(self.legs):
+            lg.setHpr(0, -lr[i], 0)
+        self.tail.setHpr(0, -12, math.sin(self.t * 2.1) * 14 + math.sin(self.t * 5.3) * 4)
         # head
         if look_target is not None:
-            dx = look_target[0] - self.world_x
-            dz = look_target[1] - self.world_z
-            ang = math.degrees(math.atan2(dx, dz)) - self.world_rotation_y
+            dx = look_target[0] - self.getX()
+            dz = look_target[1] - self.getZ()
+            yaw = -self.getH() if world_yaw is None else world_yaw
+            ang = math.degrees(math.atan2(dx, dz)) - yaw
             ang = (ang + 180) % 360 - 180
             self.head_yaw_target = max(-55, min(55, ang))
         else:
@@ -246,8 +269,8 @@ class CowModel(Entity):
         if self.talk_t > 0:
             self.talk_t -= dt
             nod = math.sin(self.talk_t * 18) * 8
-        self.head.rotation_y = self.head_yaw
-        self.head.rotation_x = self.graze * 45 + nod + self.head_pitch_extra + math.sin(self.t * 1.3) * 2
+        rx = self.graze * 45 + nod + self.head_pitch_extra + math.sin(self.t * 1.3) * 2
+        self.head.setHpr(-self.head_yaw, -rx, 0)
 
 
 # --------------------------------------------------------------------------
@@ -264,15 +287,19 @@ class FarmerModel(Entity):
         self.pose_t = 0.0
         self.tool_name = None
         self.rig = Entity(parent=self)
+        self.shadow = blob_shadow(self, 1.0, 0.85, 0.55)
         self.build()
 
     def _colors(self):
         o = self.outfit
         if o == "pajamas":
-            return dict(shirt=(0.55, 0.7, 0.9, 1), pants=(0.55, 0.7, 0.9, 1), shirt_uv=WHITE, pants_uv=WHITE, hat="nightcap")
+            return dict(shirt=(0.55, 0.7, 0.9, 1), pants=(0.55, 0.7, 0.9, 1), shirt_uv=WHITE, pants_uv=WHITE, hat="nightcap",
+                        belly=(0.55, 0.7, 0.9, 1))
         if o == "underwear":
-            return dict(shirt=(0.97, 0.97, 0.95, 1), pants=SKIN, shirt_uv=WHITE, pants_uv=WHITE, hat="straw", briefs=True)
-        return dict(shirt=(1, 1, 1, 1), pants=(1, 1, 1, 1), shirt_uv=uvr("plaid", 0.02), pants_uv=uvr("denim", 0.02), hat="straw")
+            return dict(shirt=(0.97, 0.97, 0.95, 1), pants=SKIN, shirt_uv=WHITE, pants_uv=WHITE, hat="straw", briefs=True,
+                        belly=(0.97, 0.97, 0.95, 1))
+        return dict(shirt=(1, 1, 1, 1), pants=(1, 1, 1, 1), shirt_uv=uvr("plaid", 0.02), pants_uv=uvr("denim", 0.02), hat="straw",
+                    belly=(0.2, 0.3, 0.52, 1))
 
     def build(self):
         for c in list(self.rig.children):
@@ -283,7 +310,7 @@ class FarmerModel(Entity):
         tm = MeshBuilder()
         # torso: overalls lower + shirt upper
         tm.box((0, 0.28, 0), (0.58, 0.56, 0.38), color=C["pants"], uv_rect=C["pants_uv"])
-        tm.sphere((0, 0.3, 0.1), 0.34, color=C["pants"], segs=12, rings=8, scale=(1.0, 0.9, 0.95))
+        tm.sphere((0, 0.3, 0.13), 0.34, color=C["belly"], segs=12, rings=8, scale=(1.0, 0.9, 0.85))
         tm.box((0, 0.72, 0), (0.62, 0.38, 0.4), color=C["shirt"], uv_rect=C["shirt_uv"])
         if self.outfit == "day":
             tm.box((0, 0.6, 0.23), (0.36, 0.3, 0.06), color=(1, 1, 1, 1), uv_rect=uvr("denim", 0.02))
@@ -317,6 +344,8 @@ class FarmerModel(Entity):
         hm.box((0, 0.04, 0), (0.18, 0.1, 0.18), color=SKIN, uv_rect=WHITE)
         hm.sphere((0, 0.26, 0.0), 0.2, color=SKIN, segs=12, rings=9, scale=(0.95, 1.15, 1.0))
         hm.sphere((0, 0.24, 0.2), 0.065, color=(0.93, 0.55, 0.5, 1), segs=8, rings=5)
+        # what's left of his hair, round the back and sides
+        hm.sphere((0, 0.22, -0.04), 0.2, color=(0.42, 0.33, 0.25, 1), segs=12, rings=8, scale=(1.0, 0.75, 0.95))
         # huge mustache
         hm.box((0, 0.16, 0.2), (0.34, 0.08, 0.08), color=MUSTACHE, uv_rect=WHITE)
         for sx in (-1, 1):
@@ -326,9 +355,8 @@ class FarmerModel(Entity):
             hm.box((sx * 0.08, 0.38, 0.18), (0.1, 0.03, 0.03), color=MUSTACHE, uv_rect=WHITE, rot=(0, 0, -sx * 12))
             hm.sphere((sx * 0.2, 0.26, 0.0), 0.05, color=SKIN, segs=6, rings=4, scale=(0.5, 1, 1))
         if C["hat"] == "straw":
-            hm.cylinder((0, 0.42, 0), 0.42, 0.03, color=(1, 1, 1, 1), segs=16)
-            hm.cylinder((0, 0.44, 0), 0.22, 0.2, color=(1, 1, 1, 1), segs=12, radius_top=0.2)
-            hm.cylinder((0, 0.45, 0), 0.225, 0.05, color=RED, segs=12)
+            # hat band (the straw itself is a separate part below, with the straw texture)
+            hm.cylinder((0, 0.45, 0), 0.228, 0.05, color=RED, segs=12)
         elif C["hat"] == "nightcap":
             hm.cylinder((0, 0.38, 0), 0.21, 0.35, color=(0.9, 0.3, 0.3, 1), segs=10, radius_top=0.04, rot=(-20, 0, 0))
             hm.sphere((0, 0.72, -0.13), 0.06, color=(1, 1, 1, 1), segs=6, rings=4)
@@ -469,6 +497,13 @@ class FarmerModel(Entity):
                 self.rig.rotation_x = -88
                 self.rig.y = 0.8
                 AL.rotation_x = AR.rotation_x = 0
+            elif p in ("nap", "sit"):
+                # sitting in a chair; "nap" leans back with the head lolling
+                self.hips.y = 0.5
+                L.rotation_x = R.rotation_x = -85
+                self.rig.rotation_x = -14 if p == "nap" else 0
+                AL.rotation_x = AR.rotation_x = -25 if p == "nap" else -40
+                self.head.rotation_x = -22 + math.sin(self.t * 0.8) * 3 if p == "nap" else 0
             elif p == "hurt":
                 self.rig.rotation_x = -15
                 AL.rotation_x = AR.rotation_x = -40
@@ -489,10 +524,11 @@ class FarmerModel(Entity):
 # --------------------------------------------------------------------------
 
 class RoosterModel(Entity):
-    def __init__(self, parent=None, **kw):
+    def __init__(self, parent=None, headband=False, **kw):
         super().__init__(parent=parent or scene, **kw)
         self.t = 0
         self.rig = Entity(parent=self)
+        blob_shadow(self, 0.6, 0.7, 0.4, y=0.03)
         mb = MeshBuilder()
         body = (0.85, 0.35, 0.12, 1)
         mb.sphere((0, 0.45, 0), 0.26, color=body, segs=10, rings=7, scale=(0.9, 0.9, 1.2))
@@ -511,6 +547,10 @@ class RoosterModel(Entity):
         for sx in (-1, 1):
             hm.sphere((sx * 0.08, 0.1, 0.06), 0.035, color=EYEW, segs=6, rings=4)
             hm.sphere((sx * 0.1, 0.1, 0.07), 0.018, color=PUPIL, segs=5, rings=3)
+        if headband:
+            hm.cylinder((0, 0.12, 0), 0.125, 0.04, color=(0.85, 0.1, 0.1, 1), segs=10)
+            hm.box((0, 0.13, -0.16), (0.03, 0.03, 0.1), color=(0.85, 0.1, 0.1, 1), uv_rect=WHITE, rot=(30, 0, 0))
+            hm.box((0.03, 0.1, -0.19), (0.03, 0.03, 0.1), color=(0.85, 0.1, 0.1, 1), uv_rect=WHITE, rot=(50, 20, 0))
         part(self.head, hm)
 
     def animate(self, dt, speed=0.0, peck=False):

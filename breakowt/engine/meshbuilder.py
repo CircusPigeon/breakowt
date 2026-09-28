@@ -50,12 +50,13 @@ class MeshBuilder:
         self.uv: list[np.ndarray] = []
         self.c: list[np.ndarray] = []
         self.t: list[np.ndarray] = []
+        self.mapped: list[bool] = []   # False: UVs are generic 0..1 and may be remapped at build
         self.count = 0
         # a mirrored winding flag: Panda's y-up-left system flips handedness
         self.flip = True
 
     # ------------------------------------------------------------------
-    def _push(self, verts, norms, uvs, color, tris):
+    def _push(self, verts, norms, uvs, color, tris, mapped=True):
         verts = np.asarray(verts, dtype=np.float32).reshape(-1, 3)
         norms = np.asarray(norms, dtype=np.float32).reshape(-1, 3)
         uvs = np.asarray(uvs, dtype=np.float32).reshape(-1, 2)
@@ -75,6 +76,7 @@ class MeshBuilder:
         self.uv.append(uvs)
         self.c.append(cols)
         self.t.append(tris + self.count)
+        self.mapped.append(mapped)
         self.count += n
 
     @staticmethod
@@ -129,7 +131,8 @@ class MeshBuilder:
             tris += [(k, k + 1, k + 2), (k, k + 2, k + 3)]
             k += 4
         if k:
-            self._push(np.concatenate(verts), np.concatenate(norms), np.concatenate(uvs), color, tris)
+            self._push(np.concatenate(verts), np.concatenate(norms), np.concatenate(uvs), color, tris,
+                       mapped=uv_rect is not None)
         return self
 
     def quad(self, pos, size, color=(1, 1, 1, 1), rot=(0, 0, 0), uv_rect=(0, 0, 1, 1), double=False):
@@ -248,7 +251,7 @@ class MeshBuilder:
                 for i in range(segs):
                     a, b = center + 1 + i, center + 2 + i
                     tris.append((center, b, a) if ny > 0 else (center, a, b))
-        self._push(verts, norms, uvs, color, tris)
+        self._push(verts, norms, uvs, color, tris, mapped=False)
         return self
 
     def sphere(self, pos, radius, color=(1, 1, 1, 1), segs=10, rings=7, scale=(1, 1, 1), rot=(0, 0, 0),
@@ -276,7 +279,7 @@ class MeshBuilder:
                 a = r * w + s
                 b = (r + 1) * w + s
                 tris += [(a, b, b + 1), (a, b + 1, a + 1)]
-        self._push(verts, norms, uvs, color, tris)
+        self._push(verts, norms, uvs, color, tris, mapped=False)
         return self
 
     def poly(self, points, color=(1, 1, 1, 1), uv_density=0.5, double=True):
@@ -288,9 +291,10 @@ class MeshBuilder:
         ax = np.argsort(np.abs(nrm))[:2]
         uvs = p[:, sorted(ax)] * uv_density
         tris = [(0, i + 1, i + 2) for i in range(len(p) - 2)]
-        self._push(p, np.tile(nrm, (len(p), 1)), uvs, color, tris)
+        self._push(p, np.tile(nrm, (len(p), 1)), uvs, color, tris, mapped=False)
         if double:
-            self._push(p, np.tile(-nrm, (len(p), 1)), uvs, color, [(0, i + 2, i + 1) for i in range(len(p) - 2)])
+            self._push(p, np.tile(-nrm, (len(p), 1)), uvs, color, [(0, i + 2, i + 1) for i in range(len(p) - 2)],
+                       mapped=False)
         return self
 
     def disk(self, center, rx, rz, color=(1, 1, 1, 1), segs=24, uv_density=0.25, uv_rect=None):
@@ -308,7 +312,29 @@ class MeshBuilder:
             else:
                 uvs.append((x * uv_density, z * uv_density))
         tris = [(0, i + 1, i + 2) for i in range(segs)]
-        self._push(verts, [(0, 1, 0)] * len(verts), uvs, color, tris)
+        self._push(verts, [(0, 1, 0)] * len(verts), uvs, color, tris, mapped=uv_rect is not None)
+        return self
+
+    def blade(self, base, height, width, yaw=0.0, lean=0.0, col_bottom=(0.3, 0.5, 0.2, 1), col_top=(0.6, 0.8, 0.35, 1),
+              top_width=0.15):
+        """A tapered grass blade, visible from both sides. Normals point up so both faces
+        take the same soft lighting instead of one going dark."""
+        yr = math.radians(yaw)
+        rx, rz = math.cos(yr), -math.sin(yr)          # blade's width direction
+        fx, fz = math.sin(yr), math.cos(yr)           # lean direction
+        bx, by, bz = base
+        hw = width / 2
+        tw = hw * top_width
+        lx, lz = fx * lean * height, fz * lean * height
+        verts = [(bx - rx * hw, by, bz - rz * hw), (bx + rx * hw, by, bz + rz * hw),
+                 (bx + rx * tw + lx, by + height, bz + rz * tw + lz), (bx - rx * tw + lx, by + height, bz - rz * tw + lz)]
+        cb = tuple(col_bottom) if len(col_bottom) == 4 else (*col_bottom, 1)
+        ct = tuple(col_top) if len(col_top) == 4 else (*col_top, 1)
+        cols = np.array([cb, cb, ct, ct], dtype=np.float32)
+        norms = [(0, 1, 0)] * 4
+        uvs = [(0, 0), (1, 0), (1, 1), (0, 1)]
+        self._push(verts, norms, uvs, cols, [(0, 1, 2), (0, 2, 3)])
+        self._push(verts, norms, uvs, cols, [(0, 2, 1), (0, 3, 2)])
         return self
 
     def cone(self, pos, radius, height, color=(1, 1, 1, 1), segs=8, rot=(0, 0, 0)):
@@ -316,9 +342,10 @@ class MeshBuilder:
 
     def extend(self, other: "MeshBuilder"):
         ob = 0
-        for v, n, uv, c, t in zip(other.v, other.n, other.uv, other.c, other.t):
+        for v, n, uv, c, t, m in zip(other.v, other.n, other.uv, other.c, other.t, other.mapped):
             base = t - ob
             ob += len(v)
+            self.mapped.append(m)
             self.v.append(v)
             self.n.append(n)
             self.uv.append(uv)
@@ -328,12 +355,21 @@ class MeshBuilder:
         return self
 
     # ------------------------------------------------------------------
-    def build(self) -> Mesh | None:
+    def build(self, solid_rect=None) -> Mesh | None:
+        """solid_rect: (u0, v0, u1, v1) of a plain region of the texture. Chunks built without
+        explicit UVs (spheres, cylinders, untextured boxes) get pointed at its center, so a shared
+        atlas doesn't smear across them."""
         if not self.v:
             return None
+        uvs = self.uv
+        if solid_rect is not None:
+            cu = (solid_rect[0] + solid_rect[2]) / 2
+            cv = (solid_rect[1] + solid_rect[3]) / 2
+            uvs = [u if m else np.tile(np.array([cu, cv], dtype=np.float32), (len(u), 1))
+                   for u, m in zip(self.uv, self.mapped)]
         v = np.ascontiguousarray(np.concatenate(self.v).astype(np.float32).ravel())
         n = np.ascontiguousarray(np.concatenate(self.n).astype(np.float32).ravel())
-        uv = np.ascontiguousarray(np.concatenate(self.uv).astype(np.float32).ravel())
+        uv = np.ascontiguousarray(np.concatenate(uvs).astype(np.float32).ravel())
         c = np.ascontiguousarray(np.concatenate(self.c).astype(np.float32).ravel())
         t = np.ascontiguousarray(np.concatenate(self.t).astype(np.uint32).ravel())
         return Mesh(vertices=v, triangles=t, uvs=uv, normals=n, colors=c, static=True)

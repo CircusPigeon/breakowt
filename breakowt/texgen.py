@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-TEX_VERSION = "6"
+TEX_VERSION = "10"
 _rng = np.random.default_rng(1987)
 
 FONT_DIRS = [r"C:\Windows\Fonts", "/usr/share/fonts/truetype/dejavu", "/Library/Fonts"]
@@ -101,15 +101,16 @@ def tex_grass():
 def tex_dirt():
     n = tile_noise(256, 2.0) * 0.7 + tile_noise(256, 0.5) * 0.3
     img = to_img(colorize(n, (105, 78, 50), (150, 115, 78)))
-    def pebbles(d, ox, oy):
-        pass
     d = ImageDraw.Draw(img)
-    for _ in range(140):
+    for _ in range(160):
         x, y = _rng.uniform(0, 256, 2)
-        r = _rng.uniform(1, 3)
-        c = tuple(int(v) for v in _rng.uniform(120, 175, 3) * np.array([1, 0.9, 0.8]))
+        r = _rng.uniform(0.8, 2.6)
+        v = _rng.uniform(85, 165)
+        c = (int(v), int(v * 0.86), int(v * 0.7))
+        sh = (int(v * 0.55), int(v * 0.45), int(v * 0.35))
         for ox in (-256, 0, 256):
             for oy in (-256, 0, 256):
+                d.ellipse([x + ox - r + 0.6, y + oy - r + 0.8, x + ox + r + 0.6, y + oy + r + 0.8], fill=sh)
                 d.ellipse([x + ox - r, y + oy - r, x + ox + r, y + oy + r], fill=c)
     return img
 
@@ -400,7 +401,18 @@ def tex_blob_shadow():
     size = 64
     y, x = np.mgrid[0:size, 0:size]
     r = np.sqrt((x - size / 2 + 0.5) ** 2 + (y - size / 2 + 0.5) ** 2) / (size / 2)
-    a = np.clip(1 - r, 0, 1) ** 1.5
+    a = np.clip(1 - r ** 2.2, 0, 1) ** 1.3
+    img = np.zeros((size, size, 4))
+    img[..., 3] = a * 255
+    return Image.fromarray(img.astype(np.uint8), "RGBA")
+
+
+def tex_vignette():
+    size = 256
+    y, x = np.mgrid[0:size, 0:size]
+    r = np.sqrt(((x - size / 2 + 0.5) / (size / 2)) ** 2 + ((y - size / 2 + 0.5) / (size / 2)) ** 2)
+    t = np.clip((r - 0.62) / 0.75, 0, 1)
+    a = t * t * (3 - 2 * t) * 0.5
     img = np.zeros((size, size, 4))
     img[..., 3] = a * 255
     return Image.fromarray(img.astype(np.uint8), "RGBA")
@@ -598,7 +610,7 @@ def tex_photo_earl():
     # ribbon
     d.ellipse([120, 60, 150, 90], fill=(40, 80, 200))
     d.polygon([(128, 88), (122, 110), (135, 100), (142, 110), (142, 88)], fill=(40, 80, 200))
-    centered(d, (14, 214, 306, 242), "Me & Big Earl \u2665 Best in Show 2009", font(HAND, 14), (30, 30, 30))
+    centered(d, (14, 214, 306, 242), "Me & Big Earl, Best in Show 2009", font(HAND, 14), (30, 30, 30))
     return img
 
 
@@ -643,6 +655,27 @@ def tex_cookbook():
     img = Image.new("RGB", (200, 280), (170, 40, 35))
     d = ImageDraw.Draw(img)
     centered(d, (10, 20, 190, 260), "101\nWAYS\nTO COOK\nA COW", font(IMPACT, 40), (250, 230, 190), spacing=2)
+    return img
+
+
+def tex_window():
+    """Window glass: sky reflection, two highlight streaks and a white mullion cross."""
+    w = h = 128
+    y = np.linspace(0, 1, h)[:, None]
+    top = np.array([150, 175, 200], dtype=float)
+    bot = np.array([45, 60, 80], dtype=float)
+    a = top[None, None, :] * (1 - y[..., None]) + bot[None, None, :] * y[..., None]
+    a = np.repeat(a, w, axis=1)
+    xx = np.arange(w)[None, :]
+    yy = np.arange(h)[:, None]
+    for off, wid, k in ((20, 14, 0.35), (58, 6, 0.25)):
+        band = np.abs((xx + yy * 0.8) - (off + 40)) < wid
+        a = np.where(band[..., None], a + (255 - a) * k, a)
+    img = to_img(a)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, w - 1, h - 1], outline=(245, 245, 240), width=7)
+    d.rectangle([w // 2 - 3, 0, w // 2 + 3, h], fill=(245, 245, 240))
+    d.rectangle([0, h // 2 - 3, w, h // 2 + 3], fill=(245, 245, 240))
     return img
 
 
@@ -839,6 +872,19 @@ def icon_clover():
     return img
 
 
+def icon_heart(full=True):
+    img, d = _icon()
+    col = (220, 50, 50) if full else (60, 40, 40)
+    d.ellipse([12, 18, 50, 56], fill=col, outline=OUT, width=4)
+    d.ellipse([46, 18, 84, 56], fill=col, outline=OUT, width=4)
+    d.polygon([(15, 46), (48, 84), (81, 46)], fill=col, outline=OUT)
+    d.line([(15, 46), (48, 84), (81, 46)], fill=OUT, width=4)
+    d.rectangle([22, 36, 74, 50], fill=col)
+    if full:
+        d.ellipse([22, 26, 34, 38], fill=(255, 160, 150))
+    return img
+
+
 def icon_egg():
     img, d = _icon()
     d.ellipse([26, 14, 70, 84], fill=(250, 245, 230), outline=OUT, width=4)
@@ -935,7 +981,7 @@ ICONS = {
     "moustache": icon_moustache, "shotgun": icon_shotgun, "plank": icon_plank, "fuse": icon_fuse,
     "clover": icon_clover, "egg": icon_egg, "pencil": icon_pencil, "horseshoe": icon_horseshoe,
     "coffee": icon_coffee, "tincan": icon_tincan, "shoes": icon_shoes, "hat": icon_hat, "wrench": icon_wrench,
-    "chimes": icon_chimes,
+    "chimes": icon_chimes, "heart": icon_heart, "heart_empty": lambda: icon_heart(False),
 }
 
 
@@ -976,7 +1022,7 @@ def all_textures():
         "fence_wood": tex_fence_wood, "hay": tex_hay, "concrete": tex_concrete, "metal": tex_metal,
         "metal_rust": tex_metal_rust, "shingles": tex_shingles, "stone": tex_stone, "wallpaper": tex_wallpaper,
         "tiles": tex_tiles, "carpet": tex_carpet, "water": tex_water, "plaid": tex_plaid, "denim": tex_denim,
-        "straw": tex_straw, "white": tex_white, "paper": tex_paper, "blob_shadow": tex_blob_shadow,
+        "straw": tex_straw, "white": tex_white, "paper": tex_paper, "blob_shadow": tex_blob_shadow, "vignette": tex_vignette,
         "soft_circle": tex_soft_circle, "leaves": tex_leaves, "bark": tex_bark,
         "cowhide": lambda: tex_cowhide(seed=11),
         "cowhide_brown": lambda: tex_cowhide(spot=(120, 70, 40), seed=12),
@@ -994,7 +1040,7 @@ def all_textures():
         "sticky_pot": lambda: tex_sticky("Moved it.\nSpare key is in\nthe GNOME.\n-Chuck", (200, 255, 200)),
         "trophy_plaque": tex_trophy_plaque, "poster_employee": tex_poster_employee, "photo_earl": tex_photo_earl,
         "tv": tex_tv, "monitor": tex_monitor_login, "calendar": tex_calendar, "cookbook": tex_cookbook,
-        "welcome_mat": tex_welcome_mat, "road_sign": tex_road_sign_steak, "atlas": tex_atlas,
+        "welcome_mat": tex_welcome_mat, "window": tex_window, "road_sign": tex_road_sign_steak, "atlas": tex_atlas,
     }
     for name, fn in ICONS.items():
         t["icon_" + name] = fn

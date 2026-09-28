@@ -237,8 +237,9 @@ class HerdCow(Walker):
         self._apply()
 
     def _apply(self):
-        self.model.position = (self.x, self.y, self.z)
-        self.model.rotation_y = self.yaw
+        # straight to Panda: Ursina rotation_y == -H
+        self.model.setPos(self.x, self.y, self.z)
+        self.model.setH(-self.yaw)
         self.col.x, self.col.z = self.x, self.z
 
     def bubble(self, text, life=2.2):
@@ -300,9 +301,15 @@ class HerdCow(Walker):
         self._apply()
         if not self.far:
             p = self.g.player
-            look = (p.x, p.z) if math.hypot(p.x - self.x, p.z - self.z) < 6 else None
-            self.model.graze_target = 1.0 if (spd < 0.1 and look is None and not self.lie) else 0.0
-            self.model.animate(dt, spd, look)
+            # animation level of detail: distant cows animate every few frames
+            self.anim_acc = getattr(self, "anim_acc", 0.0) + dt
+            every = 1 if d_cam < 30 else (3 if d_cam < 55 else 6)
+            self.anim_n = getattr(self, "anim_n", self.idx) + 1
+            if self.anim_n % every == 0:
+                look = (p.x, p.z) if math.hypot(p.x - self.x, p.z - self.z) < 6 else None
+                self.model.graze_target = 1.0 if (spd < 0.1 and look is None and not self.lie) else 0.0
+                self.model.animate(self.anim_acc, spd, look, world_yaw=self.yaw)
+                self.anim_acc = 0.0
             for b in self.bubbles:
                 b.update(dt)
             self.bubbles = [b for b in self.bubbles if b.alive]
@@ -325,7 +332,7 @@ class Hen(Walker):
         if self.timer <= 0:
             self.timer = random.uniform(1.5, 5)
             if random.random() < 0.5:
-                self.path = [(random.uniform(36, 50), 0, random.uniform(-40, -26))]
+                self.path = [(random.uniform(36, 46.5), 0, random.uniform(-40, -26))]
                 self.walk_speed = 1.2
                 self.peck = False
             else:
