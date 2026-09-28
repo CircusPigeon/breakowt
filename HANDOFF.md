@@ -28,8 +28,7 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - [x] Ending + credits
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
-### Latest round (player feedback, in progress)
-Done in code; see "Still to verify" below for what hasn't been through the full test suite yet.
+### Latest round (player feedback)
 - HUD: the stamina bar sits bottom-left (it used to collide with the hotbar on 3:2 / 16:10 screens), and
   `UI.relayout()` re-anchors edge-pinned HUD pieces when the window changes shape (fullscreen toggle).
 - Chuck in bed: `BED_SLEEP` / `BED_GETUP` in `days.py`. The "sleep" pose lays him out along +z from his
@@ -38,7 +37,8 @@ Done in code; see "Still to verify" below for what hasn't been through the full 
   on the pillow) instead of standing him up in the bed.
 - Light sleeper (`farmer.py`: `_hear_asleep`, `_disturbance`, `get_up`, `back_to_bed`): noises inside the
   house add to `drowse`; a thrown item, a moo, the radio, the toilet or a gunshot wakes him outright,
-  about three galloping strides do too, a drawer or door just makes him stir. Fully awake he gets up at
+  about three galloping strides do too, a door or the nightstand drawer just makes him stir (the drawer
+  is silent if you're sneaking). Stirring, his eyes open after half a second. Fully awake he gets up at
   `BED_GETUP` with the flashlight and the bedroom/hall lights on, investigates, then walks back to bed
   (`tobed` state) and the lights go off. Only in bed with a `getup` spot; the porch nap only stirs.
 - Doors left open (`Farmer._check_doors`): a door the player opened (`Door.player_opened`, set in
@@ -60,11 +60,16 @@ Done in code; see "Still to verify" below for what hasn't been through the full 
   and is held up by the boot; grass/flowers no longer grow through floors; porch roof no longer pokes
   into the living room; hotbar deselect (press the selected number again); the held item follows removals.
 
-### Still to verify (next session: run these first)
-- Full `--day 1 --to 7`, `--caught all --detect`, and `--resume` runs after the boss/shotgun/credits and
-  sleeping-Chuck changes. The walkthrough's boss plan now fires the shotgun once and checks it lands.
-- A boss-defeat test: let the player die in the fight and check Chuck's HP and the shells reset.
-- Saturday night (`d6_night`) with the new light-sleeper rules: the bot must not gallop in the house.
+### Verified
+- `--day 1 --to 7` (the boss plan fires the shotgun once and checks it lands), `--resume` for days 5-7,
+  `--day 6 --to 6 --caught all --detect`. The bot sneaks for the nightstand drawer, and if it's caught for
+  real (not on purpose) it waits for the catch to play out and restarts the step's plan.
+- Boss: a scratch test shot him (6 -> 3 HP, knocked flat, 1 shell left), lost the fight, and got Chuck
+  back at 6/6, phase 1, 5 hearts and 2 shells; the bar hits 0 exactly when he goes down.
+- Credits with a stale key press: about 110 s including the epilogue (it used to be a few seconds).
+- Chuck: rock in the living room -> gets up, investigates, back to bed under the quilt; galloping in the
+  house wakes him after a few strides; a front door left open gets noticed and shut.
+- If the full `--caught all --detect` run below this line isn't marked as passed, run it first.
 
 ## Run
 ```

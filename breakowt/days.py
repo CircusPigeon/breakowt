@@ -2633,7 +2633,8 @@ class DayScripts:
             gg.noise((60.9, Y, 47.1), 5, "drawer")
             gg.inv.add("cabinet_key")
             gg.complete("ckey")
-        g.on("nightstand", "Open the drawer (quietly)", drawer,
+        g.on("nightstand", lambda gg: "Open the drawer (quietly)" if gg.player.crouching else
+             "Open the drawer (sneak first: C, or it'll creak)", drawer,
              cond=lambda gg: not gg.inv.has("cabinet_key") and not self.done("cabinet_open"))
 
         def cabinet(gg):

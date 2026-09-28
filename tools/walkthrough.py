@@ -606,8 +606,11 @@ class Bot:
         yield from self.wait(0.8)
         self.place(56, 32, 0)
         yield from self.walk_path([(51.5, 35), (51.2, 38.9), (48.9, 39.2), (48.9, 41), (56.9, 41), (56.4, 43.9)])
+        # sneak for the drawer: opened standing up, it makes Chuck stir
+        g.player.crouch_toggle = True
         yield from self.interact("nightstand")
         yield from self.until(lambda: g.inv.has("cabinet_key"), 5, "cabinet key")
+        g.player.crouch_toggle = False
         yield from self.walk_path([(56.9, 41), (47.9, 41), (47.9, 44.5)])
         yield from self.interact("gun_cabinet")
 
@@ -735,6 +738,16 @@ class Bot:
                         raise Stuck(f"caught sequence in {key} never finished")
                 if g.player.frozen or not g.controls_enabled():
                     raise Stuck(f"no control after being caught in {key}")
+                self.plan = self.plan_for(key)
+            elif key and g.runner.running("caught"):
+                # caught for real (not on purpose): let it play out, then start the step's plan again
+                print(f"    caught (really) during {key}", flush=True)
+                n = 0
+                while g.runner.running("caught") or g.cutscene or g.in_dialogue:
+                    self.tick()
+                    n += 1
+                    if n > 30 * FPS:
+                        raise Stuck(f"caught sequence in {key} never finished")
                 self.plan = self.plan_for(key)
             if self.watch is not None:
                 self.watch()

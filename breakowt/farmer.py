@@ -361,7 +361,8 @@ class Farmer(Walker):
         if g.phys.in_zone("house", pos[0], pos[2]) and g.phys.in_zone("house", self.x, self.z):
             # anything that clatters wakes him outright; galloping on the floorboards takes a few strides
             return {"thrown": 1.0, "crash": 1.0, "flush": 1.0, "radio": 1.0, "moo": 1.0, "shotgun": 1.0, "headbutt": 0.7,
-                    "steps": 0.35 if g.player.galloping else 0.2, "door": 0.35, "drawer": 0.25}.get(source, 0.5)
+                    "steps": 0.35 if g.player.galloping else 0.2, "door": 0.35,
+                    "drawer": 0.0 if g.player.crouching else 0.25}.get(source, 0.5)
         d = math.hypot(pos[0] - self.x, pos[2] - self.z)
         if d > radius * self.hearing * 0.45:
             return 0.0
@@ -573,8 +574,8 @@ class Farmer(Walker):
         v, dist = self.visibility()
         self.sees_player = v > 0
         restricted = g.player_restricted()
-        if self.sleeping and self.wake_timer <= 0:
-            v = 0.0
+        if self.sleeping and (self.wake_timer <= 0 or self.wake_timer > 3.0):
+            v = 0.0     # asleep, or only just stirring (half a second to duck before his eyes open)
         disguised = p.disguised and not p.galloping
         if v > 0 and restricted and disguised:
             if dist > 3.5:
