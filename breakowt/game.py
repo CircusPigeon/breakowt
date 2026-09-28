@@ -51,13 +51,28 @@ CAUGHT_AFTER = [
 ]
 
 
+# Graphics presets. res_h caps the height the 3D scene is drawn at (the UI always draws at the
+# window's full resolution); herd_lod is how far away a herd cow switches to its one-piece model.
+QUALITY = {
+    "low": dict(res_h=720, msaa=0, fxaa=True, shadows=False, shadow_size=1024, shadow_every=2,
+                herd_lod=22, herd_shadows=False),
+    "medium": dict(res_h=1080, msaa=0, fxaa=True, shadows=True, shadow_size=1024, shadow_every=2,
+                   herd_lod=32, herd_shadows=False),
+    "high": dict(res_h=0, msaa=4, fxaa=False, shadows=True, shadow_size=2048, shadow_every=1,
+                 herd_lod=50, herd_shadows=True),
+}
+QUALITY_NAMES = {"low": "Low", "medium": "Medium", "high": "High"}
+
+
 class Game(Entity):
     def __init__(self, args, fonts):
         super().__init__()
         self.args = args
         self.debug = getattr(args, "debug", False)
         self.fonts = fonts
-        self.env = Environment()
+        self.env = Environment(shadows=False)     # apply_quality() turns them on
+        self.quality = "medium"
+        self.postfx = None
         self.audio = AudioManager()
         self.phys = Physics()
         self.ia = InteractionSystem(self)
@@ -110,6 +125,8 @@ class Game(Entity):
         from .story import Story
         self.story = Story(self)
         self.load_settings()
+        self._start_postfx()
+        self.apply_quality()
         self.refresh_hotbar()
         self.set_mouse(True)
 
@@ -185,6 +202,50 @@ class Game(Entity):
     def set_mouse(self, locked):
         mouse.locked = locked
         mouse.visible = not locked
+        # Ursina ray-picks the scene under the cursor every frame (and walks every entity when it
+        # misses). With the cursor locked for looking around nothing is clickable, so skip it.
+        mouse.update_step = 10 ** 9 if locked else 1
+
+    # ------------------------------------------------------------------
+    # graphics quality
+    # ------------------------------------------------------------------
+    def _start_postfx(self):
+        from .engine import gpuprobe
+        from .engine.postfx import PostFX
+        if gpuprobe.POSTFX_OK:
+            self.postfx = PostFX(application.base)
+        from direct.showbase.DirectObject import DirectObject
+        self._win_events = DirectObject()
+        self._win_size = None
+        self._win_events.accept("window-event", self._on_window_event)
+
+    def _on_window_event(self, win):
+        size = (win.getXSize(), win.getYSize())
+        if win == application.base.win and size != self._win_size:
+            self._win_size = size
+            self.apply_quality(rescale_only=True)
+
+    def apply_quality(self, name=None, rescale_only=False):
+        if name in QUALITY:
+            self.quality = name
+        if self.quality not in QUALITY:
+            self.quality = "medium"
+        q = QUALITY[self.quality]
+        if self.postfx is not None:
+            h = max(1, application.base.win.getYSize())
+            scale = min(1.0, q["res_h"] / h) if q["res_h"] else 1.0
+            if not self.postfx.apply(scale, msaa=q["msaa"], fxaa=q["fxaa"]):
+                self.postfx = None
+        if rescale_only:
+            return
+        self.env.set_shadows(q["shadows"], size=q["shadow_size"], every=q["shadow_every"])
+        for h in self.herd:
+            h.set_lod(q["herd_lod"], q["herd_shadows"])
+
+    def cycle_quality(self):
+        order = list(QUALITY)
+        self.apply_quality(order[(order.index(self.quality) + 1) % len(order)])
+        return self.quality
 
     def controls_enabled(self):
         return (self.state == "play" and not self.in_dialogue and not self.cutscene and self.ui.modal is None
@@ -221,7 +282,7 @@ class Game(Entity):
         try:
             SAVE_DIR.mkdir(parents=True, exist_ok=True)
             d = {"volumes": self.audio.volumes, "sens": self.player.sensitivity, "invert": self.player.invert_y,
-                 "shadows": self.env.shadows}
+                 "quality": self.quality}
             (SAVE_DIR / "settings.json").write_text(json.dumps(d, indent=1))
         except OSError:
             pass
@@ -232,8 +293,11 @@ class Game(Entity):
             self.audio.volumes.update(d.get("volumes", {}))
             self.player.sensitivity = d.get("sens", 1.0)
             self.player.invert_y = d.get("invert", False)
-            if not d.get("shadows", True):
-                self.env.set_shadows(False)
+            q = d.get("quality")
+            if q in QUALITY:
+                self.quality = q
+            elif d.get("shadows") is False:
+                self.quality = "low"     # settings from before the presets: shadows were turned off
         except (OSError, ValueError):
             pass
 
@@ -501,6 +565,8 @@ class Game(Entity):
             self.audio.play("bonk", vol=0.8, pitch=random.uniform(0.9, 1.1))
             return True
         t = self.ia.find_target(eye, fwd)
+        if t is None or t.on_headbutt is None:
+            t = self._headbutt_low(eye, fwd) or t
         if t is not None and t.on_headbutt is not None:
             t.on_headbutt(self)
             return True
@@ -513,6 +579,38 @@ class Game(Entity):
             self.noise(self.player.pos, 6, "headbutt")
             return True
         return False
+
+    def _headbutt_low(self, eye, fwd):
+        """A headbutt lands wherever the head goes, not where you're looking: also catch something
+        headbuttable low down right in front (the gnome, a bucket) without having to look at the ground."""
+        p = self.player
+        fl = math.hypot(fwd[0], fwd[2])
+        if fl < 1e-3:
+            return None
+        fx, fz = fwd[0] / fl, fwd[2] / fl
+        best, best_d = None, 1e9
+        for ia in self.ia.items.values():
+            if ia.on_headbutt is None or not ia.enabled:
+                continue
+            if ia.visible_cond is not None and not ia.visible_cond(self):
+                continue
+            px, py, pz = ia.world_pos()
+            if not (p.y - 0.3 < py < eye[1] + 0.3):
+                continue
+            dx, dz = px - p.x, pz - p.z
+            d = math.hypot(dx, dz)
+            if d > 1.7 + ia.radius or d < 1e-3:
+                continue
+            if (dx * fx + dz * fz) / d < math.cos(math.radians(math.degrees(math.atan2(ia.radius, d)) + 20)):
+                continue
+            # stop short of the thing itself (it may have its own collider)
+            k = max(0.0, d - ia.radius - 0.2) / d
+            if k > 0.05 and not self.phys.line_of_sight((p.x, py + 0.2, p.z), (p.x + dx * k, py + 0.2, p.z + dz * k),
+                                                        include_dynamic=False):
+                continue
+            if d < best_d:
+                best, best_d = ia, d
+        return best
 
     def on_kick(self, pos, yaw):
         hit = False

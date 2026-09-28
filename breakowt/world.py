@@ -682,8 +682,18 @@ class World:
         self.sign("do_not_touch", (gx, 1.9, z0 + 0.12), (1.3, 0.65), rot_y=180)
         self.add_ia("generator", (gx, 0.9, gz), 0.8, "Generator")
         self.add_ia("fuse", (gx + 0.5, 1.0, gz + 0.5), 0.35, "Main fuse", text_key="generator")
-        # cable from the generator out to the pasture fence
-        self.mb("white").box((-15, 2.6, -24.6), (6.2, 0.04, 0.04), color=(0.1, 0.1, 0.1, 1))
+        # cable from the generator, out through the back wall, along the ground and up a fence post
+        # to the wires (fence line x = -18, wires at 0.45 / 0.8 / 1.15)
+        cable = (0.1, 0.1, 0.1, 1)
+        cz = gz - 0.2
+        self.mb("white").box(((x0 + gx - 0.7) / 2, 0.9, cz), (gx - 0.7 - x0 + 0.2, 0.05, 0.05), color=cable)
+        self.mb("white").box((x0 - 0.13, 0.49, cz), (0.05, 0.86, 0.05), color=cable)
+        fx = -17.905                    # east face of a fence post
+        self.mb("white").box(((x0 - 0.13 + fx) / 2, 0.05, cz), ((x0 - 0.13) - fx + 0.05, 0.05, 0.05), color=cable)
+        self.mb("wood_dark").box((-18, 0.68, cz), (0.14, 1.36, 0.14), uv_density=1.0)
+        for hy in (0.45, 0.8, 1.15):
+            self.mb("white").box((-18, hy, cz), (0.18, 0.06, 0.18), color=(1, 0.85, 0.2, 1))
+        self.mb("white").box((fx, 0.6, cz), (0.05, 1.12, 0.05), color=cable)
         # workbench along north wall
         self.box("wood", (-8.5, 0.9, z1 - 0.55), (5.0, 0.1, 0.9), collide=False)
         for lx in (-10.8, -6.2):
@@ -1160,7 +1170,10 @@ class World:
                 mb.box((0.0, yy, length / 2), (0.08, 0.1, length), color=(0.7, 0.72, 0.75, 1))
             for k in range(5):
                 mb.box((0, 0.7, k * length / 4), (0.08, 1.3, 0.08), color=(0.7, 0.72, 0.75, 1))
-            mb.box((0, 0.7, length / 2), (0.06, 0.08, length * 1.05), color=(0.7, 0.72, 0.75, 1), rot=(40, 0, 0))
+            # diagonal brace, bottom rail to top rail, corner to corner
+            rise = 1.2 - 0.3
+            mb.box((0, 0.75, length / 2), (0.06, 0.08, math.hypot(length, rise)), color=(0.7, 0.72, 0.75, 1),
+                   rot=(math.degrees(math.atan2(rise, length)), 0, 0))
         self.doors["pasture_gate"] = Door(self, "pasture_gate", (gx, gz0), gz1 - gz0, along="z", sign=1, height=1.45,
                                           texture="white", open_angle=100, model_fn=gate_model)
         self.add_ia("pasture_gate", (gx + 0.3, 1.0, gz1 - 0.6), 0.7, "Pasture gate", text_key=None).text = [

@@ -4,9 +4,12 @@ from __future__ import annotations
 import math
 import random
 
+from panda3d.core import BitMask32
 from ursina import Entity, Text, camera, color, destroy, scene
 
 from .engine.shading import SHADOW_MASK
+
+MAIN_MASK = BitMask32.bit(0)     # the main camera's mask (see Environment)
 from .interact import Interactable
 from . import models
 from .world import PASTURE, in_pond, OAK, MOOHOLE, GATE_PASTURE
@@ -259,6 +262,28 @@ HERD_NAMES = ["Clarabelle", "Buttercup", "Brie", "Moozie", "Cud-ney", "Moo-ana",
 HERD_HIDES = ["hide_bw", "hide_bw", "hide_brown", "hide_black", "hide_gray", "hide_red", "hide_dun", "hide_bw"]
 
 
+def _merged_copy(model):
+    """The cow's parts baked into one GeomNode in their current pose (drawn in one call).
+    flattenStrong() can't do it: each Ursina entity carries its own ShaderAttrib, so Panda won't merge
+    the parts even though they share shader and texture."""
+    from panda3d.core import GeomNode
+    parts = model.rig.findAllMatches("**/+GeomNode")
+    gn = GeomNode("cow_far")
+    for i in range(parts.getNumPaths()):
+        part = parts[i]
+        mat = part.getMat(model)
+        node = part.node()
+        for k in range(node.getNumGeoms()):
+            geom = node.getGeom(k).makeCopy()
+            geom.transformVertices(mat)
+            gn.addGeom(geom, node.getGeomState(k))
+    far = model.attachNewNode(gn)
+    if parts.getNumPaths():
+        far.setState(parts[0].getNetState())
+    far.flattenStrong()     # now that it's one node with one state: pool the vertices, one Geom
+    return far
+
+
 class HerdCow(Walker):
     def __init__(self, g, idx, pos, yaw):
         super().__init__(g, pos[0], pos[1], yaw, 0.8)
@@ -279,7 +304,35 @@ class HerdCow(Walker):
         self.lie = random.random() < 0.15
         self.model.lying_target = 1.0 if self.lie else 0.0
         self.far = False
+        self.lod_dist = 32.0
+        self.lod_far = False
+        self.far_np = None
         self._apply()
+
+    def set_lod(self, dist, casts_shadow):
+        self.lod_dist = dist
+        if casts_shadow:
+            self.model.show(SHADOW_MASK)
+        else:
+            self.model.hide(SHADOW_MASK)     # the blob under it still grounds it
+
+    def _use_far_model(self, far):
+        """Far away, the cow is drawn as one merged mesh: 1 draw call instead of 8."""
+        if far == self.lod_far:
+            return
+        m = self.model
+        if far:
+            if self.far_np is None:
+                self.far_np = _merged_copy(m)
+            m.rig.hide()
+            m.shadow.hide(MAIN_MASK)
+            self.far_np.show()
+        else:
+            m.rig.show()
+            m.shadow.show(MAIN_MASK)
+            if self.far_np is not None:
+                self.far_np.hide()
+        self.lod_far = far
 
     def _apply(self):
         # straight to Panda: Ursina rotation_y == -H
@@ -361,13 +414,17 @@ class HerdCow(Walker):
                 self.lie = False
                 self.model.lying_target = 0.0
         self._apply()
+        # far off and on its feet: the merged mesh; lying down, talking or close: the animated rig
+        m = self.model
+        self._use_far_model(d_cam > self.lod_dist and m.lying < 0.02 and m.lying_target == 0.0
+                            and not self.bubbles)
         if not self.far:
             p = self.g.player
             # animation level of detail: distant cows animate every few frames
             self.anim_acc = getattr(self, "anim_acc", 0.0) + dt
             every = 1 if d_cam < 30 else (3 if d_cam < 55 else 6)
             self.anim_n = getattr(self, "anim_n", self.idx) + 1
-            if self.anim_n % every == 0:
+            if self.anim_n % every == 0 and not self.lod_far:
                 look = (p.x, p.z) if math.hypot(p.x - self.x, p.z - self.z) < 6 else None
                 self.model.graze_target = 1.0 if (spd < 0.1 and look is None and not self.lie) else 0.0
                 self.model.animate(self.anim_acc, spd, look, world_yaw=self.yaw)

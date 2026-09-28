@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import math
 
-from panda3d.core import (BitMask32, DirectionalLight, PTA_LVecBase4f, RenderState, ShaderAttrib,
-                          Vec3 as PVec3, Vec4 as PVec4)
+from panda3d.core import (BitMask32, Camera, DepthWriteAttrib, FrameBufferProperties, LMatrix4f,
+                          OrthographicLens, PTA_LVecBase4f, RenderState, SamplerState, ShaderAttrib, Texture,
+                          TransparencyAttrib, Vec3 as PVec3, Vec4 as PVec4)
+from panda3d.core import Shader as PShader
 from ursina import Entity, Shader, Vec3, application, camera, color
 
 VERT = """
@@ -23,12 +25,9 @@ uniform vec2 texture_scale;
 uniform vec2 texture_offset;
 uniform float u_sway;
 uniform float u_time;
-uniform mat4 p3d_ModelViewMatrix;
-uniform struct p3d_LightSourceParameters {
-    vec4 color;
-    sampler2DShadow shadowMap;
-    mat4 shadowViewMatrix;
-} p3d_LightSource[1];
+#ifdef SHADOWS
+uniform mat4 u_shadow_vp;
+#endif
 out vec2 uv;
 out vec3 wpos;
 out vec3 wnorm;
@@ -48,9 +47,13 @@ void main() {
     wpos = (p3d_ModelMatrix * v).xyz;
     wnorm = mat3(p3d_ModelMatrix) * p3d_Normal;
     vcol = p3d_Color;
+#ifdef SHADOWS
     // look the shadow up from a point nudged along the normal to avoid self-shadowing acne
     vec4 vs = v + vec4(normalize(p3d_Normal) * 0.05, 0.0);
-    shadow_coord = p3d_LightSource[0].shadowViewMatrix * (p3d_ModelViewMatrix * vs);
+    shadow_coord = u_shadow_vp * (p3d_ModelMatrix * vs);
+#else
+    shadow_coord = vec4(0.0);
+#endif
 }
 """
 
@@ -83,29 +86,35 @@ uniform vec3 u_sky_hor;
 uniform vec3 u_sun_disc;
 uniform float u_shadows;
 uniform float u_shadow_texel;
-uniform struct p3d_LightSourceParameters {
-    vec4 color;
-    sampler2DShadow shadowMap;
-    mat4 shadowViewMatrix;
-} p3d_LightSource[1];
 in vec4 shadow_coord;
 out vec4 frag;
 
+#ifdef SHADOWS
+// The sun's depth map is an ordinary RGBA8 texture with depth packed into three bytes, compared by
+// hand. (Panda's own shadow path hands the shader a sampler2DShadow inside the light struct, and
+// some drivers, e.g. Adreno on Windows on ARM, crash compiling that.)
+uniform sampler2D u_shadow_map;
+float occluder(vec2 p) {
+    return dot(texture(u_shadow_map, p).rgb, vec3(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+}
 float sun_visibility() {
     if (u_shadows < 0.5 || shadow_coord.w <= 0.0) return 1.0;
     vec3 sc = shadow_coord.xyz / shadow_coord.w;
     float edge = min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y));
     if (edge <= 0.0 || sc.z >= 1.0) return 1.0;
-    sc.z -= 0.0008;
-    float o = u_shadow_texel * 1.2;
-    float s = texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(-o, -o), sc.z));
-    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(o, -o), sc.z));
-    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(-o, o), sc.z));
-    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(o, o), sc.z));
+    float z = sc.z - 0.0008;
+    float o = u_shadow_texel * 0.75;
+    float s = step(z, occluder(sc.xy + vec2(-o, -o)));
+    s += step(z, occluder(sc.xy + vec2(o, -o)));
+    s += step(z, occluder(sc.xy + vec2(-o, o)));
+    s += step(z, occluder(sc.xy + vec2(o, o)));
     s *= 0.25;
     // fade out towards the edge of the shadowed area so there's no hard line
     return mix(1.0, s, smoothstep(0.0, 0.06, edge));
 }
+#else
+float sun_visibility() { return 1.0; }
+#endif
 
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise2(vec2 p) {
@@ -124,8 +133,9 @@ vec3 tonemap(vec3 c) {
 }
 
 void main() {
+    // no alpha test here: every world texture is opaque, and a discard anywhere in a shader turns off
+    // early depth rejection for everything drawn with it (costly on tile-based mobile GPUs)
     vec4 base = texture(p3d_Texture0, uv) * p3d_ColorScale * vcol;
-    if (base.a < 0.03) discard;
     vec3 n = normalize(wnorm);
     if (!gl_FrontFacing) n = -n;
     vec3 V = normalize(u_cam - wpos);
@@ -187,38 +197,24 @@ void main() {
 }
 """
 
-FARM_SHADER = Shader(name="farm_shader", language=Shader.GLSL, vertex=VERT, fragment=FRAG,
+def _variant(src, shadows):
+    """The shader source with or without the shadow-map code (a #define after the #version line)."""
+    return src.replace("#version 140\n", "#version 140\n#define SHADOWS 1\n", 1) if shadows else src
+
+
+FARM_SHADER = Shader(name="farm_shader", language=Shader.GLSL, vertex=_variant(VERT, True),
+                     fragment=_variant(FRAG, True),
                      default_input={"texture_scale": (1, 1), "texture_offset": (0, 0),
                                     "u_unlit": 0.0, "u_emissive": 0.0, "u_sway": 0.0, "u_water": 0.0})
 
 SHADOWS_SUPPORTED = True
-
-_LIGHT_STRUCT = """uniform struct p3d_LightSourceParameters {
-    vec4 color;
-    sampler2DShadow shadowMap;
-    mat4 shadowViewMatrix;
-} p3d_LightSource[1];"""
-
-
-def _strip_shadows(vert, frag):
-    """The same shader without Panda's shadow-map struct (some drivers crash on it)."""
-    import re
-    v = vert.replace(_LIGHT_STRUCT, "").replace(
-        "shadow_coord = p3d_LightSource[0].shadowViewMatrix * (p3d_ModelViewMatrix * vs);", "shadow_coord = vec4(0.0);")
-    f = frag.replace(_LIGHT_STRUCT, "")
-    f = re.sub(r"float sun_visibility\(\) \{.*?\n\}\n", "float sun_visibility() { return 1.0; }\n", f, flags=re.S)
-    assert "p3d_LightSource" not in v + f, "shadow struct still referenced"
-    return v, f
 
 
 def set_shadow_support(ok):
     """Call before any entity uses FARM_SHADER. Without support the shadow-free variant is used."""
     global SHADOWS_SUPPORTED
     SHADOWS_SUPPORTED = bool(ok)
-    if not ok:
-        FARM_SHADER.vertex, FARM_SHADER.fragment = _strip_shadows(VERT, FRAG)
-    else:
-        FARM_SHADER.vertex, FARM_SHADER.fragment = VERT, FRAG
+    FARM_SHADER.vertex, FARM_SHADER.fragment = _variant(VERT, ok), _variant(FRAG, ok)
     FARM_SHADER.compiled = False
 
 
@@ -257,7 +253,10 @@ in float valpha;
 out vec4 frag;
 void main() {
     if (texture(p3d_Texture0, uv).a * p3d_ColorScale.a * valpha < 0.5) discard;
-    frag = vec4(1.0);
+    // depth in [0, 1) packed into three bytes (see occluder() in the main shader)
+    vec3 enc = fract(gl_FragCoord.z * vec3(1.0, 255.0, 65025.0));
+    enc.xy -= enc.yz / 255.0;
+    frag = vec4(enc, 1.0);
 }
 """
 
@@ -408,7 +407,19 @@ class Environment:
         # the main camera must not use the shadow bit, or hiding things from the sun would hide them from us
         application.base.cam.node().setCameraMask(BitMask32.bit(0))
         self.sun_np = None
+        self.sun_buf = None
+        self.sun_lens = None
+        self.sun_dr = None
+        self.shadow_size = SHADOW_SIZE
+        self.shadow_every = 1       # redraw the shadow map every Nth frame
+        self._shadow_n = 0
         self.shadows = False
+        # the sampler and matrix need something bound even while shadows are off
+        self._blank = Texture("no_shadow")
+        self._blank.setup2dTexture(1, 1, Texture.T_unsigned_byte, Texture.F_rgba8)
+        self._blank.setRamImage(b"\xff\xff\xff\xff")
+        self.render.set_shader_input("u_shadow_map", self._blank)
+        self.render.set_shader_input("u_shadow_vp", LMatrix4f.identMat())
         self.state = dict(PRESETS["morning"])
         self.state["sun_vec"] = sun_vector(*self.state["sun"])
         self._from = None
@@ -428,37 +439,84 @@ class Environment:
         self.set_shadows(shadows)
         self._apply()
 
-    def set_shadows(self, on):
+    def set_shadows(self, on, size=None, every=None):
+        """Sun shadows on/off; size is the map's resolution, every how often (in frames) it's redrawn."""
         on = bool(on) and SHADOWS_SUPPORTED
-        r = self.render
-        if on and self.sun_np is None:
-            try:
-                light = DirectionalLight("sun")
-                light.setShadowCaster(True, SHADOW_SIZE, SHADOW_SIZE)
-                light.setCameraMask(SHADOW_MASK)
-                lens = light.getLens()
-                lens.setFilmSize(SHADOW_FILM, SHADOW_FILM)
-                lens.setNearFar(1.0, 400.0)
-                from panda3d.core import Shader as PShader
-                depth = PShader.make(PShader.SL_GLSL, DEPTH_VERT, DEPTH_FRAG)
-                light.setInitialState(RenderState.make(ShaderAttrib.make(depth, 1000)))
-                self.sun_np = r.attachNewNode(light)
-                r.setLight(self.sun_np)
-            except Exception as e:  # no shadow support: carry on without
-                print("shadows unavailable:", e)
-                self.sun_np = None
-                on = False
-        elif not on and self.sun_np is not None:
-            r.clearLight(self.sun_np)
-            self.sun_np.removeNode()
-            self.sun_np = None
+        size = int(size or self.shadow_size)
+        if every:
+            self.shadow_every = max(1, int(every))
+        if self.sun_buf is not None and (not on or size != self.shadow_size):
+            self._drop_shadow_map()
+        self.shadow_size = size
+        if on and self.sun_buf is None:
+            on = self._make_shadow_map(size)
         self.shadows = on
+        r = self.render
         r.set_shader_input("u_shadows", 1.0 if on else 0.0)
-        r.set_shader_input("u_shadow_texel", 1.0 / SHADOW_SIZE)
+        r.set_shader_input("u_shadow_texel", 1.0 / size)
+        if not on:
+            r.set_shader_input("u_shadow_map", self._blank)
+        self._shadow_n = 0
+
+    def _make_shadow_map(self, size):
+        """An offscreen buffer the sun's orthographic camera draws packed depth into (see DEPTH_FRAG)."""
+        base = application.base
+        try:
+            tex = Texture("sun_depth")
+            tex.setMinfilter(SamplerState.FT_nearest)
+            tex.setMagfilter(SamplerState.FT_nearest)
+            tex.setWrapU(SamplerState.WM_clamp)
+            tex.setWrapV(SamplerState.WM_clamp)
+            fbp = FrameBufferProperties()
+            fbp.setRgbColor(True)
+            fbp.setRgbaBits(8, 8, 8, 8)
+            fbp.setDepthBits(24)
+            buf = base.win.makeTextureBuffer("sun_shadow", size, size, tex, False, fbp)
+            if buf is None:
+                raise RuntimeError("the driver refused the shadow buffer")
+            buf.setSort(-3000)                    # before the scene (and its post buffer)
+            buf.setClearColorActive(True)
+            buf.setClearColor(PVec4(1, 1, 1, 1))  # "nothing in the way" everywhere
+            buf.setClearDepthActive(True)
+            lens = OrthographicLens()
+            lens.setFilmSize(SHADOW_FILM, SHADOW_FILM)
+            lens.setNearFar(1.0, 400.0)
+            cam = Camera("sun_cam", lens)
+            cam.setCameraMask(SHADOW_MASK)
+            depth = PShader.make(PShader.SL_GLSL, DEPTH_VERT, DEPTH_FRAG)
+            # shader priority (not a state override) so each object's own inputs (u_sway...) still reach it
+            state = RenderState.make(ShaderAttrib.make(depth, 1000))
+            state = state.addAttrib(TransparencyAttrib.make(TransparencyAttrib.M_none), 1000)
+            state = state.addAttrib(DepthWriteAttrib.make(DepthWriteAttrib.M_on), 1000)
+            cam.setInitialState(state)
+            np = self.render.attachNewNode(cam)
+            dr = buf.makeDisplayRegion()
+            dr.setCamera(np)
+            self.sun_buf, self.sun_np, self.sun_lens, self.sun_dr = buf, np, lens, dr
+            self.render.set_shader_input("u_shadow_map", tex)
+            return True
+        except Exception as e:  # noqa: BLE001 - no shadow support: carry on without
+            print("[breakowt] shadows unavailable:", e, flush=True)
+            self._drop_shadow_map()
+            return False
+
+    def _drop_shadow_map(self):
+        if self.sun_buf is not None:
+            self.sun_buf.clearRenderTextures()
+            application.base.graphicsEngine.removeWindow(self.sun_buf)
+        if self.sun_np is not None:
+            self.sun_np.removeNode()
+        self.sun_buf = self.sun_np = self.sun_lens = self.sun_dr = None
 
     def _place_sun(self):
-        """Keep the shadow frustum centred on the camera, snapped to whole texels so edges don't crawl."""
+        """Keep the shadow frustum centred on the camera, snapped to whole texels so edges don't crawl.
+        The map and the matrix that reads it change together, on the frames the map is redrawn."""
         if self.sun_np is None:
+            return
+        self._shadow_n += 1
+        redraw = self._shadow_n % self.shadow_every == 0 or self._shadow_n == 1
+        self.sun_dr.setActive(redraw)
+        if not redraw:
             return
         cam = camera.world_position
         sv = self.state["sun_vec"]
@@ -466,12 +524,16 @@ class Environment:
         d = (float(sv[0]), float(sv[1]), float(sv[2]))
         if d[1] < 0.08:
             d = (d[0], 0.08, d[2])
-        step = SHADOW_FILM / SHADOW_SIZE * 4
+        step = SHADOW_FILM / self.shadow_size * 4
         cx = round(cam.x / step) * step
         cz = round(cam.z / step) * step
         center = PVec3(cx, 0.0, cz)
         self.sun_np.setPos(center + PVec3(*d) * 200.0)
         self.sun_np.lookAt(center)
+        # world -> sun camera -> clip -> [0, 1] texture space
+        m = self.render.getMat(self.sun_np) * self.sun_lens.getProjectionMat()
+        m = m * LMatrix4f.scaleMat(0.5) * LMatrix4f.translateMat(0.5, 0.5, 0.5)
+        self.render.set_shader_input("u_shadow_vp", m)
 
     def set_preset(self, name, duration=0.0):
         target = dict(PRESETS[name])

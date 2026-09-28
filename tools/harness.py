@@ -26,9 +26,9 @@ def boot(size=(1280, 720), fps=30):
     # keep test runs away from the player's real save and settings
     import tempfile
     os.environ.setdefault("BREAKOWT_SAVE_DIR", str(Path(tempfile.gettempdir()) / "breakowt_test_saves"))
-    from breakowt.engine.boot import create_app
-    app = create_app(windowed=True, size=size)
     from breakowt.engine import gpuprobe
+    from breakowt.engine.boot import create_app
+    app = create_app(windowed=True, size=size, msaa=gpuprobe.cached("postfx") is not True)
     gpuprobe.configure()
     from panda3d.core import ClockObject
     from ursina import Text, application

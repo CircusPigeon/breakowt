@@ -36,12 +36,15 @@ def screen_size():
     return 1920, 1080
 
 
-def create_app(windowed=False, offscreen=False, size=None):
+def create_app(windowed=False, offscreen=False, size=None, msaa=True):
+    """msaa: multisample the window itself. Off when the scene is drawn through the offscreen post
+    buffer (engine/postfx.py), which does its own anti-aliasing; the window then only shows that
+    buffer and the UI."""
     _dpi_aware()
     from panda3d.core import loadPrcFileData
     loadPrcFileData("", "dpi-aware #t")
-    loadPrcFileData("", "framebuffer-multisample 1")
-    loadPrcFileData("", "multisamples 4")
+    loadPrcFileData("", f"framebuffer-multisample {1 if msaa else 0}")
+    loadPrcFileData("", f"multisamples {4 if msaa else 0}")
     loadPrcFileData("", "sync-video #t")
     loadPrcFileData("", "audio-library-name p3openal_audio")
     loadPrcFileData("", "notify-level-audio error")
@@ -65,11 +68,12 @@ def create_app(windowed=False, offscreen=False, size=None):
     ie = getattr(window, "input_entity", None)
     if ie is not None:
         ie.enabled = False
-    try:
-        from panda3d.core import AntialiasAttrib
-        application.base.render.setAntialias(AntialiasAttrib.MMultisample)
-    except Exception:
-        pass
+    if msaa:
+        try:
+            from panda3d.core import AntialiasAttrib
+            application.base.render.setAntialias(AntialiasAttrib.MMultisample)
+        except Exception:
+            pass
     window.color = (0, 0, 0, 1)
     application.base.setBackgroundColor(0, 0, 0, 1)
     return app

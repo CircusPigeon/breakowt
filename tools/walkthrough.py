@@ -55,14 +55,21 @@ class Bot:
         g.runner.on_error = on_err
         from ursina import application
         self.base = application.base
+        self._n_outputs = 0
         if not args.render:
             self.set_rendering(False)
 
     def set_rendering(self, on):
-        # every output, not just the window: the shadow map is its own buffer and would keep rendering
+        # every output, not just the window: the shadow map and the scene buffer would keep rendering
         eng = self.base.graphicsEngine
         for i in range(eng.getNumWindows()):
             eng.getWindow(i).setActive(on)
+        self._n_outputs = eng.getNumWindows()
+
+    def keep_dark(self):
+        # Panda registers a new buffer on the frame after it's made, so catch late arrivals
+        if not self.args.render and self.base.graphicsEngine.getNumWindows() != self._n_outputs:
+            self.set_rendering(False)
 
     # ------------------------------------------------------------------
     def shot(self, name):
@@ -77,6 +84,7 @@ class Bot:
     def tick(self):
         g = self.g
         ui = g.ui
+        self.keep_dark()
         # dialogue, choices, documents, modals
         if g.in_dialogue:
             if ui.choice_root.enabled and ui.choice_items and ui.choice_result is None:

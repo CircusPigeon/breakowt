@@ -70,9 +70,10 @@ class Loader:
 
 
 def run(args):
-    from .engine.boot import create_app
-    app = create_app(windowed=args.windowed, size=_size_arg(args))
     from .engine import gpuprobe
+    from .engine.boot import create_app
+    # the scene's post pass does the anti-aliasing when this machine is known to support it
+    app = create_app(windowed=args.windowed, size=_size_arg(args), msaa=gpuprobe.cached("postfx") is not True)
     gpuprobe.configure()
     from ursina import Text, application
     from .engine import assets

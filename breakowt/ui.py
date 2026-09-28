@@ -542,22 +542,22 @@ class UI:
             g.player.invert_y = not g.player.invert_y
             b.text = f"Invert Y: {'On' if g.player.invert_y else 'Off'}"
         b.on_click = _inv
-        b3 = Button(parent=r, z=-0.02, text=f"Shadows: {'On' if g.env.shadows else 'Off'}", position=(0.2, y),
-                    scale=(0.3, 0.05), color=PANEL_LIGHT, radius=0.25)
+        from .game import QUALITY_NAMES
+        from .engine import shading as _sh
+
+        def q_label():
+            extra = "  (no shadows)" if not _sh.SHADOWS_SUPPORTED and g.quality != "low" else ""
+            return f"Graphics: {QUALITY_NAMES[g.quality]}{extra}"
+        b3 = Button(parent=r, z=-0.02, text=q_label(), position=(0.2, y), scale=(0.3, 0.05), color=PANEL_LIGHT,
+                    radius=0.25)
+
+        def _quality():
+            g.cycle_quality()
+            b3.text = q_label()
+        b3.on_click = _quality
         y -= 0.065
         b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
         b2.on_click = g.toggle_fullscreen
-
-        from .engine import shading as _sh
-        if not _sh.SHADOWS_SUPPORTED:
-            b3.text = "Shadows: not supported"
-
-        def _shadows():
-            if not _sh.SHADOWS_SUPPORTED:
-                return
-            g.env.set_shadows(not g.env.shadows)
-            b3.text = f"Shadows: {'On' if g.env.shadows else 'Off'}"
-        b3.on_click = _shadows
         bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.345), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
 
         def _back():
