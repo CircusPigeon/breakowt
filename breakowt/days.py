@@ -438,7 +438,7 @@ class DayScripts:
         pos = (npc.x, 1.5, npc.z) if npc is not None else None
         g.audio.play(name, vol=1.0, pos=pos, rng=60, group="voice")
         if npc is not None:
-            npc.bubble("Mooo ~", life=3.0)
+            npc.bubble("Mooo-oo", life=3.0)
         return dur
 
     def unduck(self):
@@ -526,8 +526,8 @@ class DayScripts:
         ])
         g.cutscene_end_now()
         c.follow(lambda: g.player.pos, 3.5, 3.4)
-        g.ui.popup_sub("WASD walk   Mouse look   Shift gallop   C sneak   E interact   Left click headbutt   "
-                       "Tab journal   H hint", 12)
+        g.ui.popup_sub("WASD walk   Mouse look   Shift gallop   C sneak\n"
+                       "E interact   Left click headbutt   Tab journal   H hint", 12)
 
     def d1_oak(self):
         g = self.g
@@ -1447,7 +1447,7 @@ class DayScripts:
         g.ui.set_boss("CLUCK NORRIS", 1.0)
         p.health = p.max_health
         g.ui.set_health(p.health, p.max_health, True)
-        g.ui.popup_sub("Left click headbutt (gallop into it for double)   Right click back-kick   R throw", 6)
+        g.ui.popup_sub("Left click headbutt (gallop into it for double)\nRight click back-kick   R throw", 6)
         g.enemies.append(boss)
         boss.active = True
         result = {"r": None}
@@ -1649,7 +1649,7 @@ class DayScripts:
                 if st["warn"] > 0:
                     st["warn"] -= dt
                     if st["warn"] <= 0:
-                        mz.bubble("Hmm-hmm-hmmm ~", 2.5)
+                        mz.bubble("Hmm-hmm-hmmm", 2.5)
                         g.audio.play("moo_moozart_long_0", vol=0.8, pos=(mz.x, 1.4, mz.z), rng=30, group="voice")
                         g.noise((mz.x, 0, mz.z), 15, "hum")
                         st["t"] = random.uniform(10, 16)
@@ -1824,7 +1824,7 @@ class DayScripts:
         g.audio.play("moozart_walk", vol=1.0, group="voice")
         g.cam_set((1.5, 2.2, -8.0), (8.5, 1.4, 0.2))
         mz.goto((-2.0, 0, -22.0), 1.6)
-        mz.bubble("Mooo ~", 3)
+        mz.bubble("Mooo-oo", 3)
         yield 4.5
         f.path = []
         f.face_target = (-10, -30)
@@ -1842,8 +1842,8 @@ class DayScripts:
         g.cam_set((-25.5, 1.8, -35.0), (-19.5, 1.5, -34.2))
         yield 1.0
         yield from g.talk([
-            ("moozart", "Forty-Seven. The symphony's finished. You finished it."),
-            ("moozart", "The escape isn't. Finish that one for me."),
+            ("moozart", "Sixteen bars, Forty-Seven. All of them."),
+            ("moozart", "Tell Cowpernicus to redo his numbers. One fewer."),
         ])
         g.cam_set((-26, 2.5, -42), (-12, 1.4, -35))
         mz.goto((-15.2, 0, -35.0), 1.2)
@@ -2769,7 +2769,7 @@ class DayScripts:
         p.health = p.max_health
         g.ui.set_boss("CHUCK", 1.0)
         g.ui.set_health(p.health, p.max_health, True)
-        g.ui.popup_sub("Left click headbutt   Right click kick   R throw   Hit him when he's stuck or winded", 7)
+        g.ui.popup_sub("Left click headbutt   Right click kick   R throw\nHit him when he's stuck or winded", 7)
         self.hook("defeated", lambda: res.__setitem__("lost", True))
         allies = {"cluck_t": 14.0, "loin_t": 24.0, "cluck": None}
         while not res["phase3"]:
@@ -3175,7 +3175,7 @@ CHATTER = {
         "sirloin": [["Tomorrow I charge. I have been practising on the trough."]],
         "cowpernicus": [["Three planks across the grid. Two and somebody breaks a leg. Three."]],
         "mooriarty": [["Dale's potato salad has raisins in it. I've heard. That's reason enough to leave."]],
-        "moomaw": [["Earl always said the gate was the easy part. It's the road that's long."]],
+        "moomaw": [["Earl got out once. Made it as far as the mailbox. He said it was worth it."]],
     },
     7: {
         "cowleen": [["Go. We're right behind you."]],

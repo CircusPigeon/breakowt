@@ -189,11 +189,14 @@ class Player:
         self.held_name = name
         if not name:
             return
-        scale = {"plank": 0.35, "shotgun": 0.6, "radio": 0.5, "jerrycan": 0.45, "bucket": 0.6, "boot": 0.5}.get(name, 0.8)
+        scale = {"plank": 0.3, "shotgun": 0.5, "radio": 0.34, "jerrycan": 0.34, "bucket": 0.42, "boot": 0.38,
+                 "photo": 0.6, "score": 0.6, "page": 0.6}.get(name, 0.62)
         rot = {"plank": (0, 90, 0), "shotgun": (0, 0, 0), "pencil": (0, 90, 0)}.get(name, (0, 20, 0))
-        self.held = models.item_model(name, parent=camera, position=(0.02, -0.22, 0.62), rotation=rot, scale=scale)
+        # in the mouth, low in the frame so it doesn't hide what you're looking at
+        y = -0.26 if name == "photo" else -0.3
+        self.held = models.item_model(name, parent=camera, position=(0.03, y, 0.62), rotation=rot, scale=scale)
         for c in self.held.children:
-            c.set_shader_input("u_unlit", 0.3)
+            c.set_shader_input("u_unlit", 0.55 if name in ("page", "score", "photo") else 0.3)
         # the held item rides on the camera, so hide it while the camera is off doing a cutscene
         self.held.enabled = not self.g.cam_free and not self.driving
 

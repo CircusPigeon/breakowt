@@ -4,9 +4,10 @@ from __future__ import annotations
 import math
 import random
 
-from ursina import Text, color, destroy
+from ursina import Text, camera, color, destroy
 
 from . import models
+from .engine.shading import SHADOW_MASK
 from .npc import Walker, ang_diff
 
 INVESTIGATE_LINES = [
@@ -40,6 +41,7 @@ class Farmer(Walker):
         self.marker_state = ""
         self.marker = Text("", parent=self.model, position=(0, 2.45, 0), origin=(0, 0), scale=40, billboard=True,
                            color=color.rgba(1, 0.8, 0.2, 1))
+        self.marker.hide(SHADOW_MASK)
         self.last_seen = None
         self.inv_target = None
         self.inv_timer = 0.0
@@ -416,6 +418,9 @@ class Farmer(Walker):
             want = math.degrees(math.atan2(self.last_seen[0] - self.x, self.last_seen[2] - self.z))
             self.model.head.rotation_y = max(-60, min(60, ang_diff(want, self.yaw)))
         self.model.animate(dt, spd if self.pose in ("walk", "run") else 0.0, self.pose)
+        if self.marker_state:
+            d = math.dist((self.x, self.y + 2.4, self.z), tuple(camera.world_position))
+            self.marker.scale = 40 * max(0.2, min(1.0, d / 12.0))
         # flashlight
         if self.flashlight and g.env.is_dark:
             f = math.radians(self.facing())

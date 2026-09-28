@@ -10,10 +10,15 @@ def main():
     app, g = harness.boot(size=(1280, 720))
     s = g.story
     s.new_game(3)
-    for _ in range(170):
+    # skip the day's intro: advance dialogue until the player has had control for a second
+    free = 0
+    for _ in range(3000):
         if g.in_dialogue and g.ui.dlg_revealed():
             g._advance = True
         app.step()
+        free = free + 1 if (g.controls_enabled() and not g.in_dialogue and not g.busy) else 0
+        if free > 30:
+            break
     g.flags["clovers"] = 7
     g.inv.add("rock", 3, silent=True)
     g.inv.add("radio", silent=True)

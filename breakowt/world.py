@@ -11,7 +11,7 @@ from panda3d.core import TransparencyAttrib
 
 from .engine.assets import tex
 from .engine.meshbuilder import MeshBuilder
-from .engine.shading import FARM_SHADER
+from .engine.shading import FARM_SHADER, no_shadow
 from .interact import Interactable
 from . import models
 
@@ -814,6 +814,7 @@ class World:
                 wire.box((a, 0.7, (b + d) / 2), (0.01, 1.4, d - b), color=(0.8, 0.8, 0.85, 0.25))
         we = Entity(model=wire.build(), texture=tex("white"), shader=FARM_SHADER)
         we.setTransparency(TransparencyAttrib.MAlpha)
+        no_shadow(we)
         self.entities.append(we)
         self.mb("dirt").ground(rx0, rz0, rx1, rz1, y=0.03, uv_density=0.3)
         self.add_ia("coop", (41, 1.2, -29.5), 1.5, "Chicken coop")
@@ -861,6 +862,7 @@ class World:
             glass.quad((wx + nx * 0.195, y + 1.6, wz + nz * 0.195), (1.4, 1.1), rot=(0, ry, 0))
             glass.quad((wx - nx * 0.135, y + 1.6, wz - nz * 0.135), (1.4, 1.1), rot=(0, ry + 180, 0))
         self.house_glass = Entity(model=glass.build(), texture=tex("window"), shader=FARM_SHADER)
+        no_shadow(self.house_glass)
         self.entities.append(self.house_glass)
         # porch
         px0, px1, pz0, pz1 = 50, 62, 26, 30

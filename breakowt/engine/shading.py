@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import math
 
-from panda3d.core import Vec3 as PVec3, Vec4 as PVec4, PTA_LVecBase4f
+from panda3d.core import (BitMask32, DirectionalLight, PTA_LVecBase4f, RenderState, ShaderAttrib,
+                          Vec3 as PVec3, Vec4 as PVec4)
 from ursina import Entity, Shader, Vec3, application, camera, color
 
 VERT = """
@@ -22,10 +23,17 @@ uniform vec2 texture_scale;
 uniform vec2 texture_offset;
 uniform float u_sway;
 uniform float u_time;
+uniform mat4 p3d_ModelViewMatrix;
+uniform struct p3d_LightSourceParameters {
+    vec4 color;
+    sampler2DShadow shadowMap;
+    mat4 shadowViewMatrix;
+} p3d_LightSource[1];
 out vec2 uv;
 out vec3 wpos;
 out vec3 wnorm;
 out vec4 vcol;
+out vec4 shadow_coord;
 void main() {
     vec4 v = p3d_Vertex;
     if (u_sway > 0.0) {
@@ -40,6 +48,9 @@ void main() {
     wpos = (p3d_ModelMatrix * v).xyz;
     wnorm = mat3(p3d_ModelMatrix) * p3d_Normal;
     vcol = p3d_Color;
+    // look the shadow up from a point nudged along the normal to avoid self-shadowing acne
+    vec4 vs = v + vec4(normalize(p3d_Normal) * 0.05, 0.0);
+    shadow_coord = p3d_LightSource[0].shadowViewMatrix * (p3d_ModelViewMatrix * vs);
 }
 """
 
@@ -70,7 +81,31 @@ uniform float u_time;
 uniform vec3 u_sky_top;
 uniform vec3 u_sky_hor;
 uniform vec3 u_sun_disc;
+uniform float u_shadows;
+uniform float u_shadow_texel;
+uniform struct p3d_LightSourceParameters {
+    vec4 color;
+    sampler2DShadow shadowMap;
+    mat4 shadowViewMatrix;
+} p3d_LightSource[1];
+in vec4 shadow_coord;
 out vec4 frag;
+
+float sun_visibility() {
+    if (u_shadows < 0.5 || shadow_coord.w <= 0.0) return 1.0;
+    vec3 sc = shadow_coord.xyz / shadow_coord.w;
+    float edge = min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y));
+    if (edge <= 0.0 || sc.z >= 1.0) return 1.0;
+    sc.z -= 0.0008;
+    float o = u_shadow_texel * 1.2;
+    float s = texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(-o, -o), sc.z));
+    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(o, -o), sc.z));
+    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(-o, o), sc.z));
+    s += texture(p3d_LightSource[0].shadowMap, vec3(sc.xy + vec2(o, o), sc.z));
+    s *= 0.25;
+    // fade out towards the edge of the shadowed area so there's no hard line
+    return mix(1.0, s, smoothstep(0.0, 0.06, edge));
+}
 
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise2(vec2 p) {
@@ -105,7 +140,8 @@ void main() {
     }
     float ndl = max(dot(n, u_sun_dir), 0.0);
     float hemi = n.y * 0.5 + 0.5;
-    vec3 light = mix(u_amb_ground, u_amb_sky, hemi) + u_sun_col * ndl;
+    float vis = ndl > 0.0 ? sun_visibility() : 1.0;
+    vec3 light = mix(u_amb_ground, u_amb_sky, hemi) + u_sun_col * ndl * vis;
     // contact shadow where upright surfaces meet the ground
     float ao = mix(0.62, 1.0, smoothstep(0.0, 0.85, wpos.y));
     light *= mix(1.0, ao, (1.0 - abs(n.y)) * (1.0 - u_unlit));
@@ -141,7 +177,7 @@ void main() {
         vec3 sky = mix(u_sky_hor, u_sky_top, clamp(R.y * 1.6, 0.0, 1.0));
         col = mix(col, sky, 0.18 + 0.6 * fres);
         float spec = pow(max(dot(R, u_sun_dir), 0.0), 180.0);
-        col += u_sun_disc * spec * 2.2 * u_water;
+        col += u_sun_disc * spec * 2.2 * u_water * sun_visibility();
     }
     col = tonemap(col);
     float dist = length(wpos - u_cam);
@@ -154,6 +190,45 @@ void main() {
 FARM_SHADER = Shader(name="farm_shader", language=Shader.GLSL, vertex=VERT, fragment=FRAG,
                      default_input={"texture_scale": (1, 1), "texture_offset": (0, 0),
                                     "u_unlit": 0.0, "u_emissive": 0.0, "u_sway": 0.0, "u_water": 0.0})
+
+DEPTH_VERT = """
+#version 140
+uniform mat4 p3d_ModelViewProjectionMatrix;
+in vec4 p3d_Vertex;
+in vec2 p3d_MultiTexCoord0;
+in vec4 p3d_Color;
+uniform float u_sway;
+uniform float u_time;
+uniform vec2 texture_scale;
+uniform vec2 texture_offset;
+out vec2 uv;
+out float valpha;
+void main() {
+    vec4 v = p3d_Vertex;
+    if (u_sway > 0.0) {
+        float h = max(v.y, 0.0);
+        float ph = u_time * 1.6 + v.x * 0.31 + v.z * 0.23;
+        v.x += (sin(ph) + 0.35 * sin(ph * 2.7)) * u_sway * h;
+        v.z += cos(ph * 0.83) * u_sway * h * 0.6;
+    }
+    gl_Position = p3d_ModelViewProjectionMatrix * v;
+    uv = p3d_MultiTexCoord0 * texture_scale + texture_offset;
+    valpha = p3d_Color.a;
+}
+"""
+
+DEPTH_FRAG = """
+#version 140
+uniform sampler2D p3d_Texture0;
+uniform vec4 p3d_ColorScale;
+in vec2 uv;
+in float valpha;
+out vec4 frag;
+void main() {
+    if (texture(p3d_Texture0, uv).a * p3d_ColorScale.a * valpha < 0.5) discard;
+    frag = vec4(1.0);
+}
+"""
 
 SKY_VERT = """
 #version 140
@@ -284,11 +359,25 @@ def _lerp(a, b, t):
     return a + (b - a) * t
 
 
-class Environment:
-    """Owns global lighting uniforms, the sky dome and time-of-day blending."""
+SHADOW_MASK = BitMask32.bit(1)
+SHADOW_SIZE = 2048
+SHADOW_FILM = 110.0
 
-    def __init__(self):
+
+def no_shadow(np):
+    """Keep a node out of the sun's shadow pass (glass, wire mesh, decals, text)."""
+    np.hide(SHADOW_MASK)
+
+
+class Environment:
+    """Owns global lighting uniforms, the sky dome, the sun's shadow map and time-of-day blending."""
+
+    def __init__(self, shadows=True):
         self.render = application.base.render
+        # the main camera must not use the shadow bit, or hiding things from the sun would hide them from us
+        application.base.cam.node().setCameraMask(BitMask32.bit(0))
+        self.sun_np = None
+        self.shadows = False
         self.state = dict(PRESETS["morning"])
         self.state["sun_vec"] = sun_vector(*self.state["sun"])
         self._from = None
@@ -304,7 +393,54 @@ class Environment:
         self.sky.setBin("background", 0)
         self.sky.setDepthWrite(False)
         self.sky.setDepthTest(False)
+        no_shadow(self.sky)
+        self.set_shadows(shadows)
         self._apply()
+
+    def set_shadows(self, on):
+        on = bool(on)
+        r = self.render
+        if on and self.sun_np is None:
+            try:
+                light = DirectionalLight("sun")
+                light.setShadowCaster(True, SHADOW_SIZE, SHADOW_SIZE)
+                light.setCameraMask(SHADOW_MASK)
+                lens = light.getLens()
+                lens.setFilmSize(SHADOW_FILM, SHADOW_FILM)
+                lens.setNearFar(1.0, 400.0)
+                from panda3d.core import Shader as PShader
+                depth = PShader.make(PShader.SL_GLSL, DEPTH_VERT, DEPTH_FRAG)
+                light.setInitialState(RenderState.make(ShaderAttrib.make(depth, 1000)))
+                self.sun_np = r.attachNewNode(light)
+                r.setLight(self.sun_np)
+            except Exception as e:  # no shadow support: carry on without
+                print("shadows unavailable:", e)
+                self.sun_np = None
+                on = False
+        elif not on and self.sun_np is not None:
+            r.clearLight(self.sun_np)
+            self.sun_np.removeNode()
+            self.sun_np = None
+        self.shadows = on
+        r.set_shader_input("u_shadows", 1.0 if on else 0.0)
+        r.set_shader_input("u_shadow_texel", 1.0 / SHADOW_SIZE)
+
+    def _place_sun(self):
+        """Keep the shadow frustum centred on the camera, snapped to whole texels so edges don't crawl."""
+        if self.sun_np is None:
+            return
+        cam = camera.world_position
+        sv = self.state["sun_vec"]
+        # below the horizon at night: use the moon's direction as the preset gives it
+        d = (float(sv[0]), float(sv[1]), float(sv[2]))
+        if d[1] < 0.08:
+            d = (d[0], 0.08, d[2])
+        step = SHADOW_FILM / SHADOW_SIZE * 4
+        cx = round(cam.x / step) * step
+        cz = round(cam.z / step) * step
+        center = PVec3(cx, 0.0, cz)
+        self.sun_np.setPos(center + PVec3(*d) * 200.0)
+        self.sun_np.lookAt(center)
 
     def set_preset(self, name, duration=0.0):
         target = dict(PRESETS[name])
@@ -390,6 +526,7 @@ class Environment:
         r.set_shader_input("u_lamp_pos", lp)
         r.set_shader_input("u_lamp_col", lc)
         self.sky.position = cam
+        self._place_sun()
 
     @property
     def is_dark(self):

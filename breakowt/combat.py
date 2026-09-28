@@ -8,7 +8,7 @@ from ursina import Entity, destroy
 
 from . import models
 from .engine.meshbuilder import MeshBuilder
-from .engine.shading import FARM_SHADER
+from .engine.shading import FARM_SHADER, no_shadow
 from .engine.assets import tex
 from .npc import ang_diff
 
@@ -278,6 +278,7 @@ class Thrown:
                            position=(target[0], 0.04, target[2]))
         self.mark.set_shader_input("u_unlit", 1.0)
         self.mark.setTransparency(True)
+        no_shadow(self.mark)
 
     def update(self, dt):
         self.t += dt

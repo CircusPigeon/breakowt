@@ -4,8 +4,9 @@
 
 The bot presses E on things, headbutts, throws rocks, moos, types passwords, drives the tractor and
 fights. Every story step must finish within a time limit or the run fails with a state dump.
-Chuck's eyes are off by default (--detect turns them on) so a run is deterministic; the caught
-sequence is exercised separately with --caught.
+Chuck's eyes are off by default (--detect turns them on) so a run is deterministic. --caught all
+(or a comma list of step keys) makes Chuck catch you once per step, the first time you're somewhere
+you shouldn't be, then checks the caught sequence hands control back and the step still finishes.
 """
 from __future__ import annotations
 
@@ -42,6 +43,8 @@ class Bot:
         self.password = "BIGEARL"
         self.combo = "117"
         self.shots = args.shots
+        self.catch = set((args.caught or "").split(",")) - {""}
+        self.caught_steps = set()
         orig = g._script_error
 
         def on_err(s):
@@ -52,17 +55,23 @@ class Bot:
         from ursina import application
         self.base = application.base
         if not args.render:
-            self.base.win.setActive(False)
+            self.set_rendering(False)
+
+    def set_rendering(self, on):
+        # every output, not just the window: the shadow map is its own buffer and would keep rendering
+        eng = self.base.graphicsEngine
+        for i in range(eng.getNumWindows()):
+            eng.getWindow(i).setActive(on)
 
     # ------------------------------------------------------------------
     def shot(self, name):
         from breakowt.engine.boot import screenshot
-        self.base.win.setActive(True)
+        self.set_rendering(True)
         self.app.step()
         harness.SHOTS.mkdir(exist_ok=True)
         screenshot(str(harness.SHOTS / f"wt_{name}.png"))
         if not self.args.render:
-            self.base.win.setActive(False)
+            self.set_rendering(False)
 
     def tick(self):
         g = self.g
@@ -132,6 +141,11 @@ class Bot:
 
     def press(self, key):
         self.g.input(key)
+
+    def open_door(self, key):
+        # E toggles a door, so only press it on a closed one (a plan can restart after a catch)
+        if not self.g.world.doors[key].is_open:
+            yield from self.interact(key)
 
     def interact(self, key, dist=None, prompt_contains=None, direct_ok=True):
         """Walk up to an interactable, look at it and press E."""
@@ -331,7 +345,6 @@ class Bot:
         yield from self.interact("bed47")
 
     p_d3_sleep = p_d1_sleep
-    p_d5_sleep = p_d1_sleep
 
     def p_d2_out(self):
         g = self.g
@@ -395,7 +408,7 @@ class Bot:
         g = self.g
         yield from self.wait_ready()
         self.place(4.5, 0.7, 90)
-        yield from self.interact("barn_side")
+        yield from self.open_door("barn_side")
         yield from self.until(lambda: g.world.doors["barn_side"].is_open, 3, "side door")
         yield from self.wait(0.6)
         yield from self.walk_to(13, 0.7)
@@ -414,7 +427,7 @@ class Bot:
         # the coop
         yield from self.wait_ready()
         self.place(31.5, -35, 90)
-        yield from self.interact("coop_gate")
+        yield from self.open_door("coop_gate")
         yield from self.until(lambda: g.world.doors["coop_gate"].is_open, 3, "coop gate")
         yield from self.wait(0.6)
         yield from self.walk_to(37.5, -35)
@@ -484,7 +497,7 @@ class Bot:
                 if t > 40:
                     raise Stuck(f"Moozart not following at ({x},{z}); he's at ({mz.x:.1f},{mz.z:.1f})")
             pace()
-        yield from self.interact("barn_side")
+        yield from self.open_door("barn_side")
         yield from self.wait(0.8)
         for x, z, y in [(13, 0.7, 0), (15, -6, 0), (29, -6.5, 0), (31.4, -7.2, 0), (31.4, 5.5, 3.2), (25, 8, 3.2),
                         (17, 9.5, 3.2)]:
@@ -520,7 +533,7 @@ class Bot:
         yield from self.headbutt_at((41, 0.45, 24), dist=1.4)
         yield from self.until(lambda: g.ia.get("st_house_key") is not None, 5, "gnome key")
         yield from self.interact("st_house_key")
-        yield from self.interact("front_door")
+        yield from self.open_door("front_door")
         yield from self.until(lambda: g.world.doors["front_door"].is_open, 5, "front door")
         yield from self.wait(0.6)
         self.place(56, 26.5, 0)
@@ -539,7 +552,7 @@ class Bot:
             pass
         yield from self.wait_ready()
         self.place(63, 38, 90)
-        yield from self.interact("back_door")
+        yield from self.open_door("back_door")
         yield from self.until(lambda: g.world.doors["back_door"].is_open, 3, "back door")
         yield from self.wait(0.6)
         self.place(66.5, 41, 90)
@@ -559,7 +572,7 @@ class Bot:
         g = self.g
         yield from self.wait_ready()
         self.place(4.5, 0.7, 90)
-        yield from self.interact("barn_side")
+        yield from self.open_door("barn_side")
         yield from self.wait(0.6)
         yield from self.walk_to(13, 0.7)
         yield from self.interact("tractor")
@@ -580,7 +593,7 @@ class Bot:
         g = self.g
         yield from self.wait_ready()
         self.place(56, 26.5, 0)
-        yield from self.interact("front_door")
+        yield from self.open_door("front_door")
         yield from self.wait(0.8)
         self.place(56, 32, 0)
         yield from self.walk_path([(51.5, 35), (51.2, 38.9), (48.9, 39.2), (48.9, 41), (56.9, 41), (56.4, 43.9)])
@@ -667,6 +680,9 @@ class Bot:
             if t > 240:
                 raise Stuck(f"boss fight too long, hp {boss.hp} state {boss.state}")
 
+    def want_catch(self, key):
+        return key not in self.caught_steps and ("all" in self.catch or key in self.catch)
+
     # ------------------------------------------------------------------
     def run(self, to_day, limit_per_step=400):
         g = self.g
@@ -683,6 +699,21 @@ class Bot:
                 self.plan = self.plan_for(key) if key else None
                 if key and self.shots:
                     self.shot(f"{key}_start")
+            if key and self.want_catch(key) and step_frames > 2 * FPS and g.controls_enabled() \
+                    and not g.busy and not g.in_dialogue and g.player_restricted() and g.vehicle is None \
+                    and g.farmer.visible and g.farmer.state not in ("disabled", "scripted"):
+                self.caught_steps.add(key)
+                print(f"    caught during {key}", flush=True)
+                g.on_caught(g.farmer)
+                yield_frames = 0
+                while g.runner.running("caught") or g.cutscene or g.in_dialogue:
+                    self.tick()
+                    yield_frames += 1
+                    if yield_frames > 30 * FPS:
+                        raise Stuck(f"caught sequence in {key} never finished")
+                if g.player.frozen or not g.controls_enabled():
+                    raise Stuck(f"no control after being caught in {key}")
+                self.plan = self.plan_for(key)
             if self.plan is not None:
                 try:
                     next(self.plan)
@@ -720,6 +751,7 @@ def main():
     ap.add_argument("--shots", action="store_true")
     ap.add_argument("--render", action="store_true")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--caught", default="")
     args = ap.parse_args()
     t0 = _time.time()
     app, g = harness.boot(size=(960, 540))

@@ -114,6 +114,8 @@ class UI:
         self.popup = txt(self.hud, "", 0, -0.3, 1.05, C(1, 1, 0.92, 1), origin=(0, 0), wrap=70)
 
         # --- bark line (farmer mutterings heard at a distance)
+        self.bark_bg = Entity(parent=self.hud, model=Quad(radius=0.3), color=C(0, 0, 0, 0.45), y=0.34, scale=(0.9, 0.05),
+                              enabled=False)
         self.bark = txt(self.hud, "", 0, 0.34, 1.05, SPEAKER_COLORS["Chuck"], origin=(0, 0), wrap=70)
 
         # --- meters (bottom-left)
@@ -202,14 +204,18 @@ class UI:
     def popup_sub(self, text, dur=None):
         self.popup.text = text
         n = len(text)
-        rows = 1 + n // 70
-        self.popup_bg.scale = (min(1.3, max(0.3, min(n, 70) * 0.0135 + 0.06)), 0.045 * rows + 0.02)
+        lines = wrap_str(text, 70).split("\n")
+        w = max(len(ln) for ln in lines)
+        self.popup_bg.scale = (min(1.3, max(0.3, w * 0.0135 + 0.06)), 0.045 * len(lines) + 0.02)
         self.popup_bg.enabled = True
         self.popup_t = dur if dur else max(3.0, 1.5 + n * 0.045)
 
     def bark_line(self, text, speaker="Chuck", dur=None):
         self.bark.text = f"{speaker}: {text}"
         self.bark.color = SPEAKER_COLORS.get(speaker, CREAM)
+        lines = wrap_str(f"{speaker}: {text}", 70).split("\n")
+        self.bark_bg.scale = (max(len(ln) for ln in lines) * 0.0135 + 0.06, 0.045 * len(lines) + 0.02)
+        self.bark_bg.enabled = True
         self.bark_t = dur if dur else max(2.5, 1.2 + len(text) * 0.05)
 
     def toast(self, text, icon=None, col=None):
@@ -270,7 +276,10 @@ class UI:
                 txt(e, str(count), 0.034, -0.02, 0.9, CREAM, origin=(0.5, 0))
             txt(e, str(i + 1), -0.034, 0.034, 0.7, DIM if not sel else C(0.1, 0.1, 0.1, 1))
             if sel:
-                txt(e, label, 0.0, 0.058, 0.85, CREAM, origin=(0, 0))
+                # keep the label on screen for the right-most slots
+                lab_w = len(label) * 0.0105
+                lx = min(0.0, (self.R - 0.02 - lab_w / 2) - x)
+                txt(e, label, lx, 0.058, 0.85, CREAM, origin=(0, 0))
             self.hot_slots.append(e)
         self.clover_text.text = f"Golden Clovers: {clovers}" if clovers else ""
 
@@ -505,12 +514,12 @@ class UI:
         from ursina import Slider
         g = self.g
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        Entity(parent=r, model=Quad(radius=0.02, aspect=0.9 / 0.72), scale=(0.9, 0.72), color=PANEL, z=0.05)
-        txt(r, "Settings", 0, 0.32, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
+        Entity(parent=r, model=Quad(radius=0.02, aspect=0.9 / 0.8), scale=(0.9, 0.8), color=PANEL, z=0.05)
+        txt(r, "Settings", 0, 0.36, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
         rows = [("Master volume", "master"), ("Music", "music"), ("Sound effects", "sfx"), ("Voices (moos)", "voice"),
                 ("Ambience", "ambient")]
         for i, (label, key) in enumerate(rows):
-            y = 0.2 - i * 0.075
+            y = 0.24 - i * 0.07
             txt(r, label, -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
             s = Slider(0, 1, default=g.audio.volumes[key], step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
             s.knob.color = BRASS
@@ -518,14 +527,14 @@ class UI:
             def _set(s=s, key=key):
                 g.audio.volumes[key] = s.value
             s.on_value_changed = _set
-        y = 0.2 - len(rows) * 0.075
+        y = 0.24 - len(rows) * 0.07
         txt(r, "Mouse sensitivity", -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
         s2 = Slider(0.2, 3.0, default=g.player.sensitivity, step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
 
         def _sens():
             g.player.sensitivity = s2.value
         s2.on_value_changed = _sens
-        y -= 0.075
+        y -= 0.08
         b = Button(parent=r, z=-0.02, text=f"Invert Y: {'On' if g.player.invert_y else 'Off'}", position=(-0.2, y), scale=(0.3, 0.05),
                    color=PANEL_LIGHT, radius=0.25)
 
@@ -533,9 +542,17 @@ class UI:
             g.player.invert_y = not g.player.invert_y
             b.text = f"Invert Y: {'On' if g.player.invert_y else 'Off'}"
         b.on_click = _inv
-        b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0.2, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
+        b3 = Button(parent=r, z=-0.02, text=f"Shadows: {'On' if g.env.shadows else 'Off'}", position=(0.2, y),
+                    scale=(0.3, 0.05), color=PANEL_LIGHT, radius=0.25)
+        y -= 0.065
+        b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
         b2.on_click = g.toggle_fullscreen
-        bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.3), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
+
+        def _shadows():
+            g.env.set_shadows(not g.env.shadows)
+            b3.text = f"Shadows: {'On' if g.env.shadows else 'Off'}"
+        b3.on_click = _shadows
+        bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.345), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
 
         def _back():
             g.save_settings()
@@ -652,6 +669,10 @@ class UI:
             self.bark_t -= dt
             if self.bark_t <= 0:
                 self.bark.text = ""
+                self.bark_bg.enabled = False
+            else:
+                # menus and documents draw over the HUD; keep the bark from showing through them
+                self.bark.enabled = self.bark_bg.enabled = self.modal is None
         # toasts
         alive = []
         for i, t in enumerate(self.toasts):

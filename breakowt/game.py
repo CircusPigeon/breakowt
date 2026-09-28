@@ -27,10 +27,10 @@ from . import models
 
 MOO_BUBBLES = {
     "sirloin": ["MOOOO.", "MOO!", "Moo, forsooth."],
-    "moomaw": ["Mooo~", "Moo, dear.", "Mooo..."],
+    "moomaw": ["Mooo-oo", "Moo, dear.", "Mooo..."],
     "mooriarty": ["psst. moo.", "moo.", "...moo."],
     "cowpernicus": ["Moo (technically).", "Moo.", "Moo?"],
-    "moozart": ["Mooo~", "Moo.", "Mooo..."],
+    "moozart": ["Mooo-oo", "Moo.", "Mooo..."],
     "cowleen": ["Moo.", "Moo!", "Moo?"],
 }
 
@@ -220,7 +220,8 @@ class Game(Entity):
     def save_settings(self):
         try:
             SAVE_DIR.mkdir(parents=True, exist_ok=True)
-            d = {"volumes": self.audio.volumes, "sens": self.player.sensitivity, "invert": self.player.invert_y}
+            d = {"volumes": self.audio.volumes, "sens": self.player.sensitivity, "invert": self.player.invert_y,
+                 "shadows": self.env.shadows}
             (SAVE_DIR / "settings.json").write_text(json.dumps(d, indent=1))
         except OSError:
             pass
@@ -231,6 +232,8 @@ class Game(Entity):
             self.audio.volumes.update(d.get("volumes", {}))
             self.player.sensitivity = d.get("sens", 1.0)
             self.player.invert_y = d.get("invert", False)
+            if not d.get("shadows", True):
+                self.env.set_shadows(False)
         except (OSError, ValueError):
             pass
 

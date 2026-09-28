@@ -897,7 +897,7 @@ class Story(DayScripts):
 
     def epilogue_lines(self):
         out = [
-            "The herd crossed the county line a little after noon. Forty-eight cows, one bull, and a rooster riding on the bull.",
+            "The herd crossed the county line a little after noon. Forty-seven cows, one bull, and a rooster riding on the bull.",
         ]
         if self.done("dale_cancelled"):
             out.append("Dale got an email saying Chuck had gone vegetarian. He still brings it up at bowling.")
@@ -911,6 +911,6 @@ class Story(DayScripts):
         if self.done("sq_photo"):
             out.append("Moomaw keeps the photo of Big Earl under a flat rock by the new pond.")
         out.append("Mooriarty sold the tractor. Nobody knows who to.")
-        out.append("Every evening at sunset, forty-eight cows moo Moozart's symphony. Badly, and all the way through.")
+        out.append("Every evening at sunset, the whole herd moos Moozart's symphony. Badly, and all the way through.")
         out.append("Happy Acres Family Farm is closed. The sign is still up.")
         return out

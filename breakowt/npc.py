@@ -4,8 +4,9 @@ from __future__ import annotations
 import math
 import random
 
-from ursina import Entity, Text, color, destroy, scene
+from ursina import Entity, Text, camera, color, destroy, scene
 
+from .engine.shading import SHADOW_MASK
 from .interact import Interactable
 from . import models
 from .world import PASTURE, in_pond, OAK
@@ -27,22 +28,57 @@ def ang_diff(a, b):
 
 class Bubble:
     """A literal 'MOO' floating over a speaker's head."""
+    live: list = []
 
     def __init__(self, parent, text, y=2.35, col=None, life=2.0):
         self.ent = Text(text, parent=parent, position=(0, y, 0), origin=(0, 0), scale=22, billboard=True,
                         color=col or color.rgba(1, 1, 0.95, 1))
+        self.ent.hide(SHADOW_MASK)
         self.life = life
         self.t = 0.0
         self.alive = True
+        # the newest line wins: drop older bubbles that would land on top of this one on screen
+        self.n = len(text)
+        Bubble.live = [b for b in Bubble.live if b.alive]
+        try:
+            sp, hw = self.ent.screen_position, self._half_width()
+        except Exception:
+            sp = None
+        for b in Bubble.live if sp is not None else ():
+            try:
+                d = b.ent.screen_position - sp
+                if abs(d[0]) < hw + b._half_width() + 0.03 and abs(d[1]) < 0.08:
+                    b.kill()
+            except Exception:
+                b.alive = False     # its speaker was torn down with the day
+        Bubble.live.append(self)
 
-    def update(self, dt):
-        self.t += dt
-        self.ent.y += dt * 0.12
-        s = 22 * (1 + 0.25 * max(0, 0.15 - self.t) / 0.15)
-        self.ent.scale = s
-        if self.t > self.life:
+    def _half_width(self):
+        # rough on-screen half width: the text keeps a constant screen size up close (see update) and
+        # shrinks with distance past 10 m
+        d = max(0.1, (self.ent.world_position - camera.world_position).length())
+        return 0.013 * self.n * min(1.0, 10.0 / d)
+
+    def kill(self):
+        if self.alive:
             destroy(self.ent)
             self.alive = False
+
+    def update(self, dt):
+        if not self.alive:
+            return
+        self.t += dt
+        self.ent.y += dt * 0.12
+        s = 20 * (1 + 0.25 * max(0, 0.15 - self.t) / 0.15)
+        # world-space text grows as you get closer; shrink it so a cow next to you doesn't fill the screen
+        try:
+            d = (self.ent.world_position - camera.world_position).length()
+            s *= max(0.18, min(1.0, d / 10.0))
+        except Exception:
+            pass
+        self.ent.scale = s
+        if self.t > self.life:
+            self.kill()
 
 
 class Walker:

@@ -21,7 +21,7 @@ def on_err(s):
 g.runner.on_error = on_err
 g.story.start(0)
 harness.step(app, 30)
-harness.shot(app, f"smoke_title")
+harness.shot(app, "smoke_title")
 g.story.new_game(day)
 t0 = _t.time()
 frames = int(secs * 30)

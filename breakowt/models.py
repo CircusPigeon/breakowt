@@ -8,7 +8,7 @@ from ursina import Entity, scene
 
 from .engine.assets import tex
 from .engine.meshbuilder import MeshBuilder
-from .engine.shading import FARM_SHADER
+from .engine.shading import FARM_SHADER, no_shadow
 from .texgen import ATLAS, ATLAS_H, ATLAS_W
 
 
@@ -47,6 +47,7 @@ def blob_shadow(parent, w, d, alpha=0.5, y=0.045):
     e.setTransparency(TransparencyAttrib.MAlpha)
     e.setDepthWrite(False)
     e.setBin("transparent", 0)
+    no_shadow(e)
     return e
 
 
@@ -702,9 +703,25 @@ def item_model(name, parent=None, **kw):
     elif name == "egg":
         mb.sphere((0, 0, 0), 0.05, color=(0.98, 0.95, 0.88, 1), segs=8, rings=6, scale=(1, 1.3, 1))
     elif name in ("page", "score", "photo", "email"):
-        mb.box((0, 0, 0), (0.22, 0.28, 0.01), color=(0.95, 0.92, 0.82, 1), uv_rect=WHITE)
         if name == "photo":
             mb.box((0, 0, 0), (0.26, 0.2, 0.02), color=(0.4, 0.28, 0.18, 1), uv_rect=WHITE)
+            for sz in (-1, 1):
+                mb.box((0, 0, sz * 0.011), (0.21, 0.15, 0.002), color=(0.62, 0.55, 0.42, 1), uv_rect=WHITE)
+                mb.box((0.02, -0.01, sz * 0.013), (0.08, 0.1, 0.002), color=(0.32, 0.2, 0.12, 1), uv_rect=WHITE)
+        else:
+            mb.box((0, 0, 0), (0.22, 0.28, 0.01), color=(0.97, 0.94, 0.84, 1), uv_rect=WHITE)
+            # a few lines of ink (or a stave) on both sides so it reads as paper
+            ink = (0.2, 0.22, 0.35, 1) if name != "score" else (0.15, 0.12, 0.1, 1)
+            rows = 6 if name != "score" else 5
+            for sz in (-1, 1):
+                for k in range(rows):
+                    y = 0.09 - k * (0.035 if name != "score" else 0.018)
+                    w = 0.16 if (name == "score" or k % 3 != 2) else 0.1
+                    mb.box((-(0.16 - w) / 2, y, sz * 0.006), (w, 0.006, 0.002), color=ink, uv_rect=WHITE)
+                if name == "score":
+                    for k in range(5):
+                        mb.box((-0.06 + k * 0.03, 0.055 - (k % 3) * 0.009, sz * 0.007), (0.012, 0.01, 0.002),
+                               color=ink, uv_rect=WHITE)
     elif name == "glasses":
         for sx in (-1, 1):
             mb.cylinder((sx * 0.05, 0, 0), 0.04, 0.008, color=DARK, segs=10, rot=(90, 0, 0))
