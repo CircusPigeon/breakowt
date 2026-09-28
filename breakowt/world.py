@@ -370,6 +370,12 @@ class World:
                          col_top=(0.52 * g, 0.68 * g, 0.3 * g, 1))
         self.phys.add_zone("hide", x0, x1, z0, z1, data={"kind": name})
 
+    # footprints (x0, x1, z0, z1) that have a floor and a roof: no grass or flowers growing through them
+    ROOFED = [HOUSE, (49.7, 62.3, 25.7, 30.3), BARN, COWSHED, SHED, PROC, COOP_HUT, (39.2, 40.8, 32.1, 33.9)]
+
+    def _under_roof(self, x, z, pad=0.35):
+        return any(a - pad <= x <= b + pad and c - pad <= z <= d + pad for (a, b, c, d) in self.ROOFED)
+
     def grass_tufts(self, x0, x1, z0, z1, n):
         mb = self.mb("blades")
         for _ in range(n):
@@ -378,11 +384,15 @@ class World:
             if in_pond(x, z, 1):
                 continue
             g = random.uniform(0.85, 1.12)
+            skip = self._under_roof(x, z)
             for _k in range(5):
+                # draw the numbers even for a skipped tuft, so everything seeded after this stays put
                 h = random.uniform(0.18, 0.42)
-                mb.blade((x + random.uniform(-0.12, 0.12), 0, z + random.uniform(-0.12, 0.12)), h,
-                         random.uniform(0.05, 0.08), yaw=random.uniform(0, 360), lean=random.uniform(0.1, 0.45),
-                         col_bottom=(0.22 * g, 0.36 * g, 0.12 * g, 1), col_top=(0.55 * g, 0.74 * g, 0.3 * g, 1))
+                base = (x + random.uniform(-0.12, 0.12), 0, z + random.uniform(-0.12, 0.12))
+                wd, yaw, lean = random.uniform(0.05, 0.08), random.uniform(0, 360), random.uniform(0.1, 0.45)
+                if not skip:
+                    mb.blade(base, h, wd, yaw=yaw, lean=lean,
+                             col_bottom=(0.22 * g, 0.36 * g, 0.12 * g, 1), col_top=(0.55 * g, 0.74 * g, 0.3 * g, 1))
 
     def flowers(self, x0, x1, z0, z1, n, y=0.0):
         mb = self.mb("blades")
@@ -391,7 +401,12 @@ class World:
             z = random.uniform(z0, z1)
             col = random.choice([(1, 0.35, 0.4, 1), (1, 0.85, 0.25, 1), (0.97, 0.97, 1, 1), (0.72, 0.5, 0.95, 1)])
             h = random.uniform(0.28, 0.42)
-            mb.blade((x, y, z), h, 0.025, yaw=random.uniform(0, 180), lean=0.05,
+            yaw = random.uniform(0, 180)
+            if self._under_roof(x, z):
+                for _k in range(5):
+                    random.uniform(-10, 10)     # keep the seeded sequence identical
+                continue
+            mb.blade((x, y, z), h, 0.025, yaw=yaw, lean=0.05,
                      col_bottom=(0.25, 0.42, 0.18, 1), col_top=(0.35, 0.6, 0.25, 1), top_width=0.6)
             for k in range(5):
                 a = k / 5 * 360 + random.uniform(-10, 10)
@@ -400,14 +415,17 @@ class World:
                 mb.box((px, y + h, pz), (0.05, 0.012, 0.075), color=col, rot=(0, a, 0))
             mb.box((x, y + h + 0.008, z), (0.035, 0.014, 0.035), color=(1, 0.8, 0.2, 1))
 
-    def elec_fence(self, x0, z0, x1, z1, skip=()):
-        """Electric fence along an axis-aligned line; skip: list of (a,b) running-coordinate gaps (no wire)."""
+    def elec_fence(self, x0, z0, x1, z1, skip=(), sag=None):
+        """Electric fence along an axis-aligned line; skip: list of (a,b) running-coordinate gaps (no wire).
+        sag: an (a, b) span between two posts where the bottom wire is left for set_moohole_wire to hang."""
         along_x = abs(z1 - z0) < 1e-6
         a0, a1 = (min(x0, x1), max(x0, x1)) if along_x else (min(z0, z1), max(z0, z1))
         n = max(1, int((a1 - a0) / 4))
         post_positions = [a0 + (a1 - a0) * i / n for i in range(n + 1)]
         for (ga, gb) in skip:
             post_positions += [ga, gb]
+        if sag:
+            post_positions = [a for a in post_positions if not sag[0] < a < sag[1]] + list(sag)
         for a in post_positions:
             px, pz = (a, z0) if along_x else (x0, a)
             self.mb("wood_dark").box((px, 0.68, pz), (0.14, 1.36, 0.14), uv_density=1.0)
@@ -422,12 +440,36 @@ class World:
         for (sa, sb) in segs:
             if sb - sa < 0.05:
                 continue
-            mid = (sa + sb) / 2
             for hy in (0.45, 0.8, 1.15):
-                if along_x:
-                    self.mb("white").box((mid, hy, z0), (sb - sa, 0.025, 0.025), color=(0.75, 0.75, 0.8, 1))
-                else:
-                    self.mb("white").box((x0, hy, mid), (0.025, 0.025, sb - sa), color=(0.75, 0.75, 0.8, 1))
+                runs = [(sa, sb)]
+                if sag and hy < 0.5 and sa <= sag[0] and sag[1] <= sb:
+                    runs = [(sa, sag[0]), (sag[1], sb)]
+                for (ra, rb) in runs:
+                    mid = (ra + rb) / 2
+                    if along_x:
+                        self.mb("white").box((mid, hy, z0), (rb - ra, 0.025, 0.025), color=(0.75, 0.75, 0.8, 1))
+                    else:
+                        self.mb("white").box((x0, hy, mid), (0.025, 0.025, rb - ra), color=(0.75, 0.75, 0.8, 1))
+
+    def set_moohole_wire(self, top=None):
+        """The bottom wire at the moo-hole: sagging between its posts, or (top = height of whatever's propping
+        it) lifted into a tent over the prop."""
+        if self.moohole_wire is not None:
+            destroy(self.moohole_wire)
+        x = PASTURE[1]
+        a, b = self.moohole_span
+        c, half = (a + b) / 2, (b - a) / 2
+        if top is None:
+            pts = [(a + (b - a) * k / 8, 0.45 - 0.27 * (1 - ((a + (b - a) * k / 8 - c) / half) ** 2)) for k in range(9)]
+        else:
+            pts = [(a, 0.45), (c - 0.5, top - 0.06), (c - 0.12, top), (c + 0.12, top), (c + 0.5, top - 0.06), (b, 0.45)]
+        mb = MeshBuilder()
+        for (za, ya), (zb, yb) in zip(pts, pts[1:]):
+            L = math.hypot(zb - za, yb - ya)
+            ang = -math.degrees(math.atan2(yb - ya, zb - za))
+            mb.box((x, (ya + yb) / 2, (za + zb) / 2), (0.025, 0.025, L + 0.012), color=(0.75, 0.75, 0.8, 1),
+                   rot=(ang, 0, 0))
+        self.moohole_wire = Entity(model=mb.build(), texture=tex("white"), shader=FARM_SHADER)
 
     def wood_fence(self, x0, z0, x1, z1, h=1.6, collide=True):
         along_x = abs(z1 - z0) < 1e-6
@@ -449,19 +491,27 @@ class World:
             return self.phys.add_box(x0 - 0.2, x0 + 0.2, a0, a1, 0, h + 0.4, sight=False)
 
     def lamp(self, key, pos, radius=10.0, col=(1.0, 0.82, 0.55), intensity=1.2, on=True, bulb=True, hang_to=None,
-             arm_to=None):
+             arm_to=None, shade=False):
         """A bare bulb. hang_to: height of the beam/ceiling its cord runs up to. arm_to: (x, z) of a wall it's
-        bracketed to instead (a short drop, then an arm straight to the wall; axis-aligned)."""
+        bracketed to instead (a short drop, then an arm straight to the wall; axis-aligned). shade: a glass
+        ceiling bowl instead of a bulb on a cord."""
         e = None
         if bulb:
             mb = MeshBuilder()
-            mb.sphere((0, 0, 0), 0.13, color=(1, 0.95, 0.7, 1), segs=8, rings=6)
             dark = (0.1, 0.1, 0.1, 1)
-            if arm_to is not None:
+            if shade:
+                # a frosted glass bowl on a short brass stem from a ceiling rose (hang_to is the ceiling)
+                top = (hang_to if hang_to is not None else pos[1] + 0.3) - pos[1]
+                mb.sphere((0, 0, 0), 0.24, color=(1, 0.95, 0.8, 1), segs=14, rings=8, scale=(1, 0.42, 1))
+                mb.cylinder((0, 0.08, 0), 0.02, max(0.02, top - 0.11), color=(0.7, 0.55, 0.3, 1), segs=6)
+                mb.cylinder((0, top - 0.035, 0), 0.11, 0.035, color=(0.7, 0.55, 0.3, 1), segs=12)
+            elif arm_to is not None:
+                mb.sphere((0, 0, 0), 0.13, color=(1, 0.95, 0.7, 1), segs=8, rings=6)
                 ax, az = arm_to[0] - pos[0], arm_to[1] - pos[2]
                 mb.cylinder((0, 0.1, 0), 0.02, 0.2, color=dark, segs=4)
                 mb.box((ax / 2, 0.3, az / 2), (max(abs(ax), 0.05), 0.05, max(abs(az), 0.05)), color=dark)
             else:
+                mb.sphere((0, 0, 0), 0.13, color=(1, 0.95, 0.7, 1), segs=8, rings=6)
                 cord = (hang_to - pos[1] - 0.1) if hang_to is not None else 0.6
                 mb.cylinder((0, 0.1, 0), 0.02, max(0.05, cord), color=dark, segs=4)
             e = Entity(model=mb.build(), texture=tex("white"), shader=FARM_SHADER, position=pos)
@@ -560,7 +610,11 @@ class World:
         self.elec_fence(x0, z0, x1, z0)
         self.elec_fence(x0, z0, x0, z1)
         self.elec_fence(x0, z1, x1, z1)
-        self.elec_fence(x1, z0, x1, z1, skip=[(gz0, gz1)])
+        mc = (mz0 + mz1) / 2
+        self.moohole_span = (mc - 2.1, mc + 2.1)
+        self.elec_fence(x1, z0, x1, z1, skip=[(gz0, gz1)], sag=self.moohole_span)
+        self.moohole_wire = None
+        self.set_moohole_wire(None)
         H = 1.5
         self.phys.add_box(x0, x1, z0 - 0.15, z0 + 0.15, 0, H, sight=False, tag="fence")
         self.phys.add_box(x0 - 0.15, x0 + 0.15, z0, z1, 0, H, sight=False, tag="fence")
@@ -848,6 +902,89 @@ class World:
         self.add_ia("coop", (41, 1.2, -29.5), 1.5, "Chicken coop")
         self.spawns["coop_gate_out"] = (32, 0, -35, 90)
 
+    # ------------------------------------------------------------------
+    # furniture helpers (the farmhouse)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _xf(x, z, facing, lx, lz):
+        """A piece of furniture's own frame -> world. Its front is local -z; `facing` is where the front points
+        ("s" = -z, "n" = +z, "e" = +x, "w" = -x)."""
+        if facing == "s":
+            return x + lx, z + lz
+        if facing == "n":
+            return x - lx, z - lz
+        if facing == "e":
+            return x - lz, z + lx
+        return x + lz, z - lx
+
+    def _fbox(self, tex_name, x, z, y0, facing, lx, ly, lz, sx, sy, sz, color=C_WHITE, uv=0.8):
+        """Box in furniture space: (lx, lz) its centre, ly its bottom, (sx, sy, sz) its size."""
+        wx, wz = self._xf(x, z, facing, lx, lz)
+        if facing in ("e", "w"):
+            sx, sz = sz, sx
+        self.mb(tex_name).box((wx, y0 + ly + sy / 2, wz), (sx, sy, sz), color=color, uv_density=uv)
+
+    def _fcyl(self, tex_name, x, z, y0, facing, lx, ly, lz, r, h, color=C_WHITE, rt=None, segs=10):
+        wx, wz = self._xf(x, z, facing, lx, lz)
+        self.mb(tex_name).cylinder((wx, y0 + ly, wz), r, h, color=color, segs=segs, radius_top=rt)
+
+    FACE_ROT = {"s": 0, "n": 180, "w": 90, "e": -90}
+    FACE_N = {"s": (0, -1), "n": (0, 1), "w": (-1, 0), "e": (1, 0)}
+
+    def _picture(self, pos, size, facing, canvas="painting_barn", frame=(0.3, 0.2, 0.12, 1), color=None):
+        """A framed picture hung flat on a wall, looking out along `facing`."""
+        x, y, z = pos
+        w, h = size
+        nx, nz = self.FACE_N[facing]
+        fs = (w + 0.1, h + 0.1, 0.04) if nz else (0.04, h + 0.1, w + 0.1)
+        self.mb("white").box((x, y, z), fs, color=frame)
+        if color is not None:
+            cs = (w, h, 0.01) if nz else (0.01, h, w)
+            self.mb("white").box((x + nx * 0.02, y, z + nz * 0.02), cs, color=color)
+        else:
+            self.sign(canvas, (x + nx * 0.025, y, z + nz * 0.025), (w, h), rot_y=self.FACE_ROT[facing])
+
+    def _curtains(self, wx, wz, nx, nz, y, col, rod=(0.3, 0.22, 0.14, 1)):
+        """A rod and two gathered panels either side of a window, on the inside wall face.
+        (nx, nz) is the wall's outward normal, so the room is at -normal."""
+        ix, iz = wx - nx * 0.2, wz - nz * 0.2
+        along_x = nz != 0
+        rs = (2.3, 0.04, 0.04) if along_x else (0.04, 0.04, 2.3)
+        self.mb("white").box((ix, y + 2.35, iz), rs, color=rod)
+        for s in (-1, 1):
+            px, pz = (ix + s * 1.0, iz) if along_x else (ix, iz + s * 1.0)
+            ps = (0.36, 1.85, 0.07) if along_x else (0.07, 1.85, 0.36)
+            self.mb("white").box((px, y + 1.4, pz), ps, color=col)
+            # a few folds catch the light
+            for k in (-1, 1):
+                fx, fz = (px + k * 0.1, pz - nz * 0.03) if along_x else (px - nx * 0.03, pz + k * 0.1)
+                fsz = (0.05, 1.85, 0.04) if along_x else (0.04, 1.85, 0.05)
+                self.mb("white").box((fx, y + 1.4, fz), fsz, color=tuple(c * 0.85 for c in col[:3]) + (1,))
+
+    def _baseboard(self, a0, a1, at, along, gaps=(), y=0.0, col=(0.38, 0.26, 0.17, 1)):
+        """Skirting along a wall face: from a0 to a1 on the running axis, `at` on the other, skipping gaps."""
+        cur = a0
+        for ga, gb in sorted(gaps) + [(a1, a1)]:
+            if ga - cur > 0.05:
+                mid = (cur + ga) / 2
+                if along == "x":
+                    self.mb("white").box((mid, y + 0.06, at), (ga - cur, 0.12, 0.025), color=col)
+                else:
+                    self.mb("white").box((at, y + 0.06, mid), (0.025, 0.12, ga - cur), color=col)
+            cur = max(cur, gb)
+
+    def _chair(self, x, z, y, facing, wood="wood"):
+        """Kitchen chair: seat, four legs, two back posts and three slats."""
+        f = self._fbox
+        f(wood, x, z, y, facing, 0, 0.44, 0, 0.46, 0.05, 0.44)
+        for lx in (-0.19, 0.19):
+            for lz in (-0.18, 0.18):
+                f(wood, x, z, y, facing, lx, 0, lz, 0.045, 0.44, 0.045)
+        for lx in (-0.19, 0.19):
+            f(wood, x, z, y, facing, lx, 0.49, 0.2, 0.05, 0.52, 0.05)
+        for k in range(3):
+            f(wood, x, z, y, facing, 0, 0.56 + k * 0.15, 0.2, 0.34, 0.06, 0.03)
+
     def build_house(self):
         x0, x1, z0, z1 = HOUSE
         y = HOUSE_Y
@@ -855,24 +992,81 @@ class World:
         inside = ((x0 + x1) / 2, (z0 + z1) / 2)
         # foundation + floor
         self.box("stone", ((x0 + x1) / 2, y / 2, (z0 + z1) / 2), (x1 - x0 + 0.3, y, z1 - z0 + 0.3))
-        # living room | kitchen split at x=KX (the front door opens into the living room)
+        # floors: boards in the living room, hall and den, warm tiles in the kitchen, carpet in the bedroom
         self.mb("floorboards").ground(x0, z0, KX, 40, y=y + 0.01, uv_density=0.5)
-        self.mb("tiles").ground(KX, z0, x1, 40, y=y + 0.01, uv_density=0.5)
+        self.mb("tiles_kitchen").ground(KX, z0, x1, 40, y=y + 0.01, uv_density=0.45)
         self.mb("floorboards").ground(x0, 40, x1, 42, y=y + 0.01, uv_density=0.5)
-        self.mb("carpet").ground(x0, 42, 62, z1, y=y + 0.01, uv_density=0.5)
-        self.mb("tiles").ground(62, 42, x1, z1, y=y + 0.01, uv_density=0.6)
+        self.mb("floorboards").ground(x0, 42, 52, z1, y=y + 0.01, uv_density=0.5)
+        self.mb("carpet_house").ground(52, 42, 62, z1, y=y + 0.01, uv_density=0.5)
+        self.mb("tiles_bath").ground(62, 42, x1, z1, y=y + 0.01, uv_density=0.9)
         self.phys.add_floor(x0, x1, z0, z1, y, surface="wood")
-        # exterior walls
-        self.wall_gaps(x0, z0, x1, z0, H, [(55.2, 56.8, 2.3)], 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
-        self.wall(x0, z1, x1, z1, H, 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
-        self.wall(x0, z0, x0, z1, H, 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
-        self.wall_gaps(x1, z0, x1, z1, H, [(40.2, 41.8, 2.3)], 0.25, "siding", y0=y, tex_in="wallpaper", inside=inside)
-        # interior walls
-        self.wall_gaps(KX, z0, KX, 40, H, [(33.9, 35.9, 2.3)], 0.15, "wallpaper", y0=y)
-        self.wall_gaps(x0, 40, x1, 40, H, [(47.9, 49.9, 2.3), (61.9, 63.9, 2.3)], 0.15, "wallpaper", y0=y)
-        self.wall_gaps(x0, 42, x1, 42, H, [(46.9, 48.9, 2.3), (55.9, 57.9, 2.3), (63.9, 65.9, 2.3)], 0.15, "wallpaper", y0=y)
-        self.wall(52, 42, 52, z1, H, 0.15, "wallpaper", y0=y)
-        self.wall(62, 42, 62, z1, H, 0.15, "wallpaper", y0=y)
+        # every room has its own walls: one run of exterior wall per room, and interior walls with a
+        # different finish on each face
+        LIV, KIT, HALL, OFF, BED, BATH = ("wall_living", "wall_kitchen", "wall_living", "wall_office",
+                                          "wall_bedroom", "wall_bath")
+        T = 0.25
+        self.wall_gaps(x0, z0, KX, z0, H, [(55.2, 56.8, 2.3)], T, "siding", y0=y, tex_in=LIV, inside=inside)
+        self.wall(KX, z0, x1, z0, H, T, "siding", y0=y, tex_in=KIT, inside=inside)
+        self.wall(x0, z1, 52, z1, H, T, "siding", y0=y, tex_in=OFF, inside=inside)
+        self.wall(52, z1, 62, z1, H, T, "siding", y0=y, tex_in=BED, inside=inside)
+        self.wall(62, z1, x1, z1, H, T, "siding", y0=y, tex_in=BATH, inside=inside)
+        self.wall(x0, z0, x0, 40, H, T, "siding", y0=y, tex_in=LIV, inside=inside)
+        self.wall(x0, 40, x0, 42, H, T, "siding", y0=y, tex_in=HALL, inside=inside)
+        self.wall(x0, 42, x0, z1, H, T, "siding", y0=y, tex_in=OFF, inside=inside)
+        self.wall(x1, z0, x1, 40, H, T, "siding", y0=y, tex_in=KIT, inside=inside)
+        self.wall_gaps(x1, 40, x1, 42, H, [(40.2, 41.8, 2.3)], T, "siding", y0=y, tex_in=HALL, inside=inside)
+        self.wall(x1, 42, x1, z1, H, T, "siding", y0=y, tex_in=BATH, inside=inside)
+        # interior walls (texname: the face away from `inside`; tex_in: the face toward it)
+        self.wall_gaps(KX, z0, KX, 40, H, [(33.9, 35.9, 2.3)], 0.15, LIV, y0=y, tex_in=KIT, inside=(60, 35))
+        self.wall_gaps(x0, 40, KX, 40, H, [(47.9, 49.9, 2.3)], 0.15, LIV, y0=y, tex_in=HALL, inside=(50, 41))
+        self.wall_gaps(KX, 40, x1, 40, H, [(61.9, 63.9, 2.3)], 0.15, KIT, y0=y, tex_in=HALL, inside=(60, 41))
+        self.wall_gaps(x0, 42, 52, 42, H, [(46.9, 48.9, 2.3)], 0.15, HALL, y0=y, tex_in=OFF, inside=(48, 45))
+        self.wall_gaps(52, 42, 62, 42, H, [(55.9, 57.9, 2.3)], 0.15, HALL, y0=y, tex_in=BED, inside=(57, 45))
+        self.wall_gaps(62, 42, x1, 42, H, [(63.9, 65.9, 2.3)], 0.15, HALL, y0=y, tex_in=BATH, inside=(65, 45))
+        self.wall(52, 42, 52, z1, H, 0.15, OFF, y0=y, tex_in=BED, inside=(57, 45))
+        self.wall(62, 42, 62, z1, H, 0.15, BED, y0=y, tex_in=BATH, inside=(65, 45))
+        # skirting boards (dark wood; painted white in the kitchen)
+        ei, ii = T / 2 + 0.013, 0.075 + 0.013          # exterior / interior wall inner faces
+        bb = self._baseboard
+        bb(x0, KX, z0 + ei, "x", [(55.2, 56.8)], y)
+        bb(x0, KX, 40 - ii, "x", [(47.9, 49.9)], y)
+        bb(z0, 40, x0 + ei, "z", (), y)
+        bb(z0, 40, KX - ii, "z", [(33.9, 35.9)], y)
+        kcol = (0.9, 0.88, 0.82, 1)
+        bb(KX, x1, z0 + ei, "x", (), y, kcol)
+        bb(KX, x1, 40 - ii, "x", [(61.9, 63.9)], y, kcol)
+        bb(z0, 40, KX + ii, "z", [(33.9, 35.9)], y, kcol)
+        bb(x0, x1, 40 + ii, "x", [(47.9, 49.9), (61.9, 63.9)], y)
+        bb(x0, x1, 42 - ii, "x", [(46.9, 48.9), (55.9, 57.9), (63.9, 65.9)], y)
+        bb(40, 42, x0 + ei, "z", (), y)
+        bb(x0, 52, 42 + ii, "x", [(46.9, 48.9)], y)
+        bb(x0, 52, z1 - ei, "x", (), y)
+        bb(42, z1, x0 + ei, "z", (), y)
+        bb(42, z1, 52 - ii, "z", (), y)
+        bb(52, 62, 42 + ii, "x", [(55.9, 57.9)], y)
+        bb(52, 62, z1 - ei, "x", (), y)
+        bb(42, z1, 52 + ii, "z", (), y)
+        bb(42, z1, 62 - ii, "z", (), y)
+        # bathroom: tiles to just under the window sill, with a capping rail
+        wt, cap = 0.97, (0.92, 0.94, 0.93, 1)
+        for (a, b, at, along) in ((62 + ii, x1 - ei, 42 + ii, "x"), (62 + ii, x1 - ei, z1 - ei, "x"),
+                                  (42 + ii, z1 - ei, 62 + ii, "z"), (42 + ii, z1 - ei, x1 - ei, "z")):
+            gaps = [(63.9, 65.9)] if at == 42 + ii else []
+            cur = a
+            for ga, gb in gaps + [(b, b)]:
+                if ga - cur > 0.05:
+                    m, L = (cur + ga) / 2, ga - cur
+                    if along == "x":
+                        s_ = 1 if at < 45 else -1
+                        self.mb("tiles_bath").box((m, y + wt / 2, at + s_ * 0.01), (L, wt, 0.02), uv_density=0.9,
+                                                  uv_mode="world")
+                        self.mb("white").box((m, y + wt, at + s_ * 0.025), (L, 0.04, 0.05), color=cap)
+                    else:
+                        s_ = 1 if at < 65 else -1
+                        self.mb("tiles_bath").box((at + s_ * 0.01, y + wt / 2, m), (0.02, wt, L), uv_density=0.9,
+                                                  uv_mode="world")
+                        self.mb("white").box((at + s_ * 0.025, y + wt, m), (0.05, 0.04, L), color=cap)
+                cur = max(cur, gb)
         # ceiling (seen from inside) + roof
         self.mb("white").box(((x0 + x1) / 2, y + H + 0.05, (z0 + z1) / 2), (x1 - x0, 0.1, z1 - z0), color=(0.93, 0.9, 0.85, 1))
         self.gable_roof(x0 - 0.3, x1 + 0.3, z0 - 0.3, z1 + 0.3, y + H + 0.1, 2.8, "shingles", along="x", end_tex="siding")
@@ -880,8 +1074,13 @@ class World:
         glass = MeshBuilder()
         # (x, z, yaw of the outward-facing quad, outward normal)
         wins = [(47, z0, 0, (0, -1)), (52, z0, 0, (0, -1)), (61, z0, 0, (0, -1)), (65, z0, 0, (0, -1)),
-                (48, z1, 180, (0, 1)), (57, z1, 180, (0, 1)), (65, z1, 180, (0, 1)),
-                (x0, 35, 90, (-1, 0)), (x0, 45, 90, (-1, 0)), (x1, 35, -90, (1, 0))]
+                (48, z1, 180, (0, 1)), (55.6, z1, 180, (0, 1)), (65, z1, 180, (0, 1)),
+                (x0, 45, 90, (-1, 0)), (x1, 35, -90, (1, 0))]
+        # curtains by room (the bathroom has none; the kitchen window over the sink gets a valance)
+        curtain = {(47, z0): (0.6, 0.2, 0.17, 1), (52, z0): (0.6, 0.2, 0.17, 1),
+                   (61, z0): (0.93, 0.8, 0.42, 1), (65, z0): (0.93, 0.8, 0.42, 1),
+                   (48, z1): (0.3, 0.42, 0.3, 1), (x0, 45): (0.3, 0.42, 0.3, 1),
+                   (55.6, z1): (0.45, 0.52, 0.7, 1)}
         for (wx, wz, ry, (nx, nz)) in wins:
             # white frame proud of the siding, glass just in front of it, and glass on the inside wall face
             fx, fz = wx + nx * 0.16, wz + nz * 0.16
@@ -889,6 +1088,27 @@ class World:
             self.mb("white").box((fx, y + 1.6, fz), fsize, color=(0.95, 0.95, 0.95, 1))
             glass.quad((wx + nx * 0.195, y + 1.6, wz + nz * 0.195), (1.4, 1.1), rot=(0, ry, 0))
             glass.quad((wx - nx * 0.135, y + 1.6, wz - nz * 0.135), (1.4, 1.1), rot=(0, ry + 180, 0))
+            # inside: trim round the opening, a sill, and a cross bar splitting the panes
+            ix, iz = wx - nx * 0.14, wz - nz * 0.14
+            trim = (0.96, 0.95, 0.92, 1)
+            for (a, b, w_, h_) in ((0, 0.6, 1.6, 0.08), (0, -0.6, 1.6, 0.08), (-0.76, 0, 0.08, 1.28),
+                                   (0.76, 0, 0.08, 1.28), (0, 0, 1.4, 0.04), (0, 0, 0.04, 1.1)):
+                c = (ix + (a if nz else 0), y + 1.6 + b, iz + (0 if nz else a))
+                self.mb("white").box(c, (w_, h_, 0.03) if nz else (0.03, h_, w_), color=trim)
+            sx_, sz_ = wx - nx * 0.19, wz - nz * 0.19
+            self.mb("white").box((sx_, y + 0.99, sz_), (1.7, 0.04, 0.14) if nz else (0.14, 0.04, 1.7), color=trim)
+            col = curtain.get((wx, wz))
+            if col is not None:
+                self._curtains(wx, wz, nx, nz, y, col)
+        # a gingham valance over the sink window
+        self.mb("plaid").box((x1 - 0.2, y + 2.28, 35), (0.05, 0.22, 1.7), uv_density=1.6)
+        # the chimney: up the outside of the west wall from the living-room fireplace, through the eaves
+        self.mb("stone").box((43.5, 0.95, 35), (0.75, 1.9, 1.8), uv_density=0.8)
+        self.mb("stone").box((43.5, 1.95, 35), (0.66, 0.2, 1.6), uv_density=0.8)
+        self.mb("stone").box((43.55, 4.25, 35), (0.6, 4.6, 1.2), uv_density=0.8)
+        self.mb("stone").box((43.55, 6.6, 35), (0.72, 0.12, 1.34), uv_density=0.8)
+        self.mb("white").box((43.55, 6.67, 35), (0.36, 0.02, 0.8), color=(0.06, 0.05, 0.05, 1))
+        self.phys.add_box(43.12, 43.88, 34.1, 35.9, 0, 6.66)
         self.house_glass = Entity(model=glass.build(), texture=tex("window"), shader=FARM_SHADER)
         no_shadow(self.house_glass)
         self.entities.append(self.house_glass)
@@ -897,8 +1117,15 @@ class World:
         self.mb("floorboards").box(((px0 + px1) / 2, y / 2, (pz0 + pz1) / 2), (px1 - px0, y, pz1 - pz0), uv_density=0.5)
         self.phys.add_floor(px0, px1, pz0, pz1, y, surface="wood")
         for ppx in (50.2, 61.8):
-            self.box("white", (ppx, y + 1.4, 26.2), (0.18, 2.8, 0.18), color=(0.95, 0.95, 0.92, 1), collide=True)
-        self.mb("shingles").box((56, y + 2.95, 28), (13, 0.15, 4.6), rot=(12, 0, 0), uv_density=0.4)
+            self.box("white", (ppx, y + 1.195, 26.2), (0.18, 2.39, 0.18), color=(0.95, 0.95, 0.92, 1), collide=True)
+        # porch roof: a shallow lean-to, high against the wall (tucked under the eaves) and low over the posts
+        # (it used to tilt the wrong way and poke through into the living room)
+        hi, lo, zw, zf = y + 2.85, y + 2.45, z0 - 0.13, 25.6
+        ang = math.degrees(math.atan2(hi - lo, zw - zf))
+        self.mb("shingles").box((56, (hi + lo) / 2 - 0.06, (zw + zf) / 2), (13, 0.12, math.hypot(zw - zf, hi - lo)),
+                                rot=(-ang, 0, 0), uv_density=0.4)
+        self.mb("white").box((56, lo - 0.05, zf - 0.01), (13.04, 0.14, 0.03), color=(0.95, 0.95, 0.92, 1))
+        self.mb("white").box((56, lo - 0.16, 26.2), (12.0, 0.12, 0.14), color=(0.95, 0.95, 0.92, 1))
         # porch props
         mat = MeshBuilder().box((56, y + 0.02, 29.1), (1.4, 0.03, 0.7), uv_rect=(0, 0, 1, 1), faces=[4])
         self.props["doormat"] = Entity(model=mat.build(), texture=tex("welcome_mat"), shader=FARM_SHADER)
@@ -924,97 +1151,527 @@ class World:
         for _ in range(10):
             random.random()     # the old pot drew these from the seeded world sequence; keep the rest in place
         self.add_ia("flowerpot", (60.6, y + 0.5, 28.6), 0.5, "Flowerpot")
-        self.box("wood", (52.5, y + 0.5, 28.5), (0.8, 1.0, 0.8), collide=True)
+        # Chuck's rocking chair, looking out over the yard
+        rcx, rcz, rw = 52.5, 28.5, (0.45, 0.3, 0.18, 1)
+        for sx_ in (-0.25, 0.25):
+            for (dz, dy, a) in ((-0.3, 0.05, 14), (0.0, 0.02, 0), (0.3, 0.05, -14)):
+                self.mb("white").box((rcx + sx_, y + dy, rcz + dz), (0.05, 0.04, 0.34), color=rw, rot=(a, 0, 0))
+            for dz in (-0.2, 0.2):
+                self.mb("white").box((rcx + sx_, y + 0.25, rcz + dz), (0.045, 0.42, 0.045), color=rw)
+            self.mb("white").box((rcx + sx_, y + 0.85, rcz + 0.27), (0.05, 0.84, 0.05), color=rw, rot=(10, 0, 0))
+            self.mb("white").box((rcx + sx_, y + 0.68, rcz - 0.02), (0.06, 0.03, 0.5), color=rw)
+            self.mb("white").box((rcx + sx_, y + 0.57, rcz - 0.2), (0.035, 0.22, 0.035), color=rw)
+        self.mb("white").box((rcx, y + 0.47, rcz), (0.52, 0.05, 0.46), color=rw)
+        self.mb("plaid").box((rcx, y + 0.51, rcz - 0.01), (0.44, 0.04, 0.4), uv_density=1.4)
+        for k in range(5):
+            self.mb("white").box((rcx - 0.18 + k * 0.09, y + 0.85, rcz + 0.25), (0.035, 0.66, 0.03), color=rw,
+                                 rot=(10, 0, 0))
+        self.mb("white").box((rcx, y + 1.22, rcz + 0.33), (0.56, 0.08, 0.05), color=rw, rot=(10, 0, 0))
+        self.phys.add_box_c(rcx, rcz, 0.6, 0.8, y, y + 1.2)
         # doghouse (RIP Biscuit)
         self.box("wood", (40, 0.6, 33), (1.3, 1.2, 1.5), collide=True)
         self.mb("shingles").box((40, 1.35, 33), (1.5, 0.1, 1.7), rot=(0, 0, 0))
         self.add_ia("doghouse", (40, 0.8, 32.2), 0.8, "Doghouse")
-        # --- living room ---
-        self.box("white", (48, y + 0.35, 37.2), (4.0, 0.7, 1.1), color=(0.45, 0.3, 0.55, 1), collide=True)
-        self.mb("white").box((48, y + 0.8, 37.7), (4.0, 0.7, 0.3), color=(0.45, 0.3, 0.55, 1))
+        # ================= living room =================
+        f, fc = self._fbox, self._fcyl
+        DARK = (0.12, 0.1, 0.09, 1)
+        BRASS_C = (0.78, 0.62, 0.3, 1)
+        # sofa (facing the TV corner): frame, three seat and three back cushions, rolled arms, feet, a plaid
+        # throw over one arm and a pillow
+        sx, sz = 48.0, 37.2
+        f("upholstery", sx, sz, y, "s", 0, 0.12, 0.05, 3.8, 0.3, 1.0, uv=1.6)
+        f("upholstery", sx, sz, y, "s", 0, 0.12, 0.45, 3.8, 0.93, 0.18, uv=1.6)
+        for k in (-1, 0, 1):
+            f("upholstery", sx, sz, y, "s", k * 1.2, 0.42, -0.08, 1.16, 0.16, 0.74, uv=1.6)
+            f("upholstery", sx, sz, y, "s", k * 1.2, 0.58, 0.28, 1.14, 0.44, 0.22, uv=1.6)
+        for s in (-1, 1):
+            f("upholstery", sx, sz, y, "s", s * 1.85, 0.12, 0.0, 0.3, 0.58, 1.1, uv=1.6)
+            wx, wz = self._xf(sx, sz, "s", s * 1.85, 0.0)
+            self.mb("upholstery").cylinder((wx, y + 0.7, wz - 0.55), 0.16, 1.1, segs=10, rot=(90, 0, 0), uv_density=1.6)
+            for lz in (-0.45, 0.45):
+                f("wood_dark", sx, sz, y, "s", s * 1.8, 0, lz, 0.1, 0.12, 0.1)
+        f("plaid", sx, sz, y, "s", 1.85, 0.75, 0.0, 0.34, 0.04, 0.8, uv=1.2)
+        f("plaid", sx, sz, y, "s", 2.02, 0.35, 0.0, 0.04, 0.42, 0.8, uv=1.2)
+        self.mb("white").box((sx - 1.5, y + 0.72, sz + 0.15), (0.42, 0.36, 0.14), color=(0.62, 0.2, 0.18, 1),
+                             rot=(15, 20, 0))
+        self.phys.add_box_c(sx, sz, 4.0, 1.1, y, y + 1.05)
         self.add_ia("couch", (48, y + 0.8, 37.2), 1.0, "Couch")
-        self.box("wood_dark", (48, y + 0.25, 34.5), (1.6, 0.5, 0.9), collide=True)
-        self.box("wood_dark", (53.8, y + 0.35, 31.0), (1.8, 0.7, 0.6), collide=True)
-        self.box("white", (53.8, y + 1.05, 31.0), (1.2, 0.7, 0.5), color=(0.15, 0.15, 0.15, 1))
-        self.sign("tv", (53.8, y + 1.05, 31.26), (1.05, 0.6), rot_y=180, emissive=0.8)
-        self.add_ia("tv", (53.8, y + 1.05, 31.0), 0.6, "TV")
-        # fireplace on west wall
-        self.box("stone", (44.6, y + 0.8, 35), (0.8, 1.6, 2.0), collide=True)
-        self.mb("white").box((44.9, y + 0.5, 35), (0.4, 0.8, 1.0), color=(0.1, 0.08, 0.07, 1))
+        # coffee table: top, legs, a shelf of magazines, a mug and the remote
+        tx, tz = 48.0, 34.5
+        f("wood", tx, tz, y, "s", 0, 0.42, 0, 1.6, 0.06, 0.9)
+        for lx in (-0.72, 0.72):
+            for lz in (-0.37, 0.37):
+                f("wood", tx, tz, y, "s", lx, 0, lz, 0.07, 0.42, 0.07)
+        f("wood", tx, tz, y, "s", 0, 0.1, 0, 1.46, 0.03, 0.76)
+        for k, c in enumerate([(0.8, 0.25, 0.2, 1), (0.25, 0.4, 0.7, 1), (0.9, 0.85, 0.3, 1)]):
+            self.mb("white").box((tx - 0.3 + k * 0.05, y + 0.14 + k * 0.012, tz), (0.3, 0.012, 0.4), color=c,
+                                 rot=(0, k * 12, 0))
+        self.mb("white").cylinder((tx + 0.45, y + 0.48, tz - 0.15), 0.05, 0.1, color=(0.93, 0.92, 0.88, 1), segs=10)
+        self.mb("white").box((tx + 0.51, y + 0.53, tz - 0.15), (0.025, 0.06, 0.02), color=(0.93, 0.92, 0.88, 1))
+        self.mb("white").box((tx - 0.3, y + 0.49, tz + 0.1), (0.18, 0.025, 0.06), color=DARK, rot=(0, 25, 0))
+        self.phys.add_box_c(tx, tz, 1.6, 0.9, y, y + 0.5)
+        # CRT television on a low cabinet, rabbit ears, a VCR blinking 12:00
+        vx, vz = 53.8, 31.0
+        f("wood_dark", vx, vz, y, "n", 0, 0.06, 0, 1.6, 0.5, 0.5)
+        f("white", vx, vz, y, "n", 0, 0.0, 0, 1.5, 0.06, 0.45, color=DARK)
+        for k in (-1, 1):
+            f("wood", vx, vz, y, "n", k * 0.38, 0.12, -0.255, 0.7, 0.38, 0.02)
+            f("white", vx, vz, y, "n", k * 0.08, 0.28, -0.27, 0.04, 0.06, 0.02, color=BRASS_C)
+        f("white", vx, vz, y, "n", -0.45, 0.56, 0.02, 0.5, 0.09, 0.36, color=(0.16, 0.16, 0.17, 1))
+        f("white", vx, vz, y, "n", -0.52, 0.6, -0.165, 0.12, 0.03, 0.01, color=(0.1, 0.9, 0.3, 1))
+        f("wood_dark", vx, vz, y, "n", 0.2, 0.56, 0.02, 0.98, 0.74, 0.56)                 # the set: woodgrain box
+        f("white", vx, vz, y, "n", 0.2, 0.6, -0.265, 0.9, 0.66, 0.04, color=(0.18, 0.17, 0.16, 1))   # bezel
+        f("white", vx, vz, y, "n", 0.57, 0.66, -0.29, 0.14, 0.34, 0.01, color=(0.08, 0.08, 0.08, 1))  # grille
+        for k in range(2):
+            fc("white", vx, vz, y, "n", 0.57, 1.02 + k * 0.1, -0.29, 0.035, 0.03, color=(0.75, 0.73, 0.7, 1))
+        wx, wz = self._xf(vx, vz, "n", 0.2, 0.02)
+        for s in (-1, 1):
+            self.mb("white").cylinder((wx, y + 1.3, wz), 0.008, 0.6, color=(0.7, 0.7, 0.72, 1), segs=4,
+                                      rot=(0, 0, s * 28))
+        self.mb("white").box((wx, y + 1.32, wz), (0.14, 0.05, 0.1), color=(0.2, 0.2, 0.2, 1))
+        self.sign("tv", (wx + 0.07, y + 0.93, vz + 0.318), (0.6, 0.45), rot_y=180, emissive=0.85)
+        self.phys.add_box_c(vx, vz, 1.6, 0.6, y, y + 1.3)
+        self.add_ia("tv", (53.8, y + 0.95, 31.1), 0.6, "TV")
+        # fireplace: a stone chimney breast to the ceiling, a dark firebox with logs, a hearth and a mantel
+        # with a clock and two photos on it (the window that used to sit over it is gone)
+        fz_ = 35.0
+        self.mb("stone").box((44.45, y + H / 2, fz_), (0.65, H, 2.2), uv_density=0.8)
+        self.mb("white").box((44.79, y + 0.45, fz_), (0.04, 0.9, 1.0), color=(0.07, 0.06, 0.05, 1))
+        for k in range(3):
+            self.mb("wood_dark").cylinder((44.7, y + 0.12 + k * 0.08, fz_ - 0.3 + (k % 2) * 0.1), 0.06, 0.6,
+                                          segs=6, rot=(90, 0, 0))
+        self.mb("stone").box((45.1, y + 0.04, fz_), (0.7, 0.08, 2.4), uv_density=1.0)
+        self.mb("wood_dark").box((44.93, y + 1.3, fz_), (0.32, 0.08, 2.5))
+        self.mb("white").box((44.95, y + 1.47, fz_), (0.12, 0.26, 0.22), color=(0.4, 0.26, 0.14, 1))
+        self.mb("white").box((44.99, y + 1.5, fz_), (0.01, 0.14, 0.14), color=(0.95, 0.93, 0.85, 1))
+        for dz, c in ((-0.8, (0.3, 0.3, 0.32, 1)), (0.75, (0.55, 0.4, 0.2, 1))):
+            self.mb("white").box((44.93, y + 1.45, fz_ + dz), (0.03, 0.22, 0.17), color=c, rot=(0, 0, -8))
+        self.phys.add_box(44.1, 45.0, fz_ - 1.1, fz_ + 1.1, y, y + H)
         self.add_ia("fireplace", (44.9, y + 0.8, 35), 0.8, "Fireplace")
-        # the rug
-        self.mb("atlas").box((50.5, y + 0.03, 33.5), (2.6, 0.02, 1.8), uv_rect=models.uvr("hide_black", 0.02))
+        # the cowhide rug (a hide shape, not a rectangle)
+        pts = [(50.5, y + 0.025, 33.5)]
+        for k in range(17):
+            a = -k / 16 * math.tau
+            r = 1.0 + 0.25 * math.cos(a * 4) + 0.12 * math.sin(a * 3)
+            pts.append((50.5 + math.cos(a) * r * 1.35, y + 0.025, 33.5 + math.sin(a) * r * 0.9))
+        self.mb("cowhide_black").poly(pts, uv_density=0.45, double=False)
         self.add_ia("rug", (50.5, y + 0.1, 33.5), 1.0, "Rug", reach=3.0)
-        # --- kitchen ---
-        self.box("wood", (67.2, y + 0.45, 35), (1.3, 0.9, 9.6), collide=True)
-        self.box("white", (67.2, y + 0.92, 35), (1.35, 0.06, 9.7), color=(0.85, 0.85, 0.82, 1))
-        self.box("white", (67.2, y + 1.0, 38.6), (1.2, 2.0, 1.1), color=(0.92, 0.92, 0.95, 1), collide=True)
-        self.add_ia("fridge", (66.6, y + 1.2, 38.6), 0.7, "Fridge")
-        self.mb("white").box((67.2, y + 0.96, 32.6), (0.9, 0.04, 0.8), color=(0.15, 0.15, 0.15, 1))
+        # reading chair in the front corner, with a side table and a lamp
+        ax_, az_ = 45.5, 31.35
+        f("upholstery", ax_, az_, y, "n", 0, 0.1, 0.0, 0.85, 0.34, 0.8, uv=1.6)
+        f("upholstery", ax_, az_, y, "n", 0, 0.44, -0.05, 0.62, 0.12, 0.62, uv=1.6)
+        f("upholstery", ax_, az_, y, "n", 0, 0.44, 0.32, 0.85, 0.6, 0.18, uv=1.6)
+        for s in (-1, 1):
+            f("upholstery", ax_, az_, y, "n", s * 0.36, 0.44, 0.0, 0.14, 0.22, 0.8, uv=1.6)
+        f("wood", 46.6, 30.6, y, "n", 0, 0, 0, 0.4, 0.55, 0.4)
+        fc("white", 46.6, 30.6, y, "n", 0, 0.55, 0, 0.07, 0.3, color=BRASS_C)
+        fc("white", 46.6, 30.6, y, "n", 0, 0.82, 0, 0.2, 0.2, color=(0.93, 0.86, 0.66, 1), rt=0.12, segs=12)
+        self.phys.add_box_c(ax_, az_, 0.95, 0.9, y, y + 1.0)
+        self.phys.add_box_c(46.6, 30.6, 0.4, 0.4, y, y + 0.6)
+        # bookshelf on the west wall
+        bx_, bz_ = 44.33, 38.7
+        self.mb("wood_dark").box((bx_, y + 0.95, bz_), (0.36, 1.9, 1.5))
+        for k in range(4):
+            self.mb("books").quad((bx_ + 0.185, y + 0.28 + k * 0.44, bz_), (1.36, 0.36), rot=(0, -90, 0))
+            self.mb("wood_dark").box((bx_ + 0.02, y + 0.08 + k * 0.44, bz_), (0.34, 0.03, 1.4))
+        self.phys.add_box(44.1, 44.55, bz_ - 0.75, bz_ + 0.75, y, y + 1.9)
+        # floor lamp by the sofa
+        fc("white", 50.55, 37.9, y, "s", 0, 0, 0, 0.16, 0.03, color=DARK, segs=12)
+        fc("white", 50.55, 37.9, y, "s", 0, 0.03, 0, 0.018, 1.45, color=BRASS_C, segs=6)
+        fc("white", 50.55, 37.9, y, "s", 0, 1.4, 0, 0.24, 0.3, color=(0.93, 0.86, 0.66, 1), rt=0.15, segs=14)
+        self.phys.add_circle(50.55, 37.9, 0.18, y, y + 1.7)
+        # on the walls: a barn painting over the sofa, a clock over the TV, family photos
+        self._picture((48.0, y + 1.85, 39.92 - 0.02), (1.1, 0.8), "s")
+        self.mb("white").cylinder((vx, y + 2.25, 30.16), 0.2, 0.05, color=(0.35, 0.22, 0.12, 1), segs=16,
+                                  rot=(90, 0, 0))
+        self.mb("white").cylinder((vx, y + 2.25, 30.2), 0.17, 0.02, color=(0.96, 0.94, 0.88, 1), segs=16,
+                                  rot=(90, 0, 0))
+        self.mb("white").box((vx, y + 2.3, 30.215), (0.02, 0.12, 0.005), color=DARK)
+        self.mb("white").box((vx + 0.04, y + 2.25, 30.215), (0.09, 0.015, 0.005), color=DARK)
+        for k, c in enumerate([(0.55, 0.48, 0.4, 1), (0.42, 0.5, 0.58, 1), (0.6, 0.52, 0.36, 1)]):
+            self._picture((KX - 0.1, y + 1.6 + (k % 2) * 0.35, 36.9 + k * 0.6), (0.35, 0.28), "w", color=c)
+        # coat pegs by the front door with Chuck's jacket and a spare straw hat
+        self.mb("wood_dark").box((KX - 0.1, y + 1.75, 31.4), (0.04, 0.1, 1.0))
+        for k in range(3):
+            self.mb("wood_dark").cylinder((KX - 0.12, y + 1.73, 31.05 + k * 0.35), 0.02, 0.12, segs=5,
+                                          rot=(0, 0, 90))
+        self.mb("denim").box((KX - 0.2, y + 1.3, 31.05), (0.12, 0.8, 0.45), uv_density=1.2)
+        self.mb("white").cylinder((KX - 0.25, y + 1.56, 31.75), 0.22, 0.03, color=(0.88, 0.76, 0.46, 1),
+                                  segs=14, rot=(0, 0, 80))
+        self.mb("white").box((56.0, y + 0.02, 30.75), (1.2, 0.02, 0.6), color=(0.45, 0.3, 0.2, 1))
+
+        # ================= kitchen =================
+        # base cabinets along the east wall (doors, knobs, a toe kick) with a laminate top; the sink sits
+        # under the window, the stove in the run, the fridge at the end
+        cx0 = 66.55
+        wood_c = (0.93, 0.9, 0.82, 1)
+        for za, zb in ((30.2, 31.95), (33.25, 37.95)):
+            self.mb("wood").box(((cx0 + 67.85) / 2, y + 0.49, (za + zb) / 2), (67.85 - cx0, 0.78, zb - za))
+            self.mb("white").box(((cx0 + 67.85) / 2 + 0.05, y + 0.05, (za + zb) / 2), (67.85 - cx0 - 0.1, 0.1, zb - za),
+                                 color=DARK)
+            n = max(1, int(round((zb - za) / 0.6)))
+            for k in range(n):
+                dz = za + (k + 0.5) * (zb - za) / n
+                self.mb("white").box((cx0 - 0.01, y + 0.5, dz), (0.02, 0.68, (zb - za) / n - 0.06), color=wood_c)
+                self.mb("white").box((cx0 - 0.03, y + 0.72, dz + ((zb - za) / n) * 0.3), (0.03, 0.03, 0.08),
+                                     color=BRASS_C)
+            self.mb("white").box(((cx0 + 67.85) / 2 - 0.02, y + 0.905, (za + zb) / 2), (67.85 - cx0 + 0.05, 0.05, zb - za),
+                                 color=(0.88, 0.86, 0.8, 1))
+        self.mb("white").box((cx0 - 0.03, y + 0.905, 34.9 - 2.4), (0.02, 0.05, 0.01), color=(0.6, 0.6, 0.6, 1))
+        # tiled splashback, broken by the window over the sink
+        for za, zb in ((30.2, 34.1), (35.9, 37.95)):
+            self.mb("tiles_bath").box((67.855, y + 1.2, (za + zb) / 2), (0.02, 0.55, zb - za), uv_density=1.2)
+        self.mb("tiles_bath").box((67.855, y + 1.0, 35.0), (0.02, 0.15, 1.8), uv_density=1.2)
+        # sink + faucet
+        self.mb("white").box((67.15, y + 0.935, 34.9), (0.62, 0.02, 0.8), color=(0.72, 0.74, 0.76, 1))
+        self.mb("white").box((67.15, y + 0.94, 34.9), (0.5, 0.02, 0.66), color=(0.32, 0.34, 0.36, 1))
+        self.mb("white").cylinder((67.62, y + 0.93, 34.9), 0.025, 0.28, color=(0.78, 0.8, 0.82, 1), segs=8)
+        self.mb("white").box((67.5, y + 1.2, 34.9), (0.24, 0.03, 0.03), color=(0.78, 0.8, 0.82, 1))
+        for dz in (-0.12, 0.12):
+            self.mb("white").cylinder((67.62, y + 0.93, 34.9 + dz), 0.03, 0.06, color=(0.78, 0.8, 0.82, 1), segs=8)
+        # wall cabinets either side of the window
+        for za, zb in ((30.2, 33.95), (35.95, 37.95)):
+            self.mb("wood").box((67.65, y + 2.05, (za + zb) / 2), (0.4, 0.8, zb - za))
+            n = max(1, int(round((zb - za) / 0.6)))
+            for k in range(n):
+                dz = za + (k + 0.5) * (zb - za) / n
+                self.mb("white").box((67.44, y + 2.05, dz), (0.02, 0.72, (zb - za) / n - 0.06), color=wood_c)
+                self.mb("white").box((67.42, y + 1.75, dz + ((zb - za) / n) * 0.3), (0.03, 0.03, 0.08), color=BRASS_C)
+        # the stove: white enamel, four burners, knobs on the back panel, an oven door with a window
+        stz = 32.6
+        self.mb("white").box((67.2, y + 0.46, stz), (1.3, 0.92, 1.28), color=(0.94, 0.93, 0.9, 1))
+        self.mb("white").box((67.2, y + 0.93, stz), (1.26, 0.03, 1.24), color=(0.12, 0.12, 0.13, 1))
+        for dx in (-0.25, 0.25):
+            for dz in (-0.3, 0.3):
+                self.mb("white").cylinder((67.1 + dx, y + 0.945, stz + dz), 0.14, 0.015, color=(0.25, 0.25, 0.27, 1),
+                                          segs=14)
+                self.mb("white").cylinder((67.1 + dx, y + 0.955, stz + dz), 0.08, 0.01, color=(0.08, 0.08, 0.08, 1),
+                                          segs=12)
+        self.mb("white").box((67.78, y + 1.08, stz), (0.1, 0.3, 1.26), color=(0.94, 0.93, 0.9, 1))
+        for k in range(4):
+            self.mb("white").cylinder((67.72, y + 1.08, stz - 0.45 + k * 0.3), 0.04, 0.04,
+                                      color=(0.15, 0.15, 0.15, 1), segs=8, rot=(0, 0, 90))
+        self.mb("white").box((cx0 - 0.01, y + 0.45, stz), (0.02, 0.6, 1.1), color=(0.88, 0.87, 0.84, 1))
+        self.mb("white").box((cx0 - 0.02, y + 0.48, stz), (0.02, 0.3, 0.7), color=(0.1, 0.1, 0.12, 1))
+        self.mb("white").box((cx0 - 0.06, y + 0.8, stz), (0.03, 0.03, 0.9), color=(0.78, 0.8, 0.82, 1))
+        self.phys.add_box(cx0, 67.85, 30.2, 39.8, y, y + 0.95)
         self.add_ia("stove", (66.8, y + 1.0, 32.6), 0.6, "Stove")
-        self.mb("white").box((66.9, y + 0.99, 35.8), (0.35, 0.1, 0.25), color=(0.9, 0.3, 0.25, 1))
-        self.sign("cookbook", (66.62, y + 1.15, 35.8), (0.2, 0.28), rot_y=90)
+        # cookbook standing on the counter, cover facing the room
+        self.mb("white").box((66.68, y + 1.08, 35.9), (0.06, 0.3, 0.22), color=(0.85, 0.3, 0.25, 1))
+        self.sign("cookbook", (66.645, y + 1.08, 35.9), (0.2, 0.28), rot_y=90)
         self.add_ia("cookbook", (66.7, y + 1.1, 35.8), 0.35, "Cookbook")
+        # fridge: two doors, chrome handles, magnets and a drawing
+        frx, frz = 67.2, 38.6
+        cream = (0.94, 0.93, 0.87, 1)
+        self.mb("white").box((frx, y + 1.0, frz), (1.2, 2.0, 1.1), color=cream)
+        self.mb("white").box((frx - 0.61, y + 1.33, frz), (0.02, 0.02, 1.08), color=(0.55, 0.55, 0.52, 1))
+        for (hy, hh) in ((1.55, 0.32), (0.85, 0.55)):
+            self.mb("white").box((frx - 0.64, y + hy, frz + 0.42), (0.04, hh, 0.04), color=(0.8, 0.82, 0.84, 1))
+        for k, c in enumerate([(0.9, 0.2, 0.2, 1), (0.2, 0.5, 0.9, 1), (0.95, 0.8, 0.2, 1), (0.3, 0.7, 0.3, 1)]):
+            self.mb("white").box((frx - 0.615, y + 1.05 + (k % 2) * 0.25, frz - 0.3 + k * 0.12), (0.02, 0.06, 0.06),
+                                 color=c)
+        self.mb("white").box((frx - 0.612, y + 1.1, frz - 0.1), (0.005, 0.28, 0.22), color=(0.98, 0.97, 0.94, 1))
+        self.mb("white").box((frx - 0.616, y + 1.08, frz - 0.1), (0.005, 0.1, 0.14), color=(0.9, 0.4, 0.3, 1))
+        self.phys.add_box_c(frx, frz, 1.2, 1.1, y, y + 2.0)
+        self.add_ia("fridge", (66.6, y + 1.2, 38.6), 0.7, "Fridge")
         self.sign("calendar", (60, y + 1.7, 39.9), (0.55, 0.7), rot_y=0)
         self.add_ia("calendar", (60, y + 1.7, 39.8), 0.4, "Calendar")
-        # table + chairs
-        self.box("wood", (61, y + 0.75, 34), (1.8, 0.08, 1.2), collide=False)
-        for lx in (60.3, 61.7):
-            for lz in (33.6, 34.4):
-                self.box("wood", (lx, y + 0.37, lz), (0.08, 0.74, 0.08))
+        # table with a checked cloth, fruit bowl, salt and pepper; chairs either end
+        self.mb("wood").box((61, y + 0.73, 34), (1.8, 0.05, 1.2))
+        for lx in (60.2, 61.8):
+            for lz in (33.5, 34.5):
+                self.mb("wood").box((lx, y + 0.355, lz), (0.07, 0.71, 0.07))
+        self.mb("plaid").box((61, y + 0.77, 34), (1.9, 0.02, 1.3), uv_density=1.4)
+        for s in (-1, 1):
+            self.mb("plaid").box((61, y + 0.66, 34 + s * 0.655), (1.9, 0.2, 0.01), uv_density=1.4)
+            self.mb("plaid").box((61 + s * 0.955, y + 0.66, 34), (0.01, 0.2, 1.3), uv_density=1.4)
         self.phys.add_box_c(61, 34, 1.8, 1.2, y, y + 0.8)
-        self.box("wood", (59.6, y + 0.45, 34), (0.5, 0.9, 0.5), collide=True)
-        self.box("wood", (62.4, y + 0.45, 34), (0.5, 0.9, 0.5), collide=True)
+        self.mb("white").cylinder((61.55, y + 0.78, 33.75), 0.16, 0.08, color=(0.3, 0.45, 0.6, 1), segs=12,
+                                  radius_top=0.2)
+        for k, c in enumerate([(0.8, 0.12, 0.1, 1), (0.85, 0.18, 0.12, 1), (0.95, 0.85, 0.25, 1)]):
+            self.mb("white").sphere((61.5 + k * 0.07, y + 0.88, 33.72 + (k % 2) * 0.07), 0.055, color=c, segs=8,
+                                    rings=6)
+        for k, c in enumerate([(0.95, 0.95, 0.95, 1), (0.2, 0.2, 0.2, 1)]):
+            self.mb("white").cylinder((61.15 + k * 0.08, y + 0.78, 34.35), 0.025, 0.08, color=c, segs=8)
+        self._chair(59.6, 34, y, "e")
+        self._chair(62.4, 34, y, "w")
+        self.phys.add_box_c(59.6, 34, 0.5, 0.5, y, y + 0.9)
+        self.phys.add_box_c(62.4, 34, 0.5, 0.5, y, y + 0.9)
         self.mb("white").cylinder((60.7, y + 0.79, 34.2), 0.06, 0.15, color=(0.8, 0.9, 0.95, 1), segs=8)
+        self.mb("white").box((60.7, y + 0.83, 34.2), (0.07, 0.03, 0.05), color=(0.95, 0.9, 0.85, 1))
         self.add_ia("dentures", (60.7, y + 0.95, 34.2), 0.25, "Glass of dentures")
-        # key hook on the kitchen wall (z=40, facing south)
-        self.box("wood_dark", (58, y + 1.5, 39.9), (0.5, 0.12, 0.05))
-        # --- office ---
-        self.box("wood", (47.5, y + 0.4, 46.6), (2.4, 0.8, 1.0), collide=True)
-        self.box("white", (47.5, y + 1.1, 46.9), (0.8, 0.6, 0.1), color=(0.85, 0.83, 0.75, 1))
-        self.sign("monitor", (47.5, y + 1.1, 46.84), (0.66, 0.48), rot_y=0, emissive=0.9)
-        self.props["monitor_screen"] = self.entities[-1]
-        self.sign("sticky_password", (47.95, y + 1.3, 46.83), (0.14, 0.14), rot_y=0)
+        # key hooks by the door to the hall, rooster clock, a bin
+        self.mb("wood_dark").box((58, y + 1.5, 39.9), (0.5, 0.12, 0.05))
+        for k in range(3):
+            self.mb("white").cylinder((57.84 + k * 0.16, y + 1.48, 39.86), 0.012, 0.06, color=BRASS_C, segs=5,
+                                      rot=(90, 0, 0))
+        self.mb("white").cylinder((63.5, y + 2.2, 30.14), 0.18, 0.04, color=(0.8, 0.2, 0.15, 1), segs=16,
+                                  rot=(90, 0, 0))
+        self.mb("white").cylinder((63.5, y + 2.2, 30.17), 0.15, 0.02, color=(0.97, 0.95, 0.88, 1), segs=16,
+                                  rot=(90, 0, 0))
+        self.mb("white").box((63.5, y + 2.24, 30.185), (0.015, 0.1, 0.005), color=DARK)
+        self.mb("white").box((63.54, y + 2.2, 30.185), (0.08, 0.012, 0.005), color=DARK)
+        self.mb("white").cylinder((65.95, y, 39.45), 0.2, 0.55, color=(0.55, 0.57, 0.58, 1), segs=12, radius_top=0.22)
+        self.phys.add_circle(65.95, 39.45, 0.24, y, y + 0.6)
+
+        # ================= hall =================
+        self.mb("white").box((56, y + 0.018, 41.0), (21.0, 0.012, 1.0), color=(0.45, 0.14, 0.12, 1))
+        self.mb("white").box((56, y + 0.022, 41.0), (20.6, 0.012, 0.8), color=(0.62, 0.24, 0.18, 1))
+        self.mb("wood").box((44.45, y + 0.4, 41.0), (0.4, 0.05, 0.8))
+        for lz in (40.7, 41.3):
+            self.mb("wood").box((44.45, y + 0.19, lz), (0.05, 0.38, 0.05))
+        self.mb("white").box((44.45, y + 0.46, 41.0), (0.22, 0.08, 0.18), color=(0.1, 0.1, 0.1, 1))
+        self.mb("white").box((44.45, y + 0.53, 41.0), (0.05, 0.05, 0.22), color=(0.1, 0.1, 0.1, 1))
+        self.phys.add_box(44.1, 44.7, 40.55, 41.45, y, y + 0.6)
+        for (px, pz, face, c) in [(53.5, 40.09, "n", (0.5, 0.45, 0.4, 1)), (59.5, 40.09, "n", (0.4, 0.5, 0.45, 1)),
+                                  (51.5, 41.91, "s", (0.55, 0.45, 0.35, 1)), (60.5, 41.91, "s", (0.45, 0.42, 0.5, 1))]:
+            self._picture((px, y + 1.6, pz), (0.45, 0.35), face, color=c)
+
+        # ================= office (Chuck's den) =================
+        # pedestal desk: top, two stacks of drawers, a modesty panel
+        dx_, dz_ = 47.5, 46.6
+        f("wood", dx_, dz_, y, "s", 0, 0.74, 0, 2.4, 0.06, 1.0)
+        for s in (-1, 1):
+            f("wood", dx_, dz_, y, "s", s * 0.85, 0, 0, 0.62, 0.74, 0.92)
+            for k in range(3):
+                f("white", dx_, dz_, y, "s", s * 0.85, 0.06 + k * 0.23, -0.465, 0.56, 0.2, 0.02,
+                  color=(0.62, 0.44, 0.28, 1))
+                f("white", dx_, dz_, y, "s", s * 0.85, 0.14 + k * 0.23, -0.48, 0.14, 0.025, 0.02, color=BRASS_C)
+        f("wood", dx_, dz_, y, "s", 0, 0.25, 0.42, 1.1, 0.49, 0.03)
+        self.phys.add_box_c(dx_, dz_, 2.4, 1.0, y, y + 0.8)
+        DT = y + 0.8
+        # a beige CRT: bezel, tapered tube housing, a base; the ChuckOS screen glows
+        beige = (0.86, 0.83, 0.74, 1)
+        self.mb("white").box((dx_, DT + 0.03, 46.8), (0.34, 0.06, 0.3), color=beige)
+        self.mb("white").box((dx_, DT + 0.33, 46.74), (0.62, 0.52, 0.1), color=beige)
+        self.mb("white").box((dx_, DT + 0.32, 46.97), (0.46, 0.4, 0.36), color=(0.82, 0.79, 0.7, 1))
+        self.mb("white").box((dx_, DT + 0.3, 47.2), (0.3, 0.26, 0.14), color=(0.8, 0.77, 0.68, 1))
+        self.mb("white").box((dx_ + 0.24, DT + 0.1, 46.685), (0.04, 0.02, 0.01), color=(0.1, 0.9, 0.3, 1))
+        scr = self.sign("monitor", (dx_, DT + 0.35, 46.684), (0.5, 0.375), rot_y=0, emissive=0.9)
+        self.props["monitor_screen"] = scr
+        self.sign("sticky_password", (dx_ + 0.25, DT + 0.52, 46.683), (0.12, 0.12), rot_y=0)
         self.add_ia("computer", (47.5, y + 1.1, 46.7), 0.5, "Computer")
+        # keyboard (keys drawn on top), mouse on a mat, a mug, a banker's lamp, a stack of bills
+        self.mb("white").box((dx_ - 0.02, DT + 0.015, 46.34), (0.48, 0.03, 0.17), color=beige)
+        self.mb("keyboard").quad((dx_ - 0.02, DT + 0.032, 46.34), (0.46, 0.15), rot=(90, 0, 0))
+        self.mb("white").box((dx_ + 0.42, DT + 0.004, 46.36), (0.22, 0.008, 0.2), color=(0.15, 0.2, 0.35, 1))
+        self.mb("white").box((dx_ + 0.42, DT + 0.02, 46.36), (0.06, 0.03, 0.1), color=beige)
+        self.mb("white").cylinder((dx_ + 0.78, DT, 46.45), 0.045, 0.1, color=(0.92, 0.92, 0.9, 1), segs=10)
+        self.mb("white").cylinder((dx_ + 0.78, DT + 0.09, 46.45), 0.04, 0.005, color=(0.2, 0.12, 0.08, 1), segs=10)
+        self.mb("white").cylinder((dx_ + 0.85, DT, 46.95), 0.08, 0.03, color=BRASS_C, segs=12)
+        self.mb("white").cylinder((dx_ + 0.85, DT + 0.03, 46.95), 0.012, 0.3, color=BRASS_C, segs=6)
+        self.mb("white").cylinder((dx_ + 0.85, DT + 0.36, 46.8), 0.08, 0.34, color=(0.1, 0.45, 0.25, 1), segs=12,
+                                  rot=(90, 0, 0))
+        for k in range(4):
+            self.mb("white").box((dx_ - 0.75, DT + 0.005 + k * 0.004, 46.4), (0.22, 0.004, 0.28),
+                                 color=(0.97, 0.96, 0.92, 1), rot=(0, k * 7 - 10, 0))
+        # beige tower on the floor beside the desk (floppy slot, power light)
+        self.mb("white").box((48.95, y + 0.22, 46.75), (0.2, 0.44, 0.46), color=beige)
+        self.mb("white").box((48.95, y + 0.34, 46.515), (0.12, 0.012, 0.01), color=(0.2, 0.2, 0.2, 1))
+        self.mb("white").box((48.99, y + 0.12, 46.515), (0.02, 0.02, 0.01), color=(0.1, 0.9, 0.3, 1))
+        self.phys.add_box_c(48.95, 46.75, 0.22, 0.48, y, y + 0.45)
+        # swivel chair pulled out from the desk
+        ch_x, ch_z = 46.75, 45.55
+        for k in range(5):
+            a = k / 5 * 360
+            self.mb("white").box((ch_x + math.sin(math.radians(a)) * 0.2, y + 0.05, ch_z + math.cos(math.radians(a)) * 0.2),
+                                 (0.05, 0.04, 0.4), color=(0.15, 0.15, 0.15, 1), rot=(0, a, 0))
+        self.mb("white").cylinder((ch_x, y + 0.05, ch_z), 0.03, 0.4, color=(0.3, 0.3, 0.32, 1), segs=6)
+        self.mb("white").box((ch_x, y + 0.47, ch_z), (0.48, 0.08, 0.46), color=(0.35, 0.18, 0.12, 1))
+        self.mb("white").box((ch_x, y + 0.82, ch_z - 0.24), (0.44, 0.6, 0.08), color=(0.35, 0.18, 0.12, 1))
+        self.phys.add_circle(ch_x, ch_z, 0.28, y, y + 1.1)
         self.add_ia("desk", (46.5, y + 0.85, 46.3), 0.4, "Desk")
-        self.box("white", (44.8, y + 0.7, 43.2), (0.8, 1.4, 0.8), color=(0.5, 0.5, 0.52, 1), collide=True)
+        # filing cabinet: three drawers with handles and card slots
+        f("white", 44.8, 43.2, y, "e", 0, 0, 0, 0.8, 1.4, 0.8, color=(0.5, 0.52, 0.52, 1))
+        for k in range(3):
+            f("white", 44.8, 43.2, y, "e", 0, 0.08 + k * 0.44, -0.405, 0.72, 0.4, 0.015, color=(0.56, 0.58, 0.58, 1))
+            f("white", 44.8, 43.2, y, "e", 0, 0.3 + k * 0.44, -0.42, 0.22, 0.03, 0.02, color=(0.8, 0.8, 0.82, 1))
+            f("white", 44.8, 43.2, y, "e", 0, 0.37 + k * 0.44, -0.415, 0.12, 0.05, 0.01, color=(0.95, 0.93, 0.85, 1))
+        self.phys.add_box_c(44.8, 43.2, 0.8, 0.8, y, y + 1.4)
         self.add_ia("filing", (45.1, y + 0.9, 43.2), 0.5, "Filing cabinet")
-        # gun cabinet on the office/bedroom wall
-        self.box("wood_dark", (51.4, y + 1.1, 46.5), (0.9, 2.2, 1.6), collide=True)
-        self.mb("white").box((50.93, y + 1.2, 46.5), (0.03, 1.6, 1.2), color=(0.55, 0.7, 0.8, 1))
+        # gun cabinet: a wooden case with a glass door; Ol' Bessie stands in the rack until you take her
+        gx_, gz_ = 51.4, 46.5
+        self.mb("wood_dark").box((gx_ + 0.05, y + 1.1, gz_), (0.8, 2.2, 1.6))
+        self.mb("white").box((gx_ - 0.36, y + 1.2, gz_), (0.02, 1.8, 1.4), color=(0.18, 0.3, 0.2, 1))
+        self.mb("wood_dark").box((gx_ - 0.4, y + 2.25, gz_), (0.12, 0.1, 1.7))
+        self.mb("white").box((gx_ - 0.47, y + 1.2, gz_ + 0.55), (0.03, 0.18, 0.04), color=BRASS_C)
+        bessie = MeshBuilder()
+        bessie.box((gx_ - 0.25, y + 0.62, gz_ - 0.1), (0.06, 0.5, 0.12), color=(0.42, 0.24, 0.12, 1))
+        bessie.cylinder((gx_ - 0.25, y + 0.85, gz_ - 0.1), 0.022, 1.1, color=(0.12, 0.12, 0.13, 1), segs=6)
+        bessie.cylinder((gx_ - 0.25, y + 0.85, gz_ - 0.06), 0.022, 1.1, color=(0.12, 0.12, 0.13, 1), segs=6)
+        self.props["bessie"] = Entity(model=bessie.build(), texture=tex("white"), shader=FARM_SHADER)
+        self.entities.append(self.props["bessie"])
+        pane = MeshBuilder().box((gx_ - 0.4, y + 1.2, gz_), (0.02, 1.75, 1.35), color=(0.75, 0.88, 0.95, 0.22))
+        pane_e = Entity(model=pane.build(), texture=tex("white"), shader=FARM_SHADER)
+        pane_e.setTransparency(TransparencyAttrib.MAlpha)
+        pane_e.setDepthWrite(False)
+        no_shadow(pane_e)
+        self.entities.append(pane_e)
+        self.phys.add_box_c(gx_, gz_, 0.9, 1.6, y, y + 2.2)
         self.add_ia("gun_cabinet", (50.9, y + 1.2, 46.5), 0.7, "Gun cabinet")
-        # --- bedroom ---
-        self.box("wood", (58.5, y + 0.3, 46.2), (2.2, 0.6, 3.4), collide=True)
-        self.mb("white").box((58.5, y + 0.65, 46.0), (2.1, 0.12, 3.0), color=(0.35, 0.6, 0.35, 1))
-        self.mb("white").box((58.5, y + 0.75, 47.4), (1.6, 0.18, 0.5), color=(0.95, 0.95, 0.95, 1))
-        self.mb("wood_dark").box((58.5, y + 0.8, 47.9), (2.3, 1.6, 0.1))
+        # den walls: a corkboard of notes, a framed ribbon, and an oval braided rug
+        self.mb("white").box((51.9, y + 1.6, 43.4), (0.03, 0.7, 1.0), color=(0.66, 0.5, 0.32, 1))
+        for k, c in enumerate([(1, 0.95, 0.5, 1), (0.95, 0.95, 0.95, 1), (0.6, 0.85, 1, 1), (1, 0.7, 0.75, 1)]):
+            self.mb("white").box((51.88, y + 1.45 + (k % 2) * 0.28, 43.05 + k * 0.22), (0.01, 0.16, 0.14), color=c,
+                                 rot=(k * 6 - 8, 0, 0))
+        self._picture((44.14, y + 1.7, 44.9 - 1.6), (0.4, 0.3), "e", color=(0.2, 0.35, 0.7, 1))
+        self.mb("white").sphere((48.2, y + 0.012, 44.6), 1.0, segs=20, rings=2, scale=(1.3, 0.004, 0.8),
+                                color=(0.55, 0.3, 0.2, 1), dome=True)
+        self.mb("white").sphere((48.2, y + 0.016, 44.6), 0.8, segs=20, rings=2, scale=(1.3, 0.004, 0.8),
+                                color=(0.7, 0.55, 0.3, 1), dome=True)
+
+        # ================= bedroom =================
+        # bed: posts and panels, mattress, a patchwork quilt hanging over the sides, two pillows
+        bx2, bz2 = 58.5, 46.2
+        for (lx, lz, hgt) in ((-1.05, 1.65, 1.35), (1.05, 1.65, 1.35), (-1.05, -1.65, 0.9), (1.05, -1.65, 0.9)):
+            self.mb("wood_dark").box((bx2 + lx, y + hgt / 2, bz2 + lz), (0.1, hgt, 0.1))
+        self.mb("wood_dark").box((bx2, y + 0.85, bz2 + 1.65), (2.0, 0.7, 0.05))
+        self.mb("wood_dark").box((bx2, y + 0.55, bz2 - 1.65), (2.0, 0.4, 0.05))
+        for s in (-1, 1):
+            self.mb("wood_dark").box((bx2 + s * 1.05, y + 0.3, bz2), (0.06, 0.18, 3.2))
+        self.mb("white").box((bx2, y + 0.5, bz2), (2.0, 0.22, 3.2), color=(0.93, 0.92, 0.88, 1))
+        self.mb("quilt").box((bx2, y + 0.63, bz2 - 0.3), (2.06, 0.05, 2.6), uv_density=1.0)
+        for s in (-1, 1):
+            self.mb("quilt").box((bx2 + s * 1.035, y + 0.45, bz2 - 0.3), (0.02, 0.36, 2.6), uv_density=1.0)
+        self.mb("quilt").box((bx2, y + 0.45, bz2 - 1.605), (2.06, 0.36, 0.02), uv_density=1.0)
+        self.mb("white").box((bx2, y + 0.66, bz2 + 0.98), (2.0, 0.05, 0.25), color=(0.96, 0.95, 0.92, 1))
+        for s in (-1, 1):
+            self.mb("white").sphere((bx2 + s * 0.48, y + 0.72, bz2 + 1.35), 0.4, segs=10, rings=6,
+                                    scale=(1.0, 0.28, 0.55), color=(0.97, 0.97, 0.95, 1))
+        self.phys.add_box_c(bx2, bz2, 2.2, 3.4, y, y + 0.7)
         self.add_ia("bed_farmer", (58.5, y + 0.8, 46), 1.0, "Chuck's bed")
-        self.box("wood", (60.9, y + 0.35, 47.4), (0.6, 0.7, 0.6), collide=True)
-        self.mb("white").box((60.9, y + 0.8, 47.4), (0.25, 0.2, 0.12), color=(0.9, 0.3, 0.2, 1))
+        # nightstand with a drawer, a lamp and the alarm clock
+        f("wood", 60.9, 47.4, y, "s", 0, 0, 0, 0.6, 0.66, 0.55)
+        f("white", 60.9, 47.4, y, "s", 0, 0.42, -0.285, 0.5, 0.18, 0.02, color=(0.62, 0.44, 0.28, 1))
+        f("white", 60.9, 47.4, y, "s", 0, 0.5, -0.3, 0.1, 0.025, 0.02, color=BRASS_C)
+        fc("white", 61.05, 47.55, y, "s", 0, 0.66, 0, 0.07, 0.25, color=(0.85, 0.75, 0.55, 1), segs=10)
+        fc("white", 61.05, 47.55, y, "s", 0, 0.88, 0, 0.16, 0.18, color=(0.95, 0.9, 0.78, 1), rt=0.1, segs=12)
+        self.mb("white").box((60.82, y + 0.76, 47.35), (0.2, 0.18, 0.1), color=(0.9, 0.3, 0.2, 1))
+        self.mb("white").box((60.82, y + 0.77, 47.295), (0.14, 0.12, 0.005), color=(0.97, 0.96, 0.9, 1))
+        for s in (-1, 1):
+            self.mb("white").sphere((60.82 + s * 0.07, y + 0.87, 47.35), 0.035, color=(0.8, 0.8, 0.82, 1),
+                                    segs=8, rings=5)
+        self.phys.add_box_c(60.9, 47.4, 0.6, 0.6, y, y + 0.7)
         self.add_ia("nightstand", (60.9, y + 0.6, 47.1), 0.4, "Nightstand")
         self.add_ia("alarm_clock", (60.9, y + 0.85, 47.4), 0.2, "Alarm clock")
-        self.box("wood_dark", (52.7, y + 1.1, 46.4), (1.2, 2.2, 2.2), collide=True)
+        # wardrobe: two doors with handles, a cornice, feet
+        wdx, wdz = 52.7, 46.4
+        f("wood_dark", wdx, wdz, y, "e", 0, 0.08, 0, 2.2, 2.05, 1.2)
+        for s in (-1, 1):
+            f("white", wdx, wdz, y, "e", s * 0.53, 0.2, -0.605, 1.0, 1.8, 0.02, color=(0.36, 0.22, 0.13, 1))
+            f("white", wdx, wdz, y, "e", s * 0.08, 1.05, -0.63, 0.03, 0.22, 0.03, color=BRASS_C)
+        f("wood_dark", wdx, wdz, y, "e", 0, 2.13, 0.0, 2.3, 0.1, 1.28)
+        for lx in (-1.0, 1.0):
+            f("wood_dark", wdx, wdz, y, "e", lx, 0, -0.5, 0.1, 0.08, 0.1)
+        self.phys.add_box_c(wdx, wdz, 1.2, 2.2, y, y + 2.2)
         self.add_ia("wardrobe", (53.35, y + 1.1, 46.4), 0.8, "Wardrobe")
         self.spawns["wardrobe_hide"] = (53.9, y, 45.4, 90)
-        # --- bathroom ---
-        self.box("white", (66.8, y + 0.25, 47.1), (0.7, 0.5, 0.9), color=(0.97, 0.97, 0.97, 1), collide=True)
-        self.mb("white").box((66.8, y + 0.7, 47.5), (0.6, 0.5, 0.2), color=(0.97, 0.97, 0.97, 1))
+        # dresser with a mirror, a rag rug by the bed, slippers
+        drx, drz = 55.6, 47.6
+        f("wood", drx, drz, y, "s", 0, 0, 0, 1.2, 0.85, 0.48)
+        for k in range(3):
+            f("white", drx, drz, y, "s", 0, 0.08 + k * 0.25, -0.245, 1.08, 0.2, 0.02, color=(0.62, 0.44, 0.28, 1))
+            for s in (-1, 1):
+                f("white", drx, drz, y, "s", s * 0.3, 0.17 + k * 0.25, -0.26, 0.1, 0.025, 0.02, color=BRASS_C)
+        DRT = y + 0.85
+        self.mb("white").cylinder((drx - 0.35, DRT, drz), 0.07, 0.22, color=(0.35, 0.5, 0.7, 1), segs=10,
+                                  radius_top=0.05)
+        for k, c in enumerate([(0.95, 0.85, 0.3, 1), (0.95, 0.95, 0.95, 1), (0.85, 0.35, 0.4, 1)]):
+            self.mb("white").sphere((drx - 0.35 + (k - 1) * 0.04, DRT + 0.27, drz + (k % 2) * 0.03), 0.04, color=c,
+                                    segs=6, rings=4)
+        self.mb("white").box((drx + 0.3, DRT + 0.1, drz + 0.12), (0.18, 0.2, 0.03), color=(0.3, 0.2, 0.12, 1),
+                             rot=(10, 0, 0))
+        self._picture((58.5, y + 1.95, 47.84), (0.8, 0.55), "s", frame=(0.4, 0.28, 0.16, 1),
+                      color=(0.9, 0.86, 0.74, 1))
+        for k in range(6):
+            self.mb("white").box((58.2 + (k % 3) * 0.3, y + 1.85 + (k // 3) * 0.22, 47.812), (0.14, 0.1, 0.005),
+                                 color=[(0.75, 0.25, 0.25, 1), (0.3, 0.5, 0.3, 1), (0.3, 0.4, 0.7, 1)][k % 3])
+        self.phys.add_box_c(drx, drz, 1.2, 0.5, y, y + 0.9)
+        self.mb("white").box((56.7, y + 0.016, 45.5), (0.9, 0.012, 1.8), color=(0.45, 0.5, 0.62, 1))
+        for s in (-1, 1):
+            self.mb("white").box((57.1 + s * 0.12, y + 0.04, 44.25), (0.1, 0.05, 0.26), color=(0.55, 0.35, 0.3, 1))
+
+        # ================= bathroom =================
+        # toilet: pedestal, an oval bowl with its seat, the lid up against the tank, a flush lever, the paper
+        tlx, tlz = 66.8, 47.1
+        porc, seat = (0.97, 0.97, 0.96, 1), (0.95, 0.94, 0.9, 1)
+        self.mb("white").cylinder((tlx, y, tlz + 0.12), 0.13, 0.26, color=porc, segs=14, radius_top=0.15)
+        self.mb("white").sphere((tlx, y + 0.3, tlz + 0.05), 0.22, color=porc, segs=16, rings=8, scale=(0.95, 0.62, 1.3))
+        self.mb("white").sphere((tlx, y + 0.425, tlz + 0.05), 0.23, color=seat, segs=16, rings=6,
+                                scale=(1.0, 0.1, 1.28))
+        self.mb("white").sphere((tlx, y + 0.433, tlz + 0.05), 0.15, color=(0.55, 0.66, 0.72, 1), segs=14, rings=5,
+                                scale=(1.0, 0.1, 1.28))
+        self.mb("white").box((tlx, y + 0.58, tlz + 0.45), (0.5, 0.56, 0.2), color=porc)
+        self.mb("white").box((tlx, y + 0.875, tlz + 0.45), (0.54, 0.04, 0.24), color=seat)
+        self.mb("white").box((tlx, y + 0.44, tlz + 0.3), (0.26, 0.24, 0.12), color=porc)
+        self.mb("white").box((tlx, y + 0.7, tlz + 0.33), (0.42, 0.5, 0.03), color=seat, rot=(6, 0, 0))
+        self.mb("white").box((tlx - 0.2, y + 0.8, tlz + 0.34), (0.09, 0.02, 0.02), color=(0.8, 0.8, 0.82, 1))
+        self.phys.add_box_c(tlx, tlz + 0.25, 0.6, 1.0, y, y + 0.9)
         self.add_ia("toilet", (66.8, y + 0.5, 47.0), 0.5, "Toilet")
-        self.box("white", (63.4, y + 0.35, 46.4), (2.4, 0.7, 2.6), color=(0.95, 0.95, 0.97, 1), collide=True)
-        self.mb("white").box((63.4, y + 0.66, 46.4), (2.0, 0.05, 2.2), color=(0.7, 0.85, 0.95, 1))
-        self.add_ia("bathtub", (63.4, y + 0.8, 46.4), 1.0, "Bathtub")
-        self.mb("white").sphere((64.0, y + 0.72, 45.8), 0.08, color=(1, 0.9, 0.1, 1), segs=6, rings=4)
-        self.add_ia("duck", (64.0, y + 0.8, 45.8), 0.2, "Rubber duck")
-        self.mb("white").box((67.9, y + 1.6, 43.5), (0.05, 0.8, 0.6), color=(0.75, 0.85, 0.95, 1))
+        self.mb("white").box((66.3, y + 0.7, 47.84), (0.16, 0.02, 0.06), color=(0.8, 0.8, 0.82, 1))
+        self.mb("white").cylinder((66.24, y + 0.62, 47.78), 0.06, 0.12, color=(0.98, 0.98, 0.97, 1), segs=10,
+                                  rot=(0, 0, 90))
+        # clawfoot tub along the north wall: a round-ended tub on brass feet, a rolled rim, water with the duck
+        # floating in it, a shower curtain gathered at one end
+        tbx, tbz = 63.3, 47.3
+        enamel, rim_c = (0.96, 0.96, 0.95, 1), (0.99, 0.99, 0.98, 1)
+
+        def stadium(y0, h, half_len, r, col):
+            self.mb("white").box((tbx, y0 + h / 2, tbz), (half_len * 2, h, r * 2), color=col)
+            for sx_ in (-1, 1):
+                self.mb("white").cylinder((tbx + sx_ * half_len, y0, tbz), r, h, color=col, segs=16)
+        stadium(y + 0.13, 0.43, 0.55, 0.43, enamel)
+        stadium(y + 0.53, 0.07, 0.55, 0.46, rim_c)
+        stadium(y + 0.53, 0.075, 0.5, 0.38, (0.6, 0.78, 0.88, 1))
+        for lx in (-0.72, 0.72):
+            for lz in (-0.28, 0.28):
+                self.mb("white").cylinder((tbx + lx, y + 0.02, tbz + lz), 0.035, 0.14, color=BRASS_C, segs=6)
+                self.mb("white").sphere((tbx + lx, y + 0.035, tbz + lz), 0.055, color=BRASS_C, segs=8, rings=5)
+        chrome = (0.8, 0.8, 0.82, 1)
+        self.mb("white").cylinder((tbx - 1.0, y + 0.55, tbz), 0.025, 0.4, color=chrome, segs=8)
+        self.mb("white").box((tbx - 0.91, y + 0.93, tbz), (0.18, 0.025, 0.025), color=chrome)
+        for dz in (-0.1, 0.1):
+            self.mb("white").box((tbx - 1.0, y + 0.8, tbz + dz), (0.03, 0.03, 0.12), color=chrome)
+            self.mb("white").cylinder((tbx - 1.0, y + 0.8, tbz + dz * 1.6), 0.03, 0.06, color=chrome, segs=8)
+        self.mb("white").box((tbx, y + 2.2, tbz - 0.47), (2.0, 0.03, 0.03), color=(0.8, 0.8, 0.82, 1))
+        for k in range(7):
+            self.mb("white").box((tbx + 0.45 + k * 0.08, y + 1.47, tbz - 0.47 + (0.025 if k % 2 else -0.025)),
+                                 (0.1, 1.44, 0.02), color=(0.7, 0.85, 0.9, 1) if k % 2 else (0.62, 0.78, 0.85, 1))
+        self.mb("white").sphere((63.7, y + 0.62, 47.25), 0.07, color=(1, 0.9, 0.1, 1), segs=8, rings=6,
+                                scale=(1.2, 0.8, 1))
+        self.mb("white").sphere((63.77, y + 0.7, 47.25), 0.045, color=(1, 0.9, 0.1, 1), segs=8, rings=5)
+        self.mb("white").box((63.82, y + 0.695, 47.25), (0.04, 0.015, 0.03), color=(1, 0.55, 0.1, 1))
+        self.phys.add_box_c(tbx, tbz, 2.05, 0.95, y, y + 0.62)
+        self.add_ia("bathtub", (63.3, y + 0.6, 47.3), 0.9, "Bathtub")
+        self.add_ia("duck", (63.7, y + 0.62, 47.25), 0.2, "Rubber duck")
+        self.mb("white").box((63.4, y + 0.015, 46.5), (1.0, 0.012, 0.55), color=(0.4, 0.6, 0.8, 1))
+        # pedestal sink under the mirror, a towel on a rail
+        self.mb("white").cylinder((67.55, y, 43.5), 0.09, 0.72, color=(0.97, 0.97, 0.97, 1), segs=10, radius_top=0.07)
+        self.mb("white").box((67.55, y + 0.8, 43.5), (0.5, 0.16, 0.6), color=(0.97, 0.97, 0.97, 1))
+        self.mb("white").box((67.5, y + 0.885, 43.5), (0.36, 0.01, 0.44), color=(0.85, 0.88, 0.9, 1))
+        self.mb("white").cylinder((67.8, y + 0.88, 43.5), 0.02, 0.18, color=(0.8, 0.8, 0.82, 1), segs=8)
+        self.phys.add_box(67.25, 67.85, 43.2, 43.8, y, y + 0.9)
+        self.mb("white").box((67.85, y + 1.65, 43.5), (0.04, 0.84, 0.64), color=(0.8, 0.68, 0.45, 1))
+        self.mb("white").box((67.825, y + 1.65, 43.5), (0.02, 0.76, 0.56), color=(0.75, 0.85, 0.92, 1))
+        self.mb("white").box((67.78, y + 1.18, 43.5), (0.12, 0.02, 0.6), color=(0.97, 0.97, 0.97, 1))
+        self.mb("white").cylinder((67.78, y + 1.19, 43.35), 0.03, 0.1, color=(0.3, 0.6, 0.9, 1), segs=8)
+        self.mb("white").cylinder((67.78, y + 1.19, 43.62), 0.025, 0.14, color=(0.95, 0.95, 0.95, 1), segs=8)
         self.add_ia("mirror", (67.8, y + 1.6, 43.5), 0.4, "Mirror")
+        self.mb("white").box((66.3, y + 1.3, 42.16), (0.6, 0.03, 0.03), color=(0.8, 0.8, 0.82, 1))
+        for dx in (-0.28, 0.28):
+            self.mb("white").box((66.3 + dx, y + 1.3, 42.12), (0.03, 0.03, 0.08), color=(0.8, 0.8, 0.82, 1))
+        self.mb("white").box((66.3, y + 1.08, 42.19), (0.45, 0.46, 0.04), color=(0.3, 0.5, 0.75, 1))
+        self.mb("white").box((66.3, y + 0.9, 42.215), (0.45, 0.04, 0.005), color=(0.9, 0.9, 0.95, 1))
+
         # lamps inside (on when Chuck is home at night)
-        self.lamp("house_living", (50, y + 2.8, 35), radius=9, intensity=1.0, on=False)
-        self.lamp("house_kitchen", (62, y + 2.8, 35), radius=9, intensity=1.0, on=False)
-        self.lamp("house_hall", (56, y + 2.8, 41), radius=7, intensity=0.8, on=False)
-        self.lamp("house_office", (48, y + 2.8, 45), radius=6, intensity=0.9, on=False)
-        self.lamp("house_bed", (57, y + 2.8, 45), radius=6, intensity=0.9, on=False)
-        self.lamp("house_bath", (65, y + 2.8, 45), radius=5, intensity=0.9, on=False)
-        self.lamp("porch", (56, y + 2.6, 28.5), radius=9, intensity=1.1, on=False, hang_to=y + 2.85)
+        ceil = dict(on=False, shade=True, hang_to=y + H)
+        self.lamp("house_living", (50, y + 2.72, 35), radius=9, intensity=1.0, **ceil)
+        self.lamp("house_kitchen", (62, y + 2.72, 35), radius=9, intensity=1.0, **ceil)
+        self.lamp("house_hall", (56, y + 2.72, 41), radius=7, intensity=0.8, **ceil)
+        self.lamp("house_office", (48, y + 2.72, 45), radius=6, intensity=0.9, **ceil)
+        self.lamp("house_bed", (57, y + 2.72, 45), radius=6, intensity=0.9, **ceil)
+        self.lamp("house_bath", (65, y + 2.72, 45), radius=5, intensity=0.9, **ceil)
+        self.lamp("porch", (56, y + 2.35, 28.5), radius=9, intensity=1.1, on=False, hang_to=y + 2.6)
         self.spawns["house_front"] = (56, 0, 24, 0)
         self.spawns["house_in"] = (56, y, 32, 0)
 
@@ -1282,8 +1939,11 @@ class World:
         self.add_ia("tractor", (22, 1.4, 1.5), 1.6, "Tractor", reach=3.0,
                     follow=lambda: (self.tractor.x, 1.4, self.tractor.z))
         # wind chimes on the porch
-        self.chimes = models.item_model("chimes", position=(58.5, HOUSE_Y + 2.4, 27.2))
-        self.add_ia("chimes", (58.5, HOUSE_Y + 2.3, 27.2), 0.4, "Wind chimes", reach=3.2)
+        self.chimes = models.item_model("chimes", position=(58.5, HOUSE_Y + 2.25, 27.2))
+        # a string up to the underside of the porch roof (which is at about y + 2.48 here)
+        cord = MeshBuilder().cylinder((0, 0.12, 0), 0.006, 0.13, color=(0.85, 0.82, 0.75, 1), segs=4)
+        Entity(parent=self.chimes, model=cord.build(), texture=tex("white"), shader=FARM_SHADER)
+        self.add_ia("chimes", (58.5, HOUSE_Y + 2.15, 27.2), 0.4, "Wind chimes", reach=3.2)
         # clover spots (placement decided by the game)
         self.clover_spots = [
             (-76, 0.25, -73), (-60, 0.25, 1.5), (-20.5, 0.25, -73), (-44, 0.25, -59),   # pasture (one in the pond)
@@ -1291,7 +1951,7 @@ class World:
             (33, LOFT_Y + 0.3, 13.2), (11, 0.25, 13), (45.5, 0.25, 8),                  # barn / silo
             (51, 0.25, -47), (46.5, 0.25, -26),                                          # coop
             (77, 0.25, -34), (60, 0.25, -52),                                            # processing
-            (45, HOUSE_Y + 0.25, 31), (67, HOUSE_Y + 0.25, 47.6), (40, 0.25, 34.2),      # house
+            (44.6, HOUSE_Y + 0.25, 32.4), (67.4, HOUSE_Y + 0.25, 45.8), (40, 0.25, 34.2),  # house
             (78, 0.25, 84), (-78, 0.25, 84), (5, 0.25, 84),                              # far corners
             (-40, 0.25, 30),
         ]

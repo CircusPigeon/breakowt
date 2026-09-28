@@ -37,7 +37,7 @@ python main.py --debug    # F5 skip step, F6 next day, F7 teleport to objective,
 ```
 
 Controls: WASD walk, mouse look, Shift gallop, C/Ctrl sneak, Space hop, E interact, left click headbutt,
-right click kick, R throw, Q use selected item, M moo, 1-9 / scroll wheel pick item, Tab/J journal + map,
+right click kick, R throw, Q use selected item, M moo, 1-9 / scroll wheel pick item (press its number again to put it away), Tab/J journal + map,
 H hint, Esc pause, F11 fullscreen, F12 screenshot. In the tractor: W/S throttle, A/D steer.
 
 Settings (title screen or pause menu) has volume sliders, mouse sensitivity, invert Y, fullscreen and
@@ -67,6 +67,10 @@ Graphics: Low / Medium (default) / High.
   (`apply_world_flags` in `days.py`).
 - `days.py`: the seven days as generators, plus the in-game documents and idle chatter.
 - `world.py`: terrain, buildings, props, colliders, zones, nav graph (`build_nav`, `find_path`).
+  The farmhouse (`build_house`) is furnished room by room with small helpers (`_fbox`/`_fcyl` place parts
+  in a piece of furniture's own frame, plus `_picture`, `_curtains`, `_baseboard`, `_chair`). MeshBuilder
+  `rot=(a, 0, 0)` with a positive `a` tips the top of an upright part towards +z. Grass and flowers skip
+  the footprints in `World.ROOFED`. The moo-hole's bottom wire is its own entity (`set_moohole_wire`).
 - `player.py`, `farmer.py`, `npc.py`, `combat.py`, `vehicle.py`, `models.py`, `ui.py`, `items.py`.
 - `engine/`: `shading.py` (GLSL, shadows, time of day), `postfx.py`, `gpuprobe.py`, `meshbuilder.py`, `physics.py`, `audio.py`, `script.py`, `assets.py`, `boot.py`.
 

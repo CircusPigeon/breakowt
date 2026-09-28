@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-TEX_VERSION = "10"
+TEX_VERSION = "13"
 _rng = np.random.default_rng(1987)
 
 FONT_DIRS = [r"C:\Windows\Fonts", "/usr/share/fonts/truetype/dejavu", "/Library/Fonts"]
@@ -614,23 +614,293 @@ def tex_photo_earl():
     return img
 
 
-def tex_tv():
-    img = Image.new("RGB", (320, 240), (20, 20, 30))
+# ---------------------------------------------------------------------------
+# Chuck's house: one finish per room, fabrics, screens
+# ---------------------------------------------------------------------------
+
+def _noise_img(c0, c1, beta=2.0, seed=None, size=256):
+    return to_img(colorize(tile_noise(size, beta, seed=seed), c0, c1))
+
+
+def tex_wall_living():
+    """Warm cream with narrow tan pinstripes: the living room and hall."""
+    img = _noise_img((226, 212, 180), (236, 224, 196), 1.6, seed=31)
     d = ImageDraw.Draw(img)
-    d.rectangle([0, 0, 320, 240], fill=(200, 120, 60))
-    d.ellipse([90, 60, 230, 170], fill=(120, 50, 30), outline=(60, 20, 10), width=4)
-    centered(d, (0, 180, 320, 235), "BEEF TONIGHT!", font(IMPACT, 40), (255, 250, 220))
-    centered(d, (0, 10, 320, 50), "Channel 4 \u00b7 Cooking with Carl", font(BOLD, 18), (255, 250, 220))
+    for x in range(0, 256, 32):
+        d.line([(x + 4, 0), (x + 4, 256)], fill=(196, 172, 128), width=2)
+        d.line([(x + 9, 0), (x + 9, 256)], fill=(208, 188, 148), width=1)
     return img
+
+
+def tex_wall_kitchen():
+    """Buttery yellow paint over plaster."""
+    return _noise_img((236, 214, 150), (246, 228, 170), 2.4, seed=32)
+
+
+def tex_wall_bath():
+    """Pale mint gloss paint (the tiles go halfway up)."""
+    return _noise_img((200, 224, 212), (214, 236, 224), 2.4, seed=36)
+
+
+def tex_wall_office():
+    """Knotty pine panelling, the kind every den had."""
+    n = tile_noise(256, 3.0, seed=33)
+    img = to_img(colorize(n, (150, 104, 62), (178, 128, 80)))
+    d = ImageDraw.Draw(img)
+    for x in range(0, 256, 42):
+        d.line([(x, 0), (x, 256)], fill=(96, 62, 36), width=3)
+        d.line([(x + 3, 0), (x + 3, 256)], fill=(190, 140, 92), width=1)
+    rng = np.random.default_rng(34)
+    for _ in range(9):
+        cx, cy = int(rng.uniform(0, 256)), int(rng.uniform(0, 256))
+        d.ellipse([cx - 5, cy - 3, cx + 5, cy + 3], fill=(110, 70, 40))
+    return img
+
+
+def tex_wall_bedroom():
+    """Dusty blue with a thin white stripe."""
+    img = _noise_img((150, 170, 186), (162, 182, 198), 1.8, seed=35)
+    d = ImageDraw.Draw(img)
+    for x in range(0, 256, 64):
+        d.line([(x + 20, 0), (x + 20, 256)], fill=(214, 222, 228), width=3)
+    return img
+
+
+def tex_tiles_kitchen():
+    """Cream and terracotta squares with soft grout."""
+    size = 256
+    img = Image.new("RGB", (size, size), (220, 206, 186))
+    d = ImageDraw.Draw(img)
+    s = 64
+    for x in range(4):
+        for y in range(4):
+            c = (184, 102, 70) if (x + y) % 2 else (232, 220, 196)
+            d.rectangle([x * s + 2, y * s + 2, x * s + s - 2, y * s + s - 2], fill=c)
+    return img.filter(ImageFilter.GaussianBlur(0.6))
+
+
+def tex_tiles_bath():
+    """Small white wall-and-floor tiles, a few pale blue ones."""
+    size = 256
+    img = Image.new("RGB", (size, size), (176, 180, 184))
+    d = ImageDraw.Draw(img)
+    s = 32
+    rng = np.random.default_rng(36)
+    for x in range(8):
+        for y in range(8):
+            c = (170, 205, 225) if rng.random() < 0.12 else (238, 240, 240)
+            d.rectangle([x * s + 1, y * s + 1, x * s + s - 2, y * s + s - 2], fill=c)
+    return img
+
+
+def tex_carpet_house():
+    """Oatmeal carpet (it used to be grass green, which looked like a lawn indoors)."""
+    return _noise_img((168, 146, 116), (186, 164, 132), 0.6, seed=37)
+
+
+def tex_quilt():
+    """Patchwork quilt with stitched seams."""
+    size = 256
+    img = Image.new("RGB", (size, size), (230, 220, 200))
+    d = ImageDraw.Draw(img)
+    cols = [(170, 60, 55), (60, 90, 140), (228, 214, 186), (90, 120, 70), (200, 150, 70), (130, 70, 90)]
+    rng = np.random.default_rng(38)
+    s = 64
+    for x in range(4):
+        for y in range(4):
+            c = cols[int(rng.integers(0, len(cols)))]
+            d.rectangle([x * s, y * s, x * s + s, y * s + s], fill=c)
+            if (x + y) % 2:
+                d.polygon([(x * s, y * s), (x * s + s, y * s), (x * s, y * s + s)],
+                          fill=tuple(min(255, v + 25) for v in c))
+    for i in range(0, size, s):
+        for k in range(0, size, 8):
+            d.line([(i + 1, k), (i + 1, k + 4)], fill=(245, 240, 225), width=1)
+            d.line([(k, i + 1), (k + 4, i + 1)], fill=(245, 240, 225), width=1)
+    return img
+
+
+def tex_upholstery():
+    """A mustard corduroy for the sofa and armchair."""
+    n = tile_noise(256, 1.2, seed=39)
+    a = colorize(n, (150, 112, 40), (170, 130, 52))
+    a[:, ::4, :] *= 0.86                      # the cords
+    return to_img(a)
+
+
+def tex_books():
+    """Rows of book spines for the shelves."""
+    img = Image.new("RGB", (256, 256), (60, 40, 25))
+    d = ImageDraw.Draw(img)
+    rng = np.random.default_rng(40)
+    cols = [(120, 30, 30), (30, 60, 110), (40, 90, 50), (150, 120, 60), (90, 60, 100), (180, 160, 120), (60, 50, 40)]
+    for row in range(4):
+        y0, y1 = row * 64 + 6, row * 64 + 62
+        x = 0
+        while x < 256:
+            w = int(rng.integers(8, 18))
+            top = y0 + int(rng.integers(0, 12))
+            c = cols[int(rng.integers(0, len(cols)))]
+            d.rectangle([x, top, x + w - 1, y1], fill=c)
+            d.line([(x + 2, top + 8), (x + w - 3, top + 8)], fill=(220, 200, 140), width=1)
+            d.line([(x + 2, y1 - 10), (x + w - 3, y1 - 10)], fill=(220, 200, 140), width=1)
+            x += w + 1
+    return img
+
+
+def tex_keyboard():
+    """A beige keyboard seen from above."""
+    img = Image.new("RGB", (512, 160), (206, 198, 176))
+    d = ImageDraw.Draw(img)
+    for r in range(5):
+        y = 12 + r * 28
+        x = 12 + (r % 2) * 8
+        while x < 380:
+            w = 26 if not (r == 4 and 120 < x < 260) else 150
+            d.rounded_rectangle([x, y, x + w - 3, y + 24], radius=3, fill=(232, 226, 208), outline=(160, 152, 132))
+            x += w
+    for r in range(4):
+        for c in range(4):
+            x, y = 400 + c * 27, 12 + r * 28
+            d.rounded_rectangle([x, y, x + 24, y + 24], radius=3, fill=(232, 226, 208), outline=(160, 152, 132))
+    return img
+
+
+def tex_painting_barn():
+    """A little oil painting of a red barn under a big sky (Chuck's mother painted it)."""
+    img = Image.new("RGB", (256, 192), (120, 170, 210))
+    d = ImageDraw.Draw(img)
+    for y in range(0, 110):
+        k = y / 110
+        d.line([(0, y), (256, y)], fill=(int(110 + 90 * k), int(160 + 60 * k), int(210 + 20 * k)))
+    d.ellipse([190, 20, 226, 56], fill=(250, 230, 160))
+    d.polygon([(0, 120), (60, 92), (130, 112), (200, 90), (256, 108), (256, 192), (0, 192)], fill=(92, 140, 70))
+    d.polygon([(0, 150), (256, 132), (256, 192), (0, 192)], fill=(110, 158, 78))
+    d.rectangle([70, 100, 130, 150], fill=(160, 40, 35))
+    d.polygon([(64, 102), (100, 76), (136, 102)], fill=(90, 40, 35))
+    d.rectangle([92, 122, 108, 150], fill=(230, 220, 200))
+    d.rectangle([150, 112, 162, 150], fill=(200, 200, 205))
+    d.ellipse([150, 104, 162, 116], fill=(200, 200, 205))
+    return img.filter(ImageFilter.GaussianBlur(0.8))
+
+
+def _crt(img):
+    """Scanlines, a soft glow and a darker rim: an old tube screen."""
+    a = np.asarray(img).astype(float)
+    a[::3, :, :] *= 0.82
+    h, w = a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    r = np.sqrt(((xx - w / 2) / (w / 2)) ** 2 + ((yy - h / 2) / (h / 2)) ** 2)
+    a *= np.clip(1.15 - 0.35 * r ** 2, 0.55, 1.0)[..., None]
+    return to_img(a).filter(ImageFilter.GaussianBlur(0.7))
+
+
+def tex_tv():
+    """Channel 4's cooking show: Carl, a grill, a steak, and a caption nobody here wants to read."""
+    img = Image.new("RGB", (512, 384), (70, 50, 40))
+    d = ImageDraw.Draw(img)
+    # studio: warm back wall with a window flat, a counter, a grill
+    d.rectangle([0, 0, 512, 250], fill=(176, 120, 76))
+    d.rectangle([40, 30, 190, 150], fill=(150, 200, 230), outline=(250, 240, 220), width=6)
+    d.line([(115, 30), (115, 150)], fill=(250, 240, 220), width=5)
+    d.line([(40, 90), (190, 90)], fill=(250, 240, 220), width=5)
+    d.rectangle([0, 250, 512, 384], fill=(96, 70, 50))
+    d.rectangle([0, 238, 512, 262], fill=(220, 214, 200))
+    # Carl: chef's whites, a tall hat, a very big grin
+    d.rectangle([300, 120, 400, 250], fill=(245, 245, 240))
+    d.ellipse([318, 60, 382, 124], fill=(236, 190, 160))
+    d.rectangle([322, 12, 378, 66], fill=(250, 250, 250))
+    d.ellipse([314, 0, 386, 36], fill=(250, 250, 250))
+    d.ellipse([332, 84, 342, 94], fill=(40, 30, 30))
+    d.ellipse([358, 84, 368, 94], fill=(40, 30, 30))
+    d.arc([334, 92, 366, 116], 10, 170, fill=(120, 40, 40), width=4)
+    d.line([(400, 150), (450, 110)], fill=(245, 245, 240), width=16)
+    d.line([(446, 112), (470, 70)], fill=(160, 160, 170), width=5)                 # the tongs
+    # the grill and the steak
+    d.rectangle([180, 196, 330, 244], fill=(40, 40, 42))
+    for x in range(186, 326, 12):
+        d.line([(x, 196), (x, 208)], fill=(90, 90, 95), width=3)
+    d.ellipse([210, 176, 300, 212], fill=(120, 50, 36), outline=(70, 26, 20), width=3)
+    for k in range(3):
+        d.line([(222 + k * 22, 184), (238 + k * 22, 204)], fill=(60, 24, 18), width=3)
+    # lower third caption and the channel bug
+    d.rectangle([0, 292, 512, 356], fill=(180, 30, 30))
+    d.rectangle([0, 292, 512, 298], fill=(250, 210, 80))
+    centered(d, (0, 298, 512, 356), "BEEF TONIGHT!", font(IMPACT, 44), (255, 250, 230))
+    d.ellipse([446, 16, 494, 64], fill=(250, 250, 250))
+    centered(d, (446, 16, 494, 64), "4", font(IMPACT, 34), (180, 30, 30))
+    centered(d, (0, 356, 512, 384), "Cooking with Carl  ·  weeknights at 6", font(BOLD, 18), (240, 230, 210))
+    return _crt(img)
+
+
+def _os_frame(title):
+    """A ChuckOS 95 desktop with one window open; returns (img, draw, window box)."""
+    img = Image.new("RGB", (512, 384), (32, 120, 120))
+    d = ImageDraw.Draw(img)
+    # desktop icons
+    for i, label in enumerate(["My Cows", "Taxes", "Solitaire"]):
+        y = 16 + i * 64
+        d.rectangle([18, y, 50, y + 30], fill=(240, 230, 150), outline=(20, 20, 20))
+        centered(d, (0, y + 32, 70, y + 50), label, font(BOLD, 11), (255, 255, 255))
+    # taskbar
+    d.rectangle([0, 352, 512, 384], fill=(192, 192, 192))
+    d.line([(0, 353), (512, 353)], fill=(255, 255, 255), width=2)
+    d.rectangle([4, 357, 74, 380], fill=(200, 200, 200), outline=(40, 40, 40))
+    centered(d, (4, 357, 74, 380), "Start", font(BOLD, 14), (10, 10, 10))
+    d.rectangle([440, 357, 508, 380], fill=(200, 200, 200), outline=(128, 128, 128))
+    centered(d, (440, 357, 508, 380), "4:52 PM", font(BOLD, 12), (10, 10, 10))
+    # the window
+    box = (96, 52, 480, 330)
+    d.rectangle(box, fill=(212, 208, 200), outline=(20, 20, 20), width=2)
+    d.rectangle([box[0] + 3, box[1] + 3, box[2] - 3, box[1] + 26], fill=(20, 40, 140))
+    d.text((box[0] + 10, box[1] + 6), title, font=font(BOLD, 14), fill=(255, 255, 255))
+    for i, c in enumerate("_□x"):
+        x = box[2] - 70 + i * 22
+        d.rectangle([x, box[1] + 6, x + 18, box[1] + 23], fill=(200, 200, 200), outline=(40, 40, 40))
+    return img, d, box
 
 
 def tex_monitor_login():
-    img = Image.new("RGB", (400, 300), (40, 90, 160))
-    d = ImageDraw.Draw(img)
-    centered(d, (0, 40, 400, 110), "ChuckOS 95", font(IMPACT, 44), (255, 255, 255))
-    d.rectangle([80, 150, 320, 185], fill=(255, 255, 255), outline=(10, 10, 10), width=2)
-    centered(d, (0, 190, 400, 230), "Password:", font(BOLD, 20), (230, 230, 230))
-    return img
+    img, d, (x0, y0, x1, y1) = _os_frame("Welcome to ChuckOS 95")
+    smiling_cow(d, x0 + 64, y0 + 110, 34, wink=False)
+    d.text((x0 + 120, y0 + 50), "Type your password to", font=font(BOLD, 15), fill=(20, 20, 20))
+    d.text((x0 + 120, y0 + 70), "log on to ChuckOS.", font=font(BOLD, 15), fill=(20, 20, 20))
+    d.text((x0 + 120, y0 + 112), "User name:", font=font(BOLD, 14), fill=(20, 20, 20))
+    d.rectangle([x0 + 210, y0 + 108, x1 - 20, y0 + 130], fill=(255, 255, 255), outline=(60, 60, 60))
+    d.text((x0 + 216, y0 + 111), "CHUCK", font=font(BOLD, 14), fill=(10, 10, 10))
+    d.text((x0 + 120, y0 + 146), "Password:", font=font(BOLD, 14), fill=(20, 20, 20))
+    d.rectangle([x0 + 210, y0 + 142, x1 - 20, y0 + 164], fill=(255, 255, 255), outline=(60, 60, 60))
+    d.line([(x0 + 216, y0 + 146), (x0 + 216, y0 + 160)], fill=(10, 10, 10), width=2)
+    for i, label in enumerate(["OK", "Cancel"]):
+        bx = x0 + 150 + i * 100
+        d.rectangle([bx, y0 + 200, bx + 84, y0 + 228], fill=(212, 208, 200), outline=(20, 20, 20), width=2)
+        centered(d, (bx, y0 + 200, bx + 84, y0 + 228), label, font(BOLD, 14), (10, 10, 10))
+    d.text((x0 + 20, y0 + 244), "Hint: my best friend (NOT Dale)", font=font(BOLD, 12), fill=(90, 20, 20))
+    return _crt(img)
+
+
+def tex_monitor_inbox():
+    img, d, (x0, y0, x1, y1) = _os_frame("ChuckOS Mail - Inbox (3)")
+    rows = [("Dale", "RE: sunday!!!"), ("Happy Acres Processing", "RE: Pickup confirmation"), ("Mom", "(no subject)")]
+    d.rectangle([x0 + 8, y0 + 34, x1 - 8, y0 + 56], fill=(180, 176, 168))
+    d.text((x0 + 14, y0 + 38), "From", font=font(BOLD, 13), fill=(10, 10, 10))
+    d.text((x0 + 240, y0 + 38), "Subject", font=font(BOLD, 13), fill=(10, 10, 10))
+    for i, (who, subj) in enumerate(rows):
+        y = y0 + 60 + i * 30
+        if i == 0:
+            d.rectangle([x0 + 8, y - 2, x1 - 8, y + 24], fill=(20, 40, 140))
+        col = (255, 255, 255) if i == 0 else (10, 10, 10)
+        d.text((x0 + 14, y + 3), who, font=font(BOLD, 13), fill=col)
+        f13 = font(BOLD, 13)
+        room = x1 - 14 - (x0 + 240)
+        while f13.getlength(subj) > room and len(subj) > 4:
+            subj = subj[:-2].rstrip() + "…"
+        d.text((x0 + 240, y + 3), subj, font=f13, fill=col)
+    d.rectangle([x0 + 8, y0 + 160, x1 - 8, y1 - 10], fill=(255, 255, 255), outline=(90, 90, 90))
+    for i, line in enumerate(["Chuck buddy. Can't wait for Sunday.", "I'm bringing the good potato salad.",
+                              "Re: the other thing. We're agreed..."]):
+        d.text((x0 + 16, y0 + 168 + i * 20), line, font=font(BOLD, 13), fill=(20, 20, 20))
+    return _crt(img)
 
 
 def tex_calendar():
@@ -1039,7 +1309,12 @@ def all_textures():
         "sticky_mat": lambda: tex_sticky("Spare key is\nunder the\nFLOWERPOT", (200, 240, 255)),
         "sticky_pot": lambda: tex_sticky("Moved it.\nSpare key is in\nthe GNOME.\n-Chuck", (200, 255, 200)),
         "trophy_plaque": tex_trophy_plaque, "poster_employee": tex_poster_employee, "photo_earl": tex_photo_earl,
-        "tv": tex_tv, "monitor": tex_monitor_login, "calendar": tex_calendar, "cookbook": tex_cookbook,
+        "tv": tex_tv, "monitor": tex_monitor_login, "monitor_inbox": tex_monitor_inbox, "calendar": tex_calendar,
+        "cookbook": tex_cookbook, "wall_living": tex_wall_living, "wall_kitchen": tex_wall_kitchen,
+        "wall_office": tex_wall_office, "wall_bedroom": tex_wall_bedroom, "tiles_kitchen": tex_tiles_kitchen,
+        "tiles_bath": tex_tiles_bath, "wall_bath": tex_wall_bath, "carpet_house": tex_carpet_house, "quilt": tex_quilt,
+        "upholstery": tex_upholstery, "books": tex_books, "keyboard": tex_keyboard,
+        "painting_barn": tex_painting_barn,
         "welcome_mat": tex_welcome_mat, "window": tex_window, "road_sign": tex_road_sign_steak, "atlas": tex_atlas,
     }
     for name, fn in ICONS.items():

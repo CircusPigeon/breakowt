@@ -679,12 +679,18 @@ def item_model(name, parent=None, **kw):
     elif name == "bucket":
         mb.cylinder((0, -0.15, 0), 0.15, 0.3, color=METAL, segs=12, radius_top=0.18)
     elif name == "boot":
-        mb.box((0, 0.1, 0), (0.14, 0.4, 0.16), color=(0.2, 0.45, 0.22, 1), uv_rect=WHITE)
-        mb.box((0, -0.06, 0.08), (0.14, 0.1, 0.3), color=(0.2, 0.45, 0.22, 1), uv_rect=WHITE)
+        # a green wellington: shaft with a lighter rolled top and a dark opening, foot, rounded toe, thick sole
+        G = (0.2, 0.45, 0.22, 1)
+        mb.box((0, -0.095, 0.075), (0.15, 0.03, 0.34), color=(0.12, 0.1, 0.08, 1), uv_rect=WHITE)
+        mb.box((0, -0.04, 0.05), (0.14, 0.09, 0.24), color=G, uv_rect=WHITE)
+        mb.sphere((0, -0.06, 0.17), 0.072, color=G, segs=10, rings=6, scale=(1, 0.75, 1.1))
+        mb.box((0, 0.1, 0), (0.14, 0.36, 0.16), color=G, uv_rect=WHITE)
+        mb.box((0, 0.29, 0), (0.155, 0.04, 0.175), color=(0.3, 0.56, 0.3, 1), uv_rect=WHITE)
+        mb.box((0, 0.3, 0), (0.11, 0.023, 0.13), color=(0.05, 0.07, 0.05, 1), uv_rect=WHITE)
     elif name == "rubber_chicken":
         Yl = (0.98, 0.85, 0.2, 1)
         mb.sphere((0, 0, 0), 0.1, color=Yl, segs=8, rings=6, scale=(1, 0.8, 1.4))
-        mb.box((0, 0.1, 0.16), (0.04, 0.2, 0.04), color=Yl, uv_rect=WHITE, rot=(-30, 0, 0))
+        mb.box((0, 0.1, 0.16), (0.04, 0.2, 0.04), color=Yl, uv_rect=WHITE, rot=(30, 0, 0))
         mb.sphere((0, 0.2, 0.22), 0.05, color=Yl, segs=6, rings=4)
         mb.box((0, 0.26, 0.22), (0.02, 0.04, 0.06), color=RED, uv_rect=WHITE)
     elif name == "shotgun":

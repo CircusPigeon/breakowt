@@ -121,6 +121,7 @@ class DayScripts:
             f["sparkplug_in"] = True
             f["planks_laid"] = 3
             f["herd_rallied"] = True
+            f["cabinet_open"] = True
             give("shotgun")
         g.refresh_hotbar()
 
@@ -142,12 +143,14 @@ class DayScripts:
         mh = bool(fl.get("moohole_open"))
         w.colliders["moohole"].enabled = not mh
         if mh:
-            self.prop("moohole_boot", models.item_model(
-                "boot" if fl.get("moohole_item", "boot") == "boot" else "rubber_chicken",
-                position=(MOOHOLE_POS[0], 0.55, MOOHOLE_POS[1]), rotation=(0, 0, 90), scale=1.2))
+            self.moohole_prop(fl.get("moohole_item", "boot"))
+        else:
+            w.set_moohole_wire(None)
         self.lay_planks(fl.get("planks_laid", 0))
         self.place_tractor(22, 1, 180)
         w.gnome.rotation = (0, 200, 0) if not fl.get("gnome_broken") else (80, 200, 0)
+        w.props["bessie"].enabled = not (fl.get("cabinet_open") or g.inv.has("shotgun"))
+        w.props["monitor_screen"].texture = tex("monitor_inbox" if fl.get("emails_read") else "monitor")
         w.chain.enabled = True
         w.pickup.position = (74, 0, 36)
         w.pickup.rotation = (0, 180, 0)
@@ -1370,8 +1373,7 @@ class DayScripts:
             self.setf("moohole_open")
             self.setf("moohole_item", item)
             gg.world.colliders["moohole"].enabled = False
-            self.prop("moohole_boot", models.item_model(item, position=(MOOHOLE_POS[0], 0.55, MOOHOLE_POS[1]),
-                                                        rotation=(0, 0, 90), scale=1.2))
+            self.moohole_prop(item)
             gg.audio.play("zap", vol=0.3, pitch=1.5)
             gg.ui.popup_sub("You wedge it under the bottom wire and push. The wire lifts. There's a gap now. "
                             "A cow-sized gap.", 5)
@@ -1381,6 +1383,20 @@ class DayScripts:
         g.complete("rubber")
         yield lambda: done["d"]
         g.complete("hole")
+
+    def moohole_prop(self, item):
+        """Stand the boot (or the rubber chicken) up under the sagging wire and hang the wire over it."""
+        if item == "boot":
+            e = models.item_model("boot", position=(MOOHOLE_POS[0], 0.165, MOOHOLE_POS[1]), rotation=(0, -90, 0),
+                                  scale=1.5)
+            top = 0.165 + 0.3115 * 1.5
+        else:
+            # standing on its belly along the fence, head up under the wire
+            e = models.item_model("rubber_chicken", position=(MOOHOLE_POS[0], 0.12, MOOHOLE_POS[1] - 0.33),
+                                  scale=1.5)
+            top = 0.12 + 0.28 * 1.5
+        self.prop("moohole_boot", e)
+        self.g.world.set_moohole_wire(top + 0.013)
 
     def d3_barn(self):
         g = self.g
@@ -2212,6 +2228,7 @@ class DayScripts:
                                                                 "on the desk.")
             if not ok:
                 return
+            gg.world.props["monitor_screen"].texture = tex("monitor_inbox")
             yield from gg.show_document("ChuckOS Mail: Inbox (3)", EMAILS, paper=False)
             yield from gg.show_document("COWS.XLS", SPREADSHEET, paper=False)
             r = yield from gg.say("you", "Moo. (All of them. He's selling every last one of them to Dale.)",
@@ -2618,6 +2635,7 @@ class DayScripts:
         def cabinet(gg):
             gg.inv.remove("cabinet_key")
             self.setf("cabinet_open")
+            gg.world.props["bessie"].enabled = False
             gg.audio.play("chain", vol=0.3, pitch=1.4, pos=(50.9, 1, 46.5), rng=15)
             gg.inv.add("shotgun")
             gg.complete("gun")

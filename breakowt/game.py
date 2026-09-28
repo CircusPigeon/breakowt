@@ -1137,11 +1137,7 @@ class Game(Entity):
         elif key == "h":
             self.show_hint()
         elif key in "123456789" and len(key) == 1:
-            keys = self.inv.hotbar_keys()
-            i = int(key) - 1
-            if i < len(keys):
-                self.inv.sel = i
-                self.refresh_hotbar()
+            self.inv.press_slot(int(key) - 1)
         elif key == "scroll up":
             self.inv.cycle(-1)
         elif key == "scroll down":

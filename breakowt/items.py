@@ -39,7 +39,7 @@ class Inventory:
         self.g = g
         self.items: dict[str, int] = {}
         self.order: list[str] = []
-        self.sel = 0
+        self.sel = 0        # hotbar slot in hand; -1 = nothing (press the selected number again)
 
     def add(self, key, n=1, silent=False):
         new = key not in self.items
@@ -57,11 +57,14 @@ class Inventory:
     def remove(self, key, n=1):
         if key not in self.items:
             return
+        held = self.selected()
         self.items[key] -= n
         if self.items[key] <= 0:
             del self.items[key]
             self.order.remove(key)
-            self.sel = min(self.sel, max(0, len(self.hotbar_keys()) - 1))
+            # keep holding the same item (its slot may have moved); used up the one in your mouth: mouth's empty
+            keys = self.hotbar_keys()
+            self.sel = keys.index(held) if held in keys else -1
         self.g.refresh_hotbar()
 
     def has(self, key, n=1):
@@ -75,7 +78,7 @@ class Inventory:
 
     def selected(self):
         keys = self.hotbar_keys()
-        if not keys:
+        if not keys or self.sel < 0:
             return None
         self.sel = min(self.sel, len(keys) - 1)
         return keys[self.sel]
@@ -89,8 +92,19 @@ class Inventory:
     def cycle(self, d):
         keys = self.hotbar_keys()
         if keys:
-            self.sel = (self.sel + d) % len(keys)
+            if self.sel < 0:
+                self.sel = 0 if d > 0 else len(keys) - 1
+            else:
+                self.sel = (self.sel + d) % len(keys)
             self.g.refresh_hotbar()
+
+    def press_slot(self, i):
+        """Number key i (0-based): select that slot, or put the item away if it's already in hand."""
+        keys = self.hotbar_keys()
+        if i >= len(keys):
+            return
+        self.sel = -1 if self.sel == i else i
+        self.g.refresh_hotbar()
 
     def to_dict(self):
         return {"items": dict(self.items), "order": list(self.order), "sel": self.sel}
