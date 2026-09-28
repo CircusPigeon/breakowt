@@ -494,10 +494,13 @@ class FarmerModel(Entity):
                 self.rig.rotation_x = 88 * k
                 self.rig.y = 0.25 * k
                 AL.rotation_x = AR.rotation_x = -160 * k
-            elif p == "sleep":
+            elif p in ("sleep", "sleep_look"):
+                # flat on his back; "sleep_look": something woke him and his head turns on the pillow
                 self.rig.rotation_x = -88
                 self.rig.y = 0.8
                 AL.rotation_x = AR.rotation_x = 0
+                if p == "sleep_look":
+                    self.head.rotation_y = math.sin(self.pose_t * 1.6) * 45
             elif p in ("nap", "sit"):
                 # sitting in a chair; "nap" leans back with the head lolling
                 self.hips.y = 0.5

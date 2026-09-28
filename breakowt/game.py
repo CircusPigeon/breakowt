@@ -224,6 +224,8 @@ class Game(Entity):
         if win == application.base.win and size != self._win_size:
             self._win_size = size
             self.apply_quality(rescale_only=True)
+            if getattr(self, "ui", None) is not None:
+                self.ui.relayout()
 
     def apply_quality(self, name=None, rescale_only=False):
         if name in QUALITY:
@@ -611,6 +613,39 @@ class Game(Entity):
             if d < best_d:
                 best, best_d = ia, d
         return best
+
+    def fire_shotgun(self):
+        """Q with Ol' Bessie: a big bang, a kick back, and whatever's in front of you gets knocked flat."""
+        p = self.player
+        if p.frozen:
+            return
+        shells = self.flags.get("shells", 2)
+        if shells <= 0:
+            self.audio.play("blip_lo", vol=0.6)
+            self.examine("Click. Ol' Bessie's empty.")
+            return
+        self.flags["shells"] = shells - 1
+        self.audio.play("shotgun", vol=1.0)
+        self.ui.flash((1.0, 0.95, 0.8), 0.15)
+        p.shake = 0.8
+        fwd = p.forward()
+        fl = math.hypot(fwd[0], fwd[2]) or 1.0
+        p.vx -= fwd[0] / fl * 6
+        p.vz -= fwd[2] / fl * 6
+        self.stats["shots"] = self.stats.get("shots", 0) + 1
+        self.noise(p.pos, 60, "shotgun")
+        hit = False
+        eye = p.eye_pos
+        for e in list(self.enemies):
+            if e.alive and e.in_front(eye, fwd, 14) and self.phys.line_of_sight(eye, e.center(), include_dynamic=False):
+                e.take_hit(3, "shotgun", p.pos)
+                hit = True
+        left = shells - 1
+        rest = "That was the last shell." if left == 0 else f"{left} shell left."
+        if not hit:
+            self.ui.popup_sub(f"BANG. Ol' Bessie kicks like a mule. {rest}", 3)
+        else:
+            self.ui.popup_sub(rest, 2.5)
 
     def on_kick(self, pos, yaw):
         hit = False

@@ -266,7 +266,7 @@ def _merged_copy(model):
     """The cow's parts baked into one GeomNode in their current pose (drawn in one call).
     flattenStrong() can't do it: each Ursina entity carries its own ShaderAttrib, so Panda won't merge
     the parts even though they share shader and texture."""
-    from panda3d.core import GeomNode
+    from panda3d.core import GeomNode, ShaderAttrib
     parts = model.rig.findAllMatches("**/+GeomNode")
     gn = GeomNode("cow_far")
     for i in range(parts.getNumPaths()):
@@ -279,7 +279,19 @@ def _merged_copy(model):
             gn.addGeom(geom, node.getGeomState(k))
     far = model.attachNewNode(gn)
     if parts.getNumPaths():
-        far.setState(parts[0].getNetState())
+        # Take the texture and render state, but not the shader's inputs: the net ShaderAttrib carries a snapshot
+        # of every scene-wide input (sun, ambient, fog, lamps, shadow matrix). A copy made by day then kept the
+        # daylight after dark, so far-off cows glowed in the moonlight. Just the shader; inputs come from above.
+        net = parts[0].getNetState()
+        sa = net.getAttrib(ShaderAttrib)
+        far.setState(net.removeAttrib(ShaderAttrib))
+        if sa is not None and sa.getShader() is not None:
+            far.setShader(sa.getShader())
+            # the per-entity inputs Ursina gives every FARM_SHADER entity (the scene-wide ones live on render)
+            for name in ("texture_scale", "texture_offset", "u_unlit", "u_emissive", "u_sway", "u_water"):
+                inp = sa.getShaderInput(name)
+                if inp.getName():
+                    far.setShaderInput(inp)
     far.flattenStrong()     # now that it's one node with one state: pool the vertices, one Geom
     return far
 

@@ -658,6 +658,7 @@ class Bot:
         f = g.farmer
         t = 0
         last = None
+        fired = False
         while not boss.finished:
             if self.args.verbose and (boss.state, boss.hp) != last:
                 last = (boss.state, boss.hp)
@@ -668,6 +669,18 @@ class Bot:
                 continue
             d = math.hypot(f.x - p.x, f.z - p.z)
             self.face((f.x, 1.2, f.z))
+            if not fired and g.inv.has("shotgun") and d < 8 and boss.state in ("approach", "retreat"):
+                # one shot from Ol' Bessie: it should land and knock him flat
+                fired = True
+                hp0 = boss.hp
+                g.inv.select_key("shotgun")
+                yield
+                self.press("q")
+                yield
+                if boss.hp != hp0 - 3 or boss.state != "fallen":
+                    raise Stuck(f"shotgun didn't land: hp {hp0}->{boss.hp}, state {boss.state}")
+                print(f"    shotgun hit: hp {hp0}->{boss.hp}, shells left {g.flags.get('shells')}", flush=True)
+                continue
             if boss.vulnerable():
                 if d > 1.6:
                     k = min(1.0, 6 * DT / d)

@@ -12,7 +12,7 @@ import random
 
 import time
 
-from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
+from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, held_keys, mouse
 
 from .days import DayScripts, DAYS
 from .interact import Handler, Interactable
@@ -556,6 +556,9 @@ class Story(DayScripts):
             return True
         g = self.g
         p = g.player
+        if sel == "shotgun":
+            g.fire_shotgun()
+            return True
         if sel == "moustache":
             if p.disguised:
                 p.set_disguise(False)
@@ -576,7 +579,6 @@ class Story(DayScripts):
             "score": "Symphony No. 1 in Moo Major. For Forty-Seven. You can hear it when you look at it.",
             "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy milk.",
             "photo": "Chuck and Big Earl, Best in Show 2009. Moomaw would want this.",
-            "shotgun": "Ol' Bessie. You hold her very carefully. Your tongue stays well away from the trigger.",
             "plank": "It's a plank. The cattle grid wants three of them.",
             "house_key": "The spare key. It came out of a gnome.",
             "sparkplug": "It smells of vinegar. It goes in the tractor.",
@@ -953,14 +955,17 @@ class Story(DayScripts):
             else:
                 y -= 0.04
         total = -y + 0.62
-        speed = 0.055
-        t = 0.0
-        while col.y < total + 0.1:
-            col.y += speed * min(0.05, time.dt)
-            if g._advance:
-                col.y += 0.02
-            yield None
+        speed = 0.05
+        # hold a key to fast-forward. (This used to read the "advance" latch, which any earlier key press left
+        # switched on, so the whole roll flew past in a couple of seconds.)
+        hint = txt(r, "Hold Space to fast-forward", g.ui.R - 0.03, -0.47, 0.8, DIM, origin=(0.5, 0))
         g._advance = False
+        while col.y < total + 0.1:
+            fast = any(held_keys[k] for k in ("space", "enter", "e", "left mouse"))
+            col.y += speed * (4.0 if fast else 1.0) * min(0.05, time.dt)
+            g._advance = False
+            yield None
+        destroy(hint)
         destroy(col)
         yield 1.0
         t = txt(r, "Also, somebody should buy milk.", 0, 0, 1.4, CREAM, origin=(0, 0))

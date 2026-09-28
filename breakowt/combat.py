@@ -316,7 +316,7 @@ BOSS_THROW = ["Catch!", "Here, have a BUCKET!", "Milk can! Fresh!", "Incoming!"]
 
 
 class ChuckBoss(Enemy):
-    MAX_HP = 12
+    MAX_HP = 6          # the bar empties exactly when he goes down; halfway, he starts throwing things
     radius = 0.55
     height = 1.9
 
@@ -376,8 +376,8 @@ class ChuckBoss(Enemy):
             return
         g = self.g
         f = self.f
-        if not self.vulnerable():
-            # he swats you away with the pitchfork handle
+        if kind != "shotgun" and not self.vulnerable():
+            # he swats you away with the pitchfork handle (Ol' Bessie doesn't wait for an opening)
             if self.block_cd <= 0:
                 self.block_cd = 1.0
                 g.audio.play("metal_clang", vol=0.6, pos=self.center(), rng=30)
@@ -394,17 +394,25 @@ class ChuckBoss(Enemy):
         self.fx.append(Feathers(self.center(), col=(0.95, 0.9, 0.8, 1), n=6))
         g.ui.set_boss("CHUCK", max(0, self.hp) / self.MAX_HP)
         g.stats["boss_hits"] = g.stats.get("boss_hits", 0) + 1
-        if self.phase == 1 and self.hp <= 8:
-            self.phase = 2
-            self.state = "retreat"
-            self.t = 2.0
-            f.say("Okay. OKAY. You wanna play rough?", force=True)
-        elif self.phase == 2 and self.hp <= 4:
+        if self.hp <= 0:
             self.phase = 3
             self.finished = True
             self.state = "done"
             if self.on_phase3:
                 self.on_phase3()
+            return
+        if self.phase == 1 and self.hp <= self.MAX_HP // 2:
+            self.phase = 2
+            self.state = "retreat"
+            self.t = 2.0
+            f.say("Okay. OKAY. You wanna play rough?", force=True)
+        if kind == "shotgun":
+            # knocked flat on his back by his own gun
+            self.state = "fallen"
+            self.t = 2.8
+            f.pose = "fallen"
+            f.say(random.choice(["MY OWN GUN?!", "BESSIE! How COULD you?!", "Ow! That's... that's MY gun!"]),
+                  force=True)
 
     def _move_toward(self, tx, tz, speed, dt):
         f = self.f
@@ -451,12 +459,12 @@ class ChuckBoss(Enemy):
         elif st == "approach":
             f.pose = "walk"
             if dist > 3.2:
-                spd = self._move_toward(p.x, p.z, 3.3 if self.phase == 1 else 2.6, dt)
+                spd = self._move_toward(p.x, p.z, 3.0 if self.phase == 1 else 2.4, dt)
             else:
                 self._face(p.x, p.z, dt)
             if self.t <= 0 and dist < 7:
                 self.state = "windup"
-                self.t = 0.8
+                self.t = 0.95
                 f.pose = "windup"
                 if random.random() < 0.5:
                     f.say(random.choice(BOSS_TAUNTS), force=True)
@@ -492,7 +500,7 @@ class ChuckBoss(Enemy):
                     self.t = 1.6
                 else:
                     self.state = "stuck"
-                    self.t = 2.6
+                    self.t = 3.2
                     f.pose = "stuck"
                     g.audio.play("thump", vol=0.8, pos=self.center(), rng=30)
                     f.say(random.choice(BOSS_STUCK), force=True)
@@ -528,9 +536,9 @@ class ChuckBoss(Enemy):
                 if random.random() < 0.5:
                     f.say(random.choice(BOSS_THROW), force=True)
                 self.throws += 1
-                if self.throws % 3 == 0:
+                if self.throws % 2 == 0:
                     self.state = "winded"
-                    self.t = 3.0
+                    self.t = 3.5
                     f.say("Hoo... hang on... gotta... catch my breath...", force=True)
                 elif dist < 4.5:
                     self.state = "windup"

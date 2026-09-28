@@ -118,10 +118,11 @@ class UI:
                               enabled=False)
         self.bark = txt(self.hud, "", 0, 0.34, 1.05, SPEAKER_COLORS["Chuck"], origin=(0, 0), wrap=70)
 
-        # --- meters (bottom-left)
-        self.stam_bg = Entity(parent=self.hud, model="quad", color=C(0, 0, 0, 0.5), position=(0, -0.44), scale=(0.2, 0.008))
-        self.stam = Entity(parent=self.hud, model="quad", color=C(0.95, 0.85, 0.5, 0.9), position=(-0.1, -0.44),
-                           scale=(0.2, 0.008), origin=(-0.5, 0))
+        # --- meters (bottom-left: the hotbar grows leftwards from the bottom-right corner, so keep clear of it)
+        self.stam_bg = Entity(parent=self.hud, model="quad", color=C(0, 0, 0, 0.5), position=(self.L + 0.13, -0.465),
+                              scale=(0.2, 0.01))
+        self.stam = Entity(parent=self.hud, model="quad", color=C(0.95, 0.85, 0.5, 0.9), position=(self.L + 0.03, -0.465),
+                           scale=(0.2, 0.01), origin=(-0.5, 0))
         self.susp_icon = txt(self.hud, "", 0, 0.415, 2.4, BRASS, origin=(0, 0), font=fonts.get("title"))
         self.susp_bg = Entity(parent=self.hud, model="quad", color=C(0, 0, 0, 0.5), position=(0, 0.375), scale=(0.24, 0.012))
         self.susp = Entity(parent=self.hud, model="quad", color=BRASS, position=(-0.12, 0.375), scale=(0, 0.012), origin=(-0.5, 0))
@@ -226,6 +227,28 @@ class UI:
             Entity(parent=e, model="quad", texture=tex("icon_" + icon), scale=0.045, x=-w + 0.03, z=-0.01)
         txt(e, text, -0.015, 0.0, 1.0, col or CREAM, origin=(0.5, 0))
         self.toasts.append([e, 3.5])
+
+    def relayout(self):
+        """The window changed shape (fullscreen toggle, resize): move everything pinned to the left or right edge."""
+        A = window.aspect_ratio
+        if abs(A - self.aspect) < 1e-3:
+            return
+        self.aspect, self.L, self.R = A, -A / 2, A / 2
+        self.vignette.scale = (A + 0.02, 1.02)
+        for e in [self.day_text, self.day_sub, self.hearts] + self.obj_texts:
+            e.x = self.L + 0.03
+        self.stam_bg.x, self.stam.x = self.L + 0.13, self.L + 0.03
+        self.clover_text.x = self.R - 0.03
+        for t in self.toasts:
+            t[0].x = self.R - 0.03
+        for e in (self.lb_top, self.lb_bot):
+            e.scale_x = A + 0.2
+        for e in (self.flash_q, self.fader):
+            e.scale_x = A + 0.2
+        k, self._hearts_key = getattr(self, "_hearts_key", None), None
+        if k:
+            self.set_health(*k)
+        self.g.refresh_hotbar()
 
     def set_stamina(self, v, visible=True):
         self.stam.scale_x = 0.2 * max(0, v)

@@ -27,7 +27,7 @@ ITEMS = {
     "tincan": ("Mysterious Tin Can", "It rattles when you shake it, but there's nothing in it.", "tincan", False, False, True),
     "shoes": ("Chuck's Bowling Shoes", "Red and blue, and damp inside. [R] to throw them somewhere Chuck will go looking.", "shoes", False, True, True),
     "cabinet_key": ("Gun Cabinet Key", "Small and brass. It opens Chuck's gun cabinet.", "cabinet_key", False, False, True),
-    "shotgun": ("Shotgun ('Ol' Bessie')", "Ol' Bessie. You carry her in your mouth, very carefully.", "shotgun", False, False, True),
+    "shotgun": ("Shotgun ('Ol' Bessie')", "Ol' Bessie, two shells in her. [Q] fires. You carry her very carefully.", "shotgun", False, False, True),
     "plank": ("Plank", "A long plank. Three of these could bridge a cattle grid.", "plank", True, False, True),
     "fuse": ("Main Fuse", "The main fuse. Without it the fence is just wire.", "fuse", False, False, True),
     "chimes": ("Wind Chimes", "Seashells on strings.", "chimes", False, False, True),

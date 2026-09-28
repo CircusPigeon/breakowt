@@ -24,6 +24,14 @@ DALE_LINES = ["Mornin', Dale!", "Dale! Lookin' good, buddy!", "Hey Dale. You los
 SLEEP_TALK = ["zzz... Dale... that's MY potato salad...", "mmf... strike... STRIKE...", "...no, Mama, I did feed 'em...",
               "zzz... hnk... Big Earl... good boy...", "...forty-seven... forty-eight... zzz..."]
 DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale."]
+STIR_LINES = ["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad...", "...mm? ...Mama?"]
+GET_UP_LINES = ["Alright. Who's in my HOUSE?", "Somebody's down there. I heard that.", "That's it. I'm up. I'm UP.",
+                "Gerald, if that's you, I've got a flashlight and I'm not afraid to shine it."]
+BACK_TO_BED_LINES = ["Nothin'. Back to bed, Chuck.", "Probably the house settlin'. Houses settle.", "...Stupid raccoons."]
+DOOR_LINES = {"pasture_gate": ["Who left the GATE open?!", "The gate's open. The gate is OPEN. Who opens a gate?"],
+              "front_door": ["Now why's my front door open?", "Did I leave the door open? ...I didn't leave the door open."],
+              "back_door": ["Back door's open. I always lock the back door.", "Who's been usin' my back door?"],
+              "_": ["Huh. Who left that open?", "That was shut. I know that was shut.", "Now that's funny. That was closed."]}
 
 
 class Farmer(Walker):
@@ -63,6 +71,10 @@ class Farmer(Walker):
         self.vis_val = 0.0
         self.sleeping = False
         self.wake_timer = 0.0
+        self.drowse = 0.0           # how disturbed his sleep is; at 1 he gets up to look
+        self.bed = None             # (pos, yaw, pose, outfit, getup) while he has somewhere to go back to sleep
+        self.door_to_close = None   # a door he's walking over to shut
+        self.door_t = 0.0
         self.boss = None
         self.tool = None
         self.catch_cb = None
@@ -132,6 +144,8 @@ class Farmer(Walker):
         self.set_marker("")
         self.path = []
         self.sleeping = False
+        self.bed = None
+        self.door_to_close = None
 
     def scripted(self):
         self.state = "scripted"
@@ -139,11 +153,20 @@ class Farmer(Walker):
         self.set_marker("")
         self.susp = 0.0
 
-    def sleep(self, pos, yaw, pose="sleep", outfit="pajamas"):
+    def sleep(self, pos, yaw, pose="sleep", outfit="pajamas", getup=None):
+        """getup: where he stands when something wakes him properly (in bed only); None = he just stirs."""
+        self.bed = (pos, yaw, pose, outfit, getup)
         self.teleport(pos, yaw)
         self.state = "sleep"
         self.sleeping = True
         self.wake_timer = 0.0
+        self.drowse = 0.0
+        self.flashlight = False
+        self.door_to_close = None
+        if getattr(self, "_lit_house", False):
+            self._lit_house = False
+            for k in ("house_bed", "house_hall"):
+                self.g.world.set_lamp(k, False)
         self.sleep_pose = pose
         self.pose = pose
         self.susp = 0.0
@@ -315,6 +338,8 @@ class Farmer(Walker):
     def hear(self, pos, radius, source):
         if not self.visible or self.state in ("scripted", "catch", "boss", "disabled", "fallen"):
             return False
+        if self.sleeping:
+            return self._hear_asleep(pos, radius, source)
         d = math.hypot(pos[0] - self.x, pos[2] - self.z)
         eff = radius * self.hearing * (0.45 if self.sleeping else 1.0)
         if d > eff:
@@ -325,15 +350,106 @@ class Farmer(Walker):
             return False
         if source == "steps" and self.g.phys.in_zone("pasture", pos[0], pos[2]):
             return False
-        if self.sleeping:
-            self.wake_timer = 3.5
-            self.say(random.choice(["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad..."]), kind="sleepy")
-            self.pose = "look"
-            return True
         self.investigate(pos)
         return True
 
-    def investigate(self, pos):
+    # ------------------------------------------------------------------
+    # asleep: noises in the house carry, and he's a light sleeper
+    # ------------------------------------------------------------------
+    def _disturbance(self, pos, radius, source):
+        g = self.g
+        if g.phys.in_zone("house", pos[0], pos[2]) and g.phys.in_zone("house", self.x, self.z):
+            # anything that clatters wakes him outright; galloping on the floorboards takes a few strides
+            return {"thrown": 1.0, "crash": 1.0, "flush": 1.0, "radio": 1.0, "moo": 1.0, "shotgun": 1.0, "headbutt": 0.7,
+                    "steps": 0.35 if g.player.galloping else 0.2, "door": 0.35, "drawer": 0.25}.get(source, 0.5)
+        d = math.hypot(pos[0] - self.x, pos[2] - self.z)
+        if d > radius * self.hearing * 0.45:
+            return 0.0
+        return 1.0 if source in ("thrown", "crash", "moo", "radio", "flush", "shotgun") else 0.45
+
+    def _hear_asleep(self, pos, radius, source):
+        amt = self._disturbance(pos, radius, source)
+        if amt <= 0 or self.g.noise_masked(pos):
+            return False
+        can_get_up = self.bed is not None and self.bed[4] is not None
+        self.drowse += amt
+        if can_get_up and self.drowse >= 0.99:
+            self.get_up(pos)
+            return True
+        if self.wake_timer <= 0:
+            self.say(random.choice(STIR_LINES), kind="sleepy")
+        self.wake_timer = 3.5
+        return True
+
+    def get_up(self, pos):
+        """Properly awake: out of bed, flashlight on, lights on, and off to see what that was."""
+        g = self.g
+        self.wake()
+        self.drowse = 0.0
+        self.wake_timer = 0.0
+        gx, gy, gz = self.bed[4]
+        self.teleport((gx, gy, gz), math.degrees(math.atan2(pos[0] - gx, pos[2] - gz)))
+        self.set_outfit(self.bed[3] or "pajamas")
+        self.flashlight = True
+        self.state = "routine"
+        self.routine = []
+        self.pose = "idle"
+        self._lit_house = True
+        for k in ("house_bed", "house_hall"):
+            g.world.set_lamp(k, True)
+        self.say(random.choice(GET_UP_LINES), force=True)
+        self.bark_cd = 3.0
+        g.audio.play("question", vol=0.8)
+        self.investigate(pos)
+
+    def back_to_bed(self):
+        self.state = "tobed"
+        self.set_marker("")
+        self.goto(self.bed[4], 2.0)
+
+    # ------------------------------------------------------------------
+    # doors he knows he shut
+    # ------------------------------------------------------------------
+    def _check_doors(self, dt):
+        """Notice a door the player opened and left open: suspicious, and he goes to shut it."""
+        self.door_t -= dt
+        if self.door_t > 0 or self.door_to_close:
+            return
+        self.door_t = 0.4
+        g = self.g
+        ex, ey, ez = self.eye()
+        dark = g.env.is_dark
+        for key, d in g.world.doors.items():
+            if not d.is_open or not d.player_opened:
+                continue
+            cx, cz = d.center()
+            dist = math.hypot(cx - ex, cz - ez)
+            rng = 16.0 if not dark else (14.0 if self.flashlight else 6.0)
+            if dist > rng:
+                continue
+            if abs(ang_diff(math.degrees(math.atan2(cx - ex, cz - ez)), self.facing())) > self.fov / 2:
+                continue
+            if not g.phys.line_of_sight((ex, ey, ez), (cx, 1.2, cz), (self.col, d.col)):
+                continue
+            d.player_opened = False
+            self.door_to_close = key
+            self.say(random.choice(DOOR_LINES.get(key, DOOR_LINES["_"])), force=dist < 20)
+            self.bark_cd = 4.0
+            g.audio.play("question", vol=0.7)
+            self.susp = max(self.susp, 0.45)
+            # walk up to it from his side and shut it
+            k = 1.3 / max(dist, 0.01)
+            self.investigate((cx + (ex - cx) * k, 0.0, cz + (ez - cz) * k), quiet=True)
+            return
+
+    def _shut_door(self):
+        key, self.door_to_close = self.door_to_close, None
+        d = self.g.world.doors.get(key)
+        if d is not None and d.is_open:
+            d.set_open(False)
+            self.g.audio.play("door_close", vol=0.8, pos=(self.x, 1, self.z), rng=35)
+
+    def investigate(self, pos, quiet=False):
         if self.state == "alert" and self.susp > 0.6:
             return
         self.state = "investigate"
@@ -344,12 +460,16 @@ class Farmer(Walker):
         self.inv_phase = "go"
         self.inv_timer = 12.0
         self.set_marker("?")
-        if self.bark_cd <= 0:
+        if self.bark_cd <= 0 and not quiet:
             self.say(random.choice(["Huh?", "What was that?", "Hm?", "Who's there?"]))
             self.bark_cd = 3.0
 
     # ------------------------------------------------------------------
     def update(self, dt):
+        covers = self.g.world.bed_covers
+        tucked = self.visible and self.state == "sleep" and getattr(self, "sleep_pose", "") == "sleep"
+        if covers.enabled != tucked:
+            covers.enabled = tucked
         if not self.visible:
             return
         g = self.g
@@ -372,13 +492,27 @@ class Farmer(Walker):
                     self.inv_timer = 4.0
                     self.pose = "look"
                     self.path = []
-                    self.say(random.choice(INVESTIGATE_LINES))
+                    if self.door_to_close:
+                        self._shut_door()
+                        self.say("There.")
+                    else:
+                        self.say(random.choice(INVESTIGATE_LINES))
             elif self.inv_phase == "look":
                 self.pose = "look"
                 if self.inv_timer <= 0:
-                    self.say(random.choice(GIVE_UP_LINES))
                     self.set_marker("")
-                    self.resume_routine()
+                    if self.bed is not None and self.bed[4] is not None:
+                        self.say(random.choice(BACK_TO_BED_LINES))
+                        self.back_to_bed()
+                    else:
+                        self.say(random.choice(GIVE_UP_LINES))
+                        self.resume_routine()
+        elif self.state == "tobed":
+            spd = self._step(dt, self.col)
+            self.pose = "walk" if self.path else "idle"
+            if not self.path:
+                pos, yaw, pose, outfit, getup = self.bed
+                self.sleep(pos, yaw, pose, outfit, getup)
         elif self.state == "alert":
             self.path = []
             self.pose = "look" if self.susp < 0.7 else "point"
@@ -397,11 +531,11 @@ class Farmer(Walker):
                     self.r_started = False
         elif self.state == "sleep":
             sp = getattr(self, "sleep_pose", "sleep")
+            self.drowse = max(0.0, self.drowse - dt * 0.05)
             if self.wake_timer > 0:
                 self.wake_timer -= dt
-                self.pose = sp if sp != "sleep" else "look"
-                if sp == "sleep":
-                    self.model.rig.rotation_x = -30
+                # lying there, head turning on the pillow (or looking round from his chair)
+                self.pose = "sleep_look" if sp == "sleep" else "look"
                 if self.wake_timer <= 0:
                     self.pose = sp
                     self.say(random.choice(SLEEP_TALK), kind="sleepy")
@@ -428,8 +562,10 @@ class Farmer(Walker):
             hx, hy, hz = self.x + math.sin(f) * 0.4, self.y + 1.3, self.z + math.cos(f) * 0.4
             g.env.flash = ((hx, hy, hz), (math.sin(f) * 0.97, -0.24, math.cos(f) * 0.97), 0.9, 0.96, 24.0, 2.2)
         # vision
-        if self.state in ("routine", "investigate", "alert", "sleep") and self.detect:
+        if self.state in ("routine", "investigate", "alert", "sleep", "tobed") and self.detect:
             self._vision(dt)
+        if self.state in ("routine", "investigate", "tobed") and self.detect:
+            self._check_doors(dt)
 
     def _vision(self, dt):
         g = self.g
@@ -462,7 +598,7 @@ class Farmer(Walker):
                 self.path = []
                 g.on_caught(self)
                 return
-            if self.susp > 0.3 and self.state in ("routine", "investigate", "sleep"):
+            if self.susp > 0.3 and self.state in ("routine", "investigate", "sleep", "tobed"):
                 if self.state != "sleep":
                     self.state = "alert"
                 self.set_marker("?")

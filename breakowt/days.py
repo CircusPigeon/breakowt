@@ -42,6 +42,8 @@ COUNT_LINES = ["Thirty-one, thirty-two...", "...thirty-eight, thirty-nine. Hold 
                "Forty, forty-one... no, I counted you.", "...forty-two, forty-three..."]
 
 MOOHOLE_POS = (-18.0, -66.1)
+BED_SLEEP = (58.5, Y - 0.1, 45.65)    # where Chuck's feet go in bed: the sleep pose lays him out along +z, 0.8 up
+BED_GETUP = (56.95, Y, 45.7)          # where he stands when something gets him out of bed (by the rug)
 OAK_MEET = {
     "cowpernicus": (-46.8, 0, -35.2, 270), "cowleen": (-50.0, 0, -39.5, 0), "sirloin": (-53.6, 0, -36.5, 70),
     "moozart": (-53.0, 0, -31.8, 140), "mooriarty": (-49.8, 0, -30.8, 180), "moomaw": (-46.9, 0, -38.8, 310),
@@ -122,6 +124,7 @@ class DayScripts:
             f["planks_laid"] = 3
             f["herd_rallied"] = True
             f["cabinet_open"] = True
+            f["shells"] = 2
             give("shotgun")
         g.refresh_hotbar()
 
@@ -252,6 +255,7 @@ class DayScripts:
         p = g.player
         # swing away from the player
         d.set_open(opening)
+        d.player_opened = opening
         g.audio.play("door_creak" if opening else "door_close", vol=0.7, pos=(p.x, 1, p.z), rng=25)
         if noise:
             g.noise(p.pos, noise, "door")
@@ -2602,11 +2606,11 @@ class DayScripts:
         g.ambience("night")
         self.base_music = "music_night"
         f.set_routine([])
-        f.sleep((58.5, Y + 0.62, 46.3), 180)
+        f.sleep(BED_SLEEP, 180, getup=BED_GETUP)
         g.world.set_lamp("porch", True)
         if not g.phys.in_zone("pasture", p.x, p.z):
             self.return_to_pasture()
-            f.sleep((58.5, Y + 0.62, 46.3), 180)
+            f.sleep(BED_SLEEP, 180, getup=BED_GETUP)
             p.teleport(-40, 0, -30, 90)
         yield from g.fade_in(1.2)
         g.cutscene_end_now()
@@ -2618,7 +2622,7 @@ class DayScripts:
 
         def after():
             self.return_to_pasture()
-            f.sleep((58.5, Y + 0.62, 46.3), 180)
+            f.sleep(BED_SLEEP, 180, getup=BED_GETUP)
             g.ui.popup_sub("Chuck walked you back in his pyjamas, yawning, and went straight back to bed.", 6)
             return True
         self.hook("after_caught", after)
@@ -2637,6 +2641,7 @@ class DayScripts:
             self.setf("cabinet_open")
             gg.world.props["bessie"].enabled = False
             gg.audio.play("chain", vol=0.3, pitch=1.4, pos=(50.9, 1, 46.5), rng=15)
+            gg.flags["shells"] = 2
             gg.inv.add("shotgun")
             gg.complete("gun")
         g.on("gun_cabinet", "Unlock the cabinet and take Ol' Bessie", cabinet,
@@ -2688,14 +2693,14 @@ class DayScripts:
         self.wake_in_stall()
         f = g.farmer
         f.set_routine([])
-        f.sleep((58.5, Y + 0.62, 46.3), 180)
+        f.sleep(BED_SLEEP, 180, getup=BED_GETUP)
         g.world.set_lamp("porch", True)
         self.dhook("update", self.base_update)
         self.dhook("caught_line", lambda: "Hnnh? Not today, forty-seven. Not TODAY.")
 
         def after():
             self.return_to_pasture()
-            f.sleep((58.5, Y + 0.62, 46.3), 180)
+            f.sleep(BED_SLEEP, 180, getup=BED_GETUP)
             return True
         self.dhook("after_caught", after)
 
@@ -2708,7 +2713,8 @@ class DayScripts:
                                   "the main gate. W/S throttle, A/D steer.", save=False)
         yield from self.step("d7_boss", self.d7_boss,
                              hint="Dodge his lunges. When the pitchfork sticks in the ground, hit him. When he's out of "
-                                  "breath, hit him.", save=False)
+                                  "breath, hit him. Ol' Bessie (Q) knocks him flat, if she's got shells left.",
+                             save=False)
         yield from self.play_ending()
 
     def d7_crow(self):
@@ -2863,10 +2869,16 @@ class DayScripts:
         f.set_tool("pitchfork")
         g.enemies.append(boss)
         self.enemy = boss
+        # a fair fight: five hearts for this one, and whatever shells you've kept in Ol' Bessie
+        prev_max = p.max_health
+        p.max_health = max(prev_max, 5)
         p.health = p.max_health
+        start_shells = g.flags.get("shells", 2) if g.inv.has("shotgun") else 0
         g.ui.set_boss("CHUCK", 1.0)
         g.ui.set_health(p.health, p.max_health, True)
-        g.ui.popup_sub("Left click headbutt   Right click kick   R throw\nHit him when he's stuck or winded", 7)
+        bessie = f"   Q fire Ol' Bessie ({start_shells} shell{'s' if start_shells != 1 else ''})" if start_shells else ""
+        g.ui.popup_sub("Left click headbutt   Right click kick   R throw" + bessie +
+                       "\nHit him when he's stuck or winded", 8)
         self.hook("defeated", lambda: res.__setitem__("lost", True))
         allies = {"cluck_t": 14.0, "loin_t": 24.0, "cluck": None}
         while not res["phase3"]:
@@ -2890,23 +2902,30 @@ class DayScripts:
                         g.cows["sirloin"].bubble("MOO!")
                         g.ui.bark_line("If I had a helm I'd be in there!", "Sir Loin")
             if res["lost"]:
+                # knocked out: the whole fight starts again (Chuck back to full, your shells back)
                 res["lost"] = False
                 g.cutscene_start(letterbox=True)
                 yield from g.fade_out(0.6)
                 boss.remove()
-                boss.hp = max(boss.hp, 8)
-                boss.phase = 1 if boss.hp > 8 else 2
+                boss.hp = boss.MAX_HP
+                boss.phase = 1
+                boss.throws = 0
                 boss.state = "approach"
                 boss.t = 2.0
+                allies.update(cluck_t=14.0, loin_t=24.0)
+                g.flags["shells"] = start_shells
                 f.teleport((1.5, 0, 66), 180)
+                f.pose = "idle"
                 p.teleport(0, 0, 76, 180)
                 p.health = p.max_health
-                g.ui.set_boss("CHUCK", boss.hp / boss.MAX_HP)
+                g.ui.set_boss("CHUCK", 1.0)
                 yield from g.fade_in(0.6)
                 g.cutscene_end_now()
                 f.say("Had enough? 'Cause I'm just gettin' STARTED.", force=True)
+                g.ui.popup_sub("Round two. From the top.", 3)
             yield None
         self.hooks.pop("defeated", None)
+        p.max_health = prev_max
         # the cowbell
         g.cutscene_start(letterbox=True)
         boss.remove()

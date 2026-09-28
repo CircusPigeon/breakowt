@@ -28,6 +28,44 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - [x] Ending + credits
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
+### Latest round (player feedback, in progress)
+Done in code; see "Still to verify" below for what hasn't been through the full test suite yet.
+- HUD: the stamina bar sits bottom-left (it used to collide with the hotbar on 3:2 / 16:10 screens), and
+  `UI.relayout()` re-anchors edge-pinned HUD pieces when the window changes shape (fullscreen toggle).
+- Chuck in bed: `BED_SLEEP` / `BED_GETUP` in `days.py`. The "sleep" pose lays him out along +z from his
+  feet, 0.8 m up, so the position is his feet at mattress height. A quilt (`world.bed_covers`) covers him
+  while he's asleep in bed (`Farmer.update` toggles it). Stirring uses the `sleep_look` pose (head turns
+  on the pillow) instead of standing him up in the bed.
+- Light sleeper (`farmer.py`: `_hear_asleep`, `_disturbance`, `get_up`, `back_to_bed`): noises inside the
+  house add to `drowse`; a thrown item, a moo, the radio, the toilet or a gunshot wakes him outright,
+  about three galloping strides do too, a drawer or door just makes him stir. Fully awake he gets up at
+  `BED_GETUP` with the flashlight and the bedroom/hall lights on, investigates, then walks back to bed
+  (`tobed` state) and the lights go off. Only in bed with a `getup` spot; the porch nap only stirs.
+- Doors left open (`Farmer._check_doors`): a door the player opened (`Door.player_opened`, set in
+  `DayScripts._toggle_door`) that Chuck then sees while awake makes him suspicious (a line, the "?" and
+  the meter at 0.45), and he walks over and shuts it. Doors opened by story scripts don't count.
+- Cows glowing at night: the herd's merged far-LOD mesh (`_merged_copy` in `npc.py`) copied the part's
+  whole net ShaderAttrib, which snapshots every scene-wide input (sun, ambient, fog, lamps). A copy made by
+  day kept daylight after dark. It now takes just the shader plus the per-entity inputs.
+- Boss fight (`ChuckBoss` in `combat.py`, `d7_boss` in `days.py`): Chuck has 6 HP and the bar empties
+  exactly when he goes down (it used to hand over to the finale at 4 of 12, so the bar sat at a third);
+  longer openings (windup 0.95 s, stuck 3.2 s, winded every 2 throws for 3.5 s). You get 5 hearts for the
+  fight. Losing resets the whole fight (Chuck to full, your shells back).
+- Ol' Bessie fires: Q with the shotgun selected (`Game.fire_shotgun`). Two shells (`flags["shells"]`, set
+  when you take her from the cabinet and in the chapter-select preset). 3 damage and knocks Chuck flat
+  whatever state he's in; a big noise (radius 60) anywhere else, so firing in the house wakes Chuck.
+- Credits: hold Space/E/Enter/click to fast-forward. The roll used to read the "advance" latch that any
+  earlier key press left on, so it flew past in seconds.
+- Earlier this round: farmhouse furnished room by room; TV and ChuckOS screens; the moo-hole wire sags
+  and is held up by the boot; grass/flowers no longer grow through floors; porch roof no longer pokes
+  into the living room; hotbar deselect (press the selected number again); the held item follows removals.
+
+### Still to verify (next session: run these first)
+- Full `--day 1 --to 7`, `--caught all --detect`, and `--resume` runs after the boss/shotgun/credits and
+  sleeping-Chuck changes. The walkthrough's boss plan now fires the shotgun once and checks it lands.
+- A boss-defeat test: let the player die in the fight and check Chuck's HP and the shells reset.
+- Saturday night (`d6_night`) with the new light-sleeper rules: the bot must not gallop in the house.
+
 ## Run
 ```
 python main.py            # fullscreen
@@ -37,7 +75,7 @@ python main.py --debug    # F5 skip step, F6 next day, F7 teleport to objective,
 ```
 
 Controls: WASD walk, mouse look, Shift gallop, C/Ctrl sneak, Space hop, E interact, left click headbutt,
-right click kick, R throw, Q use selected item, M moo, 1-9 / scroll wheel pick item (press its number again to put it away), Tab/J journal + map,
+right click kick, R throw, Q use selected item (fires Ol' Bessie), M moo, 1-9 / scroll wheel pick item (press its number again to put it away), Tab/J journal + map,
 H hint, Esc pause, F11 fullscreen, F12 screenshot. In the tractor: W/S throttle, A/D steer.
 
 Settings (title screen or pause menu) has volume sliders, mouse sensitivity, invert Y, fullscreen and
@@ -71,7 +109,10 @@ Graphics: Low / Medium (default) / High.
   in a piece of furniture's own frame, plus `_picture`, `_curtains`, `_baseboard`, `_chair`). MeshBuilder
   `rot=(a, 0, 0)` with a positive `a` tips the top of an upright part towards +z. Grass and flowers skip
   the footprints in `World.ROOFED`. The moo-hole's bottom wire is its own entity (`set_moohole_wire`).
+  `Door.center()` / `Door.player_opened` feed Chuck's open-door check.
 - `player.py`, `farmer.py`, `npc.py`, `combat.py`, `vehicle.py`, `models.py`, `ui.py`, `items.py`.
+- Any node that copies a render state (like the herd LOD) must not copy the net ShaderAttrib: scene-wide
+  inputs live on `render` and are updated every frame, and a copied attrib freezes them.
 - `engine/`: `shading.py` (GLSL, shadows, time of day), `postfx.py`, `gpuprobe.py`, `meshbuilder.py`, `physics.py`, `audio.py`, `script.py`, `assets.py`, `boot.py`.
 
 ## Testing (headless, Linux)

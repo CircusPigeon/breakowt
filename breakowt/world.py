@@ -141,6 +141,8 @@ class Door:
         self.angle = 0.0
         self.target = 0.0
         self.locked = locked
+        self.player_opened = False      # opened by the player and not shut since (Chuck notices those)
+        self.height = height
         self.pivot = Entity(position=(hinge[0], y0, hinge[1]))
         mb = MeshBuilder()
         if model_fn:
@@ -163,7 +165,16 @@ class Door:
     def is_open(self):
         return self.target != 0
 
+    def center(self):
+        """(x, z) of the middle of the doorway."""
+        x, z = self.hinge
+        if self.along == "x":
+            return x + self.sign * self.length / 2, z
+        return x, z + self.sign * self.length / 2
+
     def set_open(self, open_=True, instant=False, direction=1):
+        if not open_:
+            self.player_opened = False
         self.target = self.open_angle * direction if open_ else 0.0
         if instant:
             self.angle = self.target
@@ -1540,6 +1551,12 @@ class World:
                                     scale=(1.0, 0.28, 0.55), color=(0.97, 0.97, 0.95, 1))
         self.phys.add_box_c(bx2, bz2, 2.2, 3.4, y, y + 0.7)
         self.add_ia("bed_farmer", (58.5, y + 0.8, 46), 1.0, "Chuck's bed")
+        # the quilt pulled up over Chuck when he's in bed (the farmer turns it on and off)
+        cov = MeshBuilder().sphere((bx2, y + 0.635, 46.15), 1.0, segs=20, rings=6, scale=(0.68, 0.3, 0.95), dome=True,
+                                   uv_density=0.9)
+        cov.sphere((bx2, y + 0.635, 45.72), 1.0, segs=14, rings=5, scale=(0.42, 0.38, 0.32), dome=True, uv_density=0.9)
+        self.bed_covers = Entity(model=cov.build(), texture=tex("quilt"), shader=FARM_SHADER, enabled=False)
+        self.entities.append(self.bed_covers)
         # nightstand with a drawer, a lamp and the alarm clock
         f("wood", 60.9, 47.4, y, "s", 0, 0, 0, 0.6, 0.66, 0.55)
         f("white", 60.9, 47.4, y, "s", 0, 0.42, -0.285, 0.5, 0.18, 0.02, color=(0.62, 0.44, 0.28, 1))
