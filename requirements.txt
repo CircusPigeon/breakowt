@@ -1,0 +1,4 @@
+ursina==8.3.0
+numpy>=2.0
+scipy>=1.11
+pillow>=10.0
