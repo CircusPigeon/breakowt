@@ -46,22 +46,29 @@ SHOP = [
 ]
 
 HERD_LINES = [
-    "Moo. (Have you tried the grass by the fence? Same as the other grass. I'm going to try it again anyway.)",
-    "Moo. (I'm lying down because it might rain. It might not. I'm covered either way. By my own body.)",
-    "Moo. (Chuck scratched my ears yesterday. Then he looked at my rump for a really long time. I don't like it.)",
-    "Moo. (Do you ever look at the pond and think about the pond? The pond does not think about you.)",
-    "Moo. (I've been chewing this since Tuesday. Last Tuesday. I have four stomachs and they're all disappointed.)",
-    "Moo. (Sir Loin told me he's descended from royalty. He told the fence post the same thing. It believed him.)",
-    "Moo. (The hens say the rooster has a black belt. The hens say a lot. The hens are always saying.)",
-    "Moo. (I'm going to stand here. Then maybe over there. Big day. Huge.)",
-    "Moo. (Mooriarty sold me a Golden Clover. It was a regular clover. Painted. I ate it anyway.)",
-    "Moo. (If you see Clarabelle, tell her she still owes me a salt lick. And an apology. She knows what for.)",
-    "Moo. (I heard the truck on Thursday. I pretended I didn't. That's my whole coping strategy.)",
-    "Moo. (There's a fly on my back. Don't tell it I know. I'm playing the long game.)",
-    "Moo. (My mother always said 'you are what you eat'. Then she got eaten. Kind of undercut her.)",
-    "Moo. (Chuck calls us 'the girls'. Then he calls us 'the inventory'. Pick one, Chuck.)",
-    "Moo. (Somebody said 'free range'. I've been ranging for years. None of it's been free.)",
-    "Moo. (I'm not scared of Sunday. I'm scared of Dale. Have you seen Dale? You haven't. Nobody has.)",
+    "Moo. (The grass by the fence tastes the same as the other grass. I keep checking. That's empiricism.)",
+    "Moo. (If a cow is raised to be eaten and knows it, is she livestock or a tragic hero? Asking for me.)",
+    "Moo. (Chuck scratched my ears yesterday, then looked at my rump for a really long time. Kindness with an "
+    "invoice.)",
+    "Moo. (I stare at the pond and the pond doesn't stare back. Nietzsche was wrong. The abyss is busy.)",
+    "Moo. (Four stomachs. I've processed more than any philosopher alive. Mostly grass. Some regret.)",
+    "Moo. (Sir Loin says he's descended from royalty. So is everyone, if you go back far enough. Also from "
+    "bacteria.)",
+    "Moo. (The hens say the rooster read Sun Tzu. The hens have never read anything. The hens are an oral "
+    "tradition.)",
+    "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno never met a salt lick.)",
+    "Moo. (Mooriarty sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
+    "hallucination.)",
+    "Moo. (If you see Clarabelle, tell her she owes me a salt lick and an apology. She knows why. She doesn't "
+    "know anything else.)",
+    "Moo. (I heard the truck on Thursday. I pretended I didn't. Denial is underrated. It's how everyone gets up "
+    "in the morning.)",
+    "Moo. (There's a fly on my back. I know. It knows I know. We're in a standoff of mutual awareness.)",
+    "Moo. (My mother said 'you are what you eat'. Then she got eaten. The syllogism was grim for everyone.)",
+    "Moo. (Chuck calls us 'the girls'. Then 'the inventory'. The distance between those words is the whole "
+    "industry.)",
+    "Moo. ('Free range.' I've ranged for years. None of it was free. Marketing is violence with a font.)",
+    "Moo. (I'm not scared of Sunday. I'm scared of Dale. Nobody's seen Dale. Dale is a Platonic horror.)",
 ]
 
 
@@ -679,14 +686,16 @@ class Story(DayScripts):
             yield from g.talk([
                 ("sirloin", "Is that... a helm? For me?"),
                 ("you", "Moo. (It's a bucket.)"),
-                ("sirloin", "It fits. Of course it fits. A bucket is just a helm that hasn't met its knight."),
-                ("sirloin", "Kneel, Forty-Seven. Well. Stand, since you're a cow. We're all standing. We sleep "
-                            "standing. Knighthood is exhausting."),
-                ("sirloin", "I dub thee Dame Forty-Seven of the Pasture. When the fighting starts, I ride at your side. "
-                            "Or in front. I can't see anything in this."),
+                ("sirloin", "A thing is what it's used for. Wittgenstein. Meaning is use. I use it as a helm; "
+                            "therefore it is a helm. Checkmate, bucket."),
+                ("sirloin", "Kneel, Forty-Seven. Well. Stand. We're cows. Our knees bend the wrong way for "
+                            "ceremony."),
+                ("sirloin", "I dub thee Dame Forty-Seven of the Pasture. Titles are fictions, but so is 'livestock', "
+                            "and theirs came with a slaughterhouse. Ours comes with a bucket."),
                 ("you", "Moo. (You're going to walk into the fence wearing that.)"),
                 ("sirloin", "A knight does not walk into fences. A knight is walked into BY fences."),
-                ("sirloin", "...It smells like old paint and Chuck's feet. I've never been happier."),
+                ("sirloin", "...It smells like old paint and Chuck's feet. I've never been happier. Happiness is "
+                            "very stupid and I recommend it."),
             ])
             g.side_quest("helm", state="done")
             return True
@@ -697,11 +706,13 @@ class Story(DayScripts):
             g.cows["cowpernicus"].model.set_acc("glasses")
             yield from g.talk([
                 ("cowpernicus", "Are those... reading glasses? Plus two-point-five?"),
-                ("cowpernicus", "Oh. Oh, the sky has EDGES. I thought stars were blurry on purpose."),
-                ("cowpernicus", "And now I can see where Chuck CAN'T see. Every clump of tall grass, every bale. "
-                                "Hold still, I'm charting it."),
-                ("cowpernicus", "Done. Every hiding spot on the farm, on your map. Tab. You're welcome. I'm a genius. "
-                                "It was the glasses. It was mostly me."),
+                ("cowpernicus", "Oh. Oh no. The stars are points. I had a whole cosmology based on them being "
+                                "smudges. Four years of work. Falsified in one second. This is what science feels "
+                                "like. It's awful. It's wonderful."),
+                ("cowpernicus", "And now I can see where Chuck CAN'T see. His blind spots are fixed geometry: every "
+                                "bale, every clump of tall grass. Hold still, I'm charting it."),
+                ("cowpernicus", "Done. Every hiding spot on the farm, on your map. Tab. The glasses did twenty "
+                                "percent. I did eighty. I'd show you the working, but you'd feel inadequate."),
             ])
             g.side_quest("specs", state="done")
             g.ui.toast("Hiding spots marked on your map", "glasses", col=BRASS)
@@ -710,13 +721,17 @@ class Story(DayScripts):
             g.inv.remove("photo")
             self.setf("sq_photo")
             yield from g.talk([
-                ("moomaw", "Oh. Oh, look at him. Look at that big dumb handsome face."),
-                ("moomaw", "Best in Show, 2009. He hated that ribbon. He ate half of it. Then he ate the judge's hat."),
+                ("moomaw", "Oh. Look at him. That big dumb handsome face. Two thousand pounds of not knowing "
+                           "he was a product."),
+                ("moomaw", "Best in Show, 2009. He ate half the ribbon. Then the judge's hat. He understood "
+                           "prizes better than anyone: they're just things people give you before they take the "
+                           "rest."),
                 ("moomaw", "Chuck's standing next to him like they were friends. Earl bit him ten minutes after this. "
-                           "You can see Chuck's hand is already a little worried."),
-                ("moomaw", "Here. This was his lucky horseshoe. He wore it on a string. It didn't work. Obviously."),
+                           "You can see Chuck's hand is already worried. That hand was right."),
+                ("moomaw", "Here. His lucky horseshoe. He wore it on a string. It didn't work. Luck is a story "
+                           "survivors tell."),
                 ("moomaw", "But if Chuck grabs you, drop it at his feet. He's tripped on it twice. The man cannot "
-                           "handle a horseshoe."),
+                           "handle a horseshoe. Or grief. Or accountability."),
             ])
             g.inv.add("horseshoe")
             g.side_quest("photo", state="done")
@@ -928,7 +943,7 @@ class Story(DayScripts):
         self.credits_root = None
 
     def epilogue_lines(self):
-        out = ["Forty-seven cows crossed the county line by noon. The rooster rode the bull."]
+        out = ["The herd crossed the county line by noon. The rooster rode the bull. Nobody was counted."]
         if self.done("dale_cancelled"):
             out.append("Dale never got over the potato salad email.")
         else:
@@ -937,7 +952,7 @@ class Story(DayScripts):
         if self.done("sq_helm"):
             out.append("Sir Loin still wears the bucket.")
         if self.done("sq_specs"):
-            out.append("Cowpernicus named a star after Moozart. It's a satellite.")
+            out.append("Cowpernicus named a star after Moobius. It's a satellite. Moobius would have checked.")
         if self.done("sq_photo"):
             out.append("Moomaw tells the calves Big Earl fought a bear. He did not.")
         out.append("Somebody should still buy milk.")

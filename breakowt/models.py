@@ -183,6 +183,12 @@ class CowModel(Entity):
                 hm.sphere((x, y, z), r, color=W, segs=8, rings=6)
             hm.box((0, 0.18, -0.2), (0.1, 0.34, 0.1), color=W, uv_rect=WHITE)
             hm.box((0, 0.02, -0.22), (0.2, 0.08, 0.06), color=DARK, uv_rect=WHITE)
+        if "bowtie" in self.acc:
+            # under the chin: two wings and a knot
+            BT = (0.62, 0.1, 0.12, 1)
+            for sx in (-1, 1):
+                hm.box((sx * 0.09, -0.33, 0.36), (0.14, 0.1, 0.04), color=BT, uv_rect=WHITE, rot=(0, 0, sx * 12))
+            hm.box((0, -0.33, 0.37), (0.05, 0.06, 0.05), color=(0.45, 0.06, 0.08, 1), uv_rect=WHITE)
         if "daisy" in self.acc:
             cx, cy, cz = 0.3, 0.3, 0.12
             for k in range(7):

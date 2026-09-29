@@ -18,16 +18,16 @@ RADIUS = 0.55
 SNOUT_Y = -0.38
 
 MOO_THOUGHTS = [
-    "Moo. (Just checking my voice still works.)",
-    "Moo. (Nobody answered. Fair enough.)",
-    "Moo. (That came out louder than I meant.)",
-    "Moo. (Anyone else hungry? Rhetorical. I'm always hungry.)",
-    "Moo. (Somebody moos back from the far side of the pasture.)",
-    "Moo. (I had a thought and then I mooed it away.)",
-    "Moo. (Sound check. One, two. Moo, moo.)",
-    "Moo. (Moozart would say that was flat.)",
-    "Moooo. (That one was for Big Earl.)",
-    "Moo. (Chuck, if you can hear this: no.)",
+    "Moo. (A sound with no referent. Wittgenstein would be furious.)",
+    "Moo. (Nobody answered. The universe is indifferent. Same as yesterday.)",
+    "Moo. (Louder than intended. Like most of my existence.)",
+    "Moo. (I think, therefore I am. Chuck thinks, therefore I'm lunch.)",
+    "Moo. (Somebody moos back from the far side of the pasture. Solidarity, or an echo. Unfalsifiable.)",
+    "Moo. (Four stomachs, one existential crisis.)",
+    "Moo. (Proof by moo: I mooed, therefore a moo exists. Tight.)",
+    "Moo. (Moobius would say that was statistically insignificant.)",
+    "Moooo. (That one was for Big Earl. Nine hundred pounds of dignity, served on a bun.)",
+    "Moo. (Chuck, if you can hear this: the answer is no.)",
 ]
 
 THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0, "shoes": 12.0, "boot": 12.0,

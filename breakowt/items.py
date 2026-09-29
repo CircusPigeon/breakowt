@@ -7,8 +7,8 @@ from __future__ import annotations
 ITEMS = {
     "page": ("Soggy Planner Page", "Chuck's week, in his own handwriting. You're on it. Sunday. Next to 'buy charcoal'.",
              "page", False, False, True),
-    "pencil": ("Chuck's Pencil", "Stolen mid-headcount. Chewed at both ends. Moozart's been eyeing it: a composer "
-               "needs something to write with.", "pencil", False, False, False),
+    "pencil": ("Chuck's Pencil", "Stolen mid-headcount. Chewed at both ends. Moobius has been eyeing it: you can't "
+               "finish a proof in mud.", "pencil", False, False, False),
     "rock": ("Rock", "A good throwing rock. [R] to throw. Makes noise where it lands.", "rock", True, True, True),
     "pliers": ("Pliers", "Snipped your bell off. Insulated handles, so they're also good for grabbing things that "
                "would very much like to electrocute you.", "pliers", False, False, False),
@@ -33,9 +33,9 @@ ITEMS = {
                   "sparkplug", False, False, True),
     "house_key": ("Spare House Key", "Found inside a garden gnome, as all keys eventually are. Opens the front door.",
                   "house_key", False, False, False),
-    "score": ("Moozart's Score", "Symphony No. 1 in Moo Major, sixteen bars in pencil. [Q] to hum the opening: the "
-              "whole herd joins in, badly, and Chuck storms over to the pasture to shut them up.", "score", False,
-              False, True),
+    "score": ("Moobius's Proof", "The Escape Theorem, in pencil on the back of Chuck's planner. Eleven lines. The "
+              "last one says 'QED (47)'. [Q] to read it out: the whole herd starts arguing about step four, loudly, "
+              "and Chuck stomps over to the pasture to shut them up.", "score", False, False, True),
     "photo": ("Photo of Big Earl", "'Me & Big Earl, Best in Show 2009.' Moomaw should have this.", "photo", False,
               False, True),
     "horseshoe": ("Big Earl's Lucky Horseshoe", "If Chuck catches you, maybe he trips on it instead. Once.",

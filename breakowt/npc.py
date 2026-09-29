@@ -26,7 +26,8 @@ def in_keep_clear(x, z, pad=0.0):
 FRIENDS = {
     # key: (display name, voice, model kwargs, ear tag)
     "cowleen": ("Cowleen", "cowleen", dict(hide="hide_brown", acc=("daisy",), bell=True), "tag_blank"),
-    "moozart": ("Moozart", "moozart", dict(hide="hide_black", acc=("wig",), bell=True), "tag_12_mud"),
+    # the key stays "moozart" (sounds, flags and saves use it); on screen he's Moobius, the logician
+    "moozart": ("Moobius", "moozart", dict(hide="hide_black", acc=("bowtie",), bell=True), "tag_12_mud"),
     "sirloin": ("Sir Loin", "sirloin", dict(hide="hide_red", bull=True, acc=("cape",)), "tag_blank"),
     "cowpernicus": ("Cowpernicus", "cowpernicus", dict(hide="hide_dun", acc=("bowtie",), bell=True), "tag_blank"),
     "mooriarty": ("Mooriarty", "mooriarty", dict(hide="hide_bw", acc=("fedora",)), "tag_blank"),

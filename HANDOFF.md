@@ -112,10 +112,11 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 
 ### Player feedback round (playtest notes, all addressed)
 - **Every item has a use.** Holdable = on the hotbar (Q use / R throw); the rest live in the journal and
-  work by themselves (keys). Pencil: Moozart writes the score with it. Pliers: needed to pull the live
+  work by themselves (keys). Pencil: Moobius writes his proof with it. Pliers: needed to pull the live
   fuse on Sunday. Radio: [Q] sets it down playing, Chuck comes to switch it off (also the way to get him out
-  of bed on Saturday night). Score: [Q] hums the opening, the herd joins in and Chuck stomps to the pasture
-  gate to shush them (`score_use`, 45 s cooldown, noise source `herd_hum`). Boot and tin can are throwables.
+  of bed on Saturday night). Proof (item key still `score`): [Q] reads it out, the herd argues about it and
+  Chuck stomps to the pasture gate to shush them (`score_use`, 45 s cooldown, sound `moo_herd_argue`, noise
+  source `herd_hum`). Boot and tin can are throwables.
   The spare key stays in the front door once used; the tractor key is used on Sunday; no fuse item.
 - **Hotbar has no cap** (it was silently 9, which hid late items like the spark plug): keys 1-9 and 0, scroll
   for the rest, the bar shrinks past ten slots.
@@ -129,15 +130,27 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - **Cameras** aim with `game.aim_camera` (yaw/pitch, zero roll). Ursina 8's `look_at` rotates the shortest
   way from the current orientation, so a cut facing the other way flipped the boss intro upside down.
 - **Boss takes 8 hits**, one per landed blow whatever it was (shotgun included).
-- **Truck tailgate** drops to a ramp, Moozart walks in over a temporary floor, a stand-in rides away.
+- **Truck tailgate** drops to a ramp, Moobius walks in over a temporary floor, a stand-in rides away.
 - **Barn windows** (`wall_gaps` takes an optional sill: invisible pane, see-through both ways, trim via
   `_window_frame`): north at cow height, east south of the silo, east gable in the loft north of it.
-- **Moozart's melody** plays only the new bars each day (`moozart_5_8`, `_9_12`, `_13_15`), a short hum on
-  the walk to the truck, and no second music-box replay at the vigil.
+- **Moozart is now Moobius**, a logician (the player found the composer arc overdone and asked for sharp,
+  self-aware, philosophical cows, "maybe all mathematicians"). Only the display name changed: the key is
+  still `moozart` everywhere in code, sounds, flags and saves. He wears a bow tie (`bowtie` accessory) and
+  builds the Escape Theorem across the week instead of a symphony: Lemma 1 (Chuck can't count past forty,
+  Mon), Lemma 2 (the radio's market report: Chuck earns 3.2x more from a plate, Tue), Lemma 3 (the rooster
+  is on time, Wed); the ear tag shows he's the #12 he couldn't eliminate. In the hayloft the player "moos to
+  accept the axiom" (the herd is worth saving); the theorem: the herd leaves iff Forty-Seven is at the
+  tractor. At the truck he hands himself in on that logic ("Courage is what you call it when you don't have
+  the numbers. I have the numbers."). His mud draft by the pond is the funeral's "hoofprints". No melody
+  fragments any more; the ending theme and the music-box sad theme remain.
+- **Cast voices:** Cowleen the deadpan game theorist; Sir Loin an absurdist knight (Camus, Wittgenstein);
+  Cowpernicus a Bayesian astronomer; Mooriarty an ex-professor (asteroid dynamics) turned black marketeer;
+  Moomaw a Stoic widow with savage one-liners; Cluck Norris quotes Sun Tzu; Chuck stays dim. Edgy about
+  mortality and the meat trade, smart, self-aware, and still funny.
 - **Dialogue** rewritten for more jokes and less sentiment (the player's words: funnier, edgier, the puns
   are good but it was a bit innocent). Keep that register for new lines. The soft scenes were then rebuilt
-  as comedy (the player's pick, plot unchanged, Moozart still goes on the truck): Thursday's vigil is
-  Moozart's funeral going off the rails (Sir Loin's eulogy, a sad trombone, Mooriarty selling "signed"
+  as comedy (the player's pick, plot unchanged, Moobius still goes on the truck): Thursday's vigil is
+  Moobius's funeral going off the rails (Sir Loin's eulogy, a sad trombone, Mooriarty selling "signed"
   hoofprints); Saturday's stargazing is a dress rehearsal at the oak (Cluck's "quiet" practice crow, Chuck's
   light flicks on, you charge the oak); the ending is one exchange on the hill cut off mid-word by a hard cut
   to black, then short epilogue cards and straight back to the title. No credits roll.

@@ -42,9 +42,10 @@ STIR_LINES = ["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad..
 GET_UP_LINES = ["Alright. Who's in my HOUSE?", "Somebody's down there. I heard that.", "That's it. I'm up. I'm UP.",
                 "Gerald, if that's you, I've got a flashlight and I'm not afraid to shine it.",
                 "Is somebody walkin' around in hooves? Who WEARS hooves?"]
-HUM_LINES = ["Hey! HEY! No singin' in the pasture!", "Cows don't HUM! Stop HUMMIN'!",
-             "Y'all sound like a transmission goin'. Knock it OFF!", "Is that... HARMONY? Who taught you harmony?!",
-             "I'm comin' over there and I'm bringin' my stern voice!"]
+HUM_LINES = ["Hey! HEY! Quit that racket!", "What are y'all ARGUIN' about?! You're COWS!",
+             "It sounds like a town hall meetin' in there! Knock it OFF!",
+             "I'm comin' over there and I'm bringin' my stern voice!",
+             "Every night it's the same! Moo moo moo, like you got OPINIONS!"]
 BACK_TO_BED_LINES = ["Nothin'. Back to bed, Chuck.", "Probably the house settlin'. Houses settle.", "...Stupid raccoons.",
                      "If that was a ghost, I'm not payin' it rent."]
 DOOR_LINES = {"pasture_gate": ["Who left the GATE open?!", "The gate's open. The gate is OPEN. Who opens a gate?"],

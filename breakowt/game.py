@@ -27,10 +27,10 @@ from . import models
 
 MOO_BUBBLES = {
     "sirloin": ["MOOOO.", "MOO!", "Moo, forsooth."],
-    "moomaw": ["Mooo-oo", "Moo, dear.", "Mooo..."],
+    "moomaw": ["Mooo-oo", "Moo, dear.", "Memento moo."],
     "mooriarty": ["psst. moo.", "moo.", "...moo."],
-    "cowpernicus": ["Moo (technically).", "Moo.", "Moo?"],
-    "moozart": ["Mooo-oo", "Moo.", "Mooo..."],
+    "cowpernicus": ["Moo (p < 0.05).", "Moo.", "Moo?"],
+    "moozart": ["Moo. QED.", "Moo.", "Moo, trivially."],
     "cowleen": ["Moo.", "Moo!", "Moo?"],
 }
 

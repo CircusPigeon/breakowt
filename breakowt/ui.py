@@ -21,7 +21,7 @@ GREEN = C(0.5, 0.9, 0.45, 1)
 
 SPEAKER_COLORS = {
     "Cowleen": C(0.98, 0.7, 0.45, 1),
-    "Moozart": C(0.8, 0.8, 1.0, 1),
+    "Moobius": C(0.8, 0.8, 1.0, 1),
     "Sir Loin": C(1.0, 0.45, 0.4, 1),
     "Cowpernicus": C(0.5, 0.85, 1.0, 1),
     "Mooriarty": C(0.75, 0.75, 0.75, 1),
