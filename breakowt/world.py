@@ -227,7 +227,6 @@ class World:
         self.nav_edges: dict[int, list[int]] = {}
         self.spawns: dict[str, tuple] = {}
         self.lamps: dict[str, dict] = {}
-        self.clover_spots: list[tuple] = []
         self.animated: list = []
         self.t = 0.0
         random.seed(1987)
@@ -280,11 +279,14 @@ class World:
 
     def wall_gaps(self, x0, z0, x1, z1, h, gaps, t=0.2, texname="wood", y0=0.0, tex_in=None, inside=None,
                   color=C_WHITE, uv=0.5):
-        """Wall with openings. gaps: list of (a, b, top) in the running coordinate."""
+        """Wall with openings. gaps: list of (a, b, top) in the running coordinate, or (a, b, top, sill) for a
+        window: wall below the sill too, and an invisible pane you can see through but not climb through."""
         along_x = abs(z1 - z0) < 1e-6
         a0, a1 = (min(x0, x1), max(x0, x1)) if along_x else (min(z0, z1), max(z0, z1))
         cur = a0
-        for (ga, gb, top) in sorted(gaps):
+        for gap in sorted(gaps):
+            ga, gb, top = gap[:3]
+            sill = gap[3] if len(gap) > 3 else 0.0
             if ga > cur:
                 if along_x:
                     self.wall(cur, z0, ga, z0, h, t, texname, y0, tex_in, inside, color, uv)
@@ -295,12 +297,39 @@ class World:
                     self.wall(ga, z0, gb, z0, h - top, t, texname, y0 + top, tex_in, inside, color, uv)
                 else:
                     self.wall(x0, ga, x0, gb, h - top, t, texname, y0 + top, tex_in, inside, color, uv)
+            if sill > 0:
+                if along_x:
+                    self.wall(ga, z0, gb, z0, sill, t, texname, y0, tex_in, inside, color, uv)
+                    self.phys.add_box(ga, gb, z0 - t / 2, z0 + t / 2, y0 + sill, y0 + top, sight=False)
+                else:
+                    self.wall(x0, ga, x0, gb, sill, t, texname, y0, tex_in, inside, color, uv)
+                    self.phys.add_box(x0 - t / 2, x0 + t / 2, ga, gb, y0 + sill, y0 + top, sight=False)
+                self._window_frame(along_x, z0 if along_x else x0, ga, gb, y0 + sill, y0 + top, t)
             cur = gb
         if cur < a1:
             if along_x:
                 self.wall(cur, z0, a1, z0, h, t, texname, y0, tex_in, inside, color, uv)
             else:
                 self.wall(x0, cur, x0, a1, h, t, texname, y0, tex_in, inside, color, uv)
+
+    def _window_frame(self, along_x, at, a, b, ys, yt, t, col=(0.93, 0.92, 0.88, 1)):
+        """Trim round a window opening on both faces of the wall, and a cross of glazing bars."""
+        mb = self.mb("white")
+        fw = 0.09                       # trim width
+        d = t + 0.06                    # proud of both faces
+        mid, w, hgt = (a + b) / 2, b - a, yt - ys
+
+        def box(run, y, size_run, size_y, depth):
+            if along_x:
+                mb.box((run, y, at), (size_run, size_y, depth), color=col)
+            else:
+                mb.box((at, y, run), (depth, size_y, size_run), color=col)
+        box(mid, ys - fw / 2, w + 2 * fw, fw, d + 0.04)        # sill, sticking out a little further
+        box(mid, yt + fw / 2, w + 2 * fw, fw, d)               # head
+        box(a - fw / 2, (ys + yt) / 2, fw, hgt, d)              # jambs
+        box(b + fw / 2, (ys + yt) / 2, fw, hgt, d)
+        box(mid, (ys + yt) / 2, 0.05, hgt, 0.05)                # glazing bars
+        box(mid, (ys + yt) / 2, w, 0.05, 0.05)
 
     def gable_roof(self, x0, x1, z0, z1, y, rise, texname="shingles", overhang=0.6, thick=0.2, along="x",
                    end_tex=None, color=C_WHITE):
@@ -805,8 +834,13 @@ class World:
         x0, x1, z0, z1 = BARN
         H = 7.0
         inside = ((x0 + x1) / 2, (z0 + z1) / 2)
-        self.wall(x0, z1, x1, z1, H, 0.3, "barn_red", tex_in="wood_dark", inside=inside)
-        self.wall(x1, z0, x1, z1, H, 0.3, "barn_red", tex_in="wood_dark", inside=inside)
+        # windows to keep an eye out for Chuck: north (in a stall) looks up the drive; east, either side of the
+        # silo (which stands right outside, z 4.5..11.5): at cow height south of it over the yard, the coop and
+        # the plant, and up in the hayloft gable north of it, toward the house
+        self.wall_gaps(x0, z1, x1, z1, H, [(19.2, 20.8, 2.0, 1.0)], 0.3, "barn_red", tex_in="wood_dark",
+                       inside=inside)
+        self.wall_gaps(x1, z0, x1, z1, H, [(-9.2, -7.6, 2.0, 1.0), (12.0, 13.6, LOFT_Y + 2.0, LOFT_Y + 0.9)], 0.3,
+                       "barn_red", tex_in="wood_dark", inside=inside)
         self.wall_gaps(x0, z0, x1, z0, H, [(18, 26, 5.0)], 0.3, "barn_red", tex_in="wood_dark", inside=inside)
         self.wall_gaps(x0, z0, x0, z1, H, [(-0.4, 1.8, 2.4)], 0.3, "barn_red", tex_in="wood_dark", inside=inside)
         # white trim X on the big doors' header
@@ -857,7 +891,7 @@ class World:
         # loft hay
         for (hx, hz, r, y) in [(12, 12.5, 90, LOFT_Y), (12, 12.5, 90, LOFT_Y + 0.9), (14.5, 13, 0, LOFT_Y),
                                (26, 12.8, 0, LOFT_Y), (24, 12.8, 0, LOFT_Y), (25, 12.8, 0, LOFT_Y + 0.9),
-                               (32.5, 12.5, 90, LOFT_Y)]:
+                               (28.4, 12.8, 0, LOFT_Y)]:
             self.hay_bale(hx, y, hz, r)
         # loose piles: domes resting on the loft floor (a whole sphere poked through the barn ceiling)
         self.mb("hay").sphere((17, LOFT_Y - 0.02, 10.5), 1.6, segs=12, rings=4, scale=(1.4, 0.7, 1.2), uv_density=0.8,
@@ -1291,8 +1325,9 @@ class World:
         fc("white", 50.55, 37.9, y, "s", 0, 0.03, 0, 0.018, 1.45, color=BRASS_C, segs=6)
         fc("white", 50.55, 37.9, y, "s", 0, 1.4, 0, 0.24, 0.3, color=(0.93, 0.86, 0.66, 1), rt=0.15, segs=14)
         self.phys.add_circle(50.55, 37.9, 0.18, y, y + 1.7)
-        # on the walls: a barn painting over the sofa, a clock over the TV, family photos
-        self._picture((48.0, y + 1.85, 39.92 - 0.02), (1.1, 0.8), "s")
+        # on the walls: a barn painting over the sofa's left end (the hall doorway, x 47.9..49.9, is behind
+        # the middle of it), a clock over the TV, family photos
+        self._picture((46.0, y + 1.85, 39.92 - 0.02), (1.1, 0.8), "s")
         self.mb("white").cylinder((vx, y + 2.25, 30.16), 0.2, 0.05, color=(0.35, 0.22, 0.12, 1), segs=16,
                                   rot=(90, 0, 0))
         self.mb("white").cylinder((vx, y + 2.25, 30.2), 0.17, 0.02, color=(0.96, 0.94, 0.88, 1), segs=16,
@@ -2015,17 +2050,6 @@ class World:
         cord = MeshBuilder().cylinder((0, 0.12, 0), 0.006, 0.13, color=(0.85, 0.82, 0.75, 1), segs=4)
         Entity(parent=self.chimes, model=cord.build(), texture=tex("white"), shader=FARM_SHADER)
         self.add_ia("chimes", (58.5, HOUSE_Y + 2.15, 27.2), 0.4, "Wind chimes", reach=3.2)
-        # clover spots (placement decided by the game)
-        self.clover_spots = [
-            (-76, 0.25, -73), (-60, 0.25, 1.5), (-20.5, 0.25, -73), (-44, 0.25, -59),   # pasture (one in the pond)
-            (-11, 0.25, -19), (-17, 0.25, -45),                                          # shed area
-            (33, LOFT_Y + 0.3, 13.2), (11, 0.25, 13), (45.5, 0.25, 8),                  # barn / silo
-            (51, 0.25, -47), (46.5, 0.25, -26),                                          # coop
-            (77, 0.25, -34), (60, 0.25, -52),                                            # processing
-            (44.6, HOUSE_Y + 0.25, 32.4), (67.4, HOUSE_Y + 0.25, 45.8), (40, 0.25, 34.2),  # house
-            (78, 0.25, 84), (-78, 0.25, 84), (5, 0.25, 84),                              # far corners
-            (-40, 0.25, 30),
-        ]
 
     def build_nav(self):
         Y = HOUSE_Y
@@ -2117,8 +2141,9 @@ class World:
                     best, bd = i, d
         return best
 
-    def find_path(self, start, goal):
-        """A* on the nav graph; returns list of (x,y,z) waypoints ending at goal."""
+    def find_path(self, start, goal, through=()):
+        """A* on the nav graph; returns list of (x,y,z) waypoints ending at goal.
+        through: door keys the walker opens for himself, so a shut one doesn't block the route."""
         if self._segment_clear(start, goal) and abs(start[1] - goal[1]) < 0.5:
             return [goal]
         s = self.nearest_node(start, start[1])
@@ -2135,7 +2160,7 @@ class World:
                 break
             for nb in self.nav_edges[cur]:
                 blockers = self.edge_gates.get((cur, nb))
-                if blockers and any(b.enabled for b in blockers):
+                if blockers and any(b.enabled and b.tag not in through for b in blockers):
                     continue
                 c = cost[cur] + math.dist(N[cur], N[nb])
                 if nb not in cost or c < cost[nb]:

@@ -988,24 +988,50 @@ def harmony_events(bars=range(16), transpose=0):
     return ev
 
 
-def moozart_fragment(n_bars: int, voice="moozart", with_box=True, stop_note=True) -> np.ndarray:
-    """Moozart moo-sings the first n bars (his work in progress)."""
-    dur = n_bars * BAR + 0.5
+def moozart_fragment(n_bars: int, voice="moozart", with_box=True, stop_note=True, start=0) -> np.ndarray:
+    """Moozart moo-sings bars start..n_bars-1 of his work in progress (each day, just the new bars)."""
+    t_off = start * BAR
+    dur = (n_bars - start) * BAR + 0.5
     tr = Track(dur)
-    for t0, m, d in melody_events(range(n_bars), transpose=-12):
-        tr.add(t0, sung_moo(midi(m), d * 0.95, voice=voice, open_=0.45), 0.8)
+    for t0, m, d in melody_events(range(start, n_bars), transpose=-12):
+        tr.add(t0 - t_off, sung_moo(midi(m), d * 0.95, voice=voice, open_=0.45), 0.8)
     if with_box:
-        for bi in range(n_bars):
+        for bi in range(start, n_bars):
             bass, tones = CHORDS[bi]
-            tr.add(bi * BAR, music_box(midi(nm(bass) + 12), 1.8, 0.35))
-            tr.add(bi * BAR + BEAT, music_box(midi(nm(tones[1]) + 12), 1.2, 0.22))
-            tr.add(bi * BAR + 2 * BEAT, music_box(midi(nm(tones[2]) + 12), 1.2, 0.22))
+            tb = bi * BAR - t_off
+            tr.add(tb, music_box(midi(nm(bass) + 12), 1.8, 0.35))
+            tr.add(tb + BEAT, music_box(midi(nm(tones[1]) + 12), 1.2, 0.22))
+            tr.add(tb + 2 * BEAT, music_box(midi(nm(tones[2]) + 12), 1.2, 0.22))
     if stop_note and n_bars < 16:
         # he trails off with a questioning moo
-        tr.add(n_bars * BAR - 0.1, moo(kind="question", **dict(VOICES[voice], f0=VOICES[voice]["f0"] * 0.9)), 0.5)
+        tr.add((n_bars - start) * BAR - 0.1, moo(kind="question", **dict(VOICES[voice], f0=VOICES[voice]["f0"] * 0.9)),
+               0.5)
         tr.buf = np.concatenate([tr.buf, np.zeros(SR)])
         tr.length += int(1.0 * SR)
     return reverb(tr.out(0.8), 1.8, 0.25)
+
+
+def herd_hum() -> np.ndarray:
+    """The whole herd joins in on the first bars of Moozart's tune, badly: early, late, flat, and one
+    straggler who keeps going after everyone else has stopped."""
+    rng = np.random.default_rng(12)
+    n_bars = 3
+    dur = n_bars * BAR + 2.5
+    tr = Track(dur)
+    voices = ["cowleen", "sirloin", "cowpernicus", "mooriarty", "moomaw", "player", "sirloin", "cowleen"]
+    ev = melody_events(range(n_bars), transpose=-12)
+    for k, v in enumerate(voices):
+        lag = rng.uniform(-0.1, 0.3)
+        detune = rng.uniform(-0.7, 0.5)
+        oct_ = -12 if v == "sirloin" else 0
+        for i, (t0, m, d) in enumerate(ev):
+            if rng.random() < 0.12:
+                continue        # forgot this note
+            tr.add(max(0.0, t0 + lag + rng.uniform(-0.05, 0.05)),
+                   sung_moo(midi(m + oct_ + detune), d * rng.uniform(0.8, 1.0), voice=v, open_=0.35), 0.3)
+    t_end = n_bars * BAR
+    tr.add(t_end + 0.25, sung_moo(midi(nm("C4") - 12 - 0.8), 1.4, voice="sirloin", open_=0.5), 0.45)
+    return reverb(tr.out(0.8), 2.2, 0.35)
 
 
 def hayloft_final_note() -> np.ndarray:
@@ -1801,6 +1827,13 @@ def catalog():
         "moozart_12": lambda: moozart_fragment(12),
         "moozart_15": lambda: moozart_fragment(15, stop_note=False),
         "moozart_walk": lambda: moozart_fragment(16, with_box=False, stop_note=False),
+        "moozart_hum": lambda: moozart_fragment(3, with_box=False, stop_note=False),
+        # each day he plays just the bars that are new since last time
+        "moozart_5_8": lambda: moozart_fragment(8, start=4),
+        "moozart_9_12": lambda: moozart_fragment(12, start=8),
+        "moozart_13_15": lambda: moozart_fragment(15, start=12, stop_note=False),
+        "moo_player_hum": lambda: moozart_fragment(2, voice="player", with_box=False, stop_note=False),
+        "moo_herd_hum": herd_hum,
         "final_note": hayloft_final_note,
         "music_box_theme": lambda: music_box_theme(1.0),
     })

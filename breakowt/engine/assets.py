@@ -63,6 +63,13 @@ def generation_steps():
             synth.write_wav(str(AUDIO_DIR / f"{name}.wav"), cat[name](), name=name)
             yield f"Teaching cows to {name.split('_')[0]}", 0.1 + 0.9 * (i + 1) / len(names)
         (AUDIO_DIR / ".version").write_text(synth.AUDIO_VERSION)
+    else:
+        # same version, but sounds added since: make just those
+        cat = synth.catalog()
+        missing = [n for n in cat if not (AUDIO_DIR / f"{n}.wav").exists()]
+        for i, name in enumerate(missing):
+            synth.write_wav(str(AUDIO_DIR / f"{name}.wav"), cat[name](), name=name)
+            yield f"Teaching cows to {name.split('_')[0]}", 0.1 + 0.9 * (i + 1) / len(missing)
     yield "Done", 1.0
 
 

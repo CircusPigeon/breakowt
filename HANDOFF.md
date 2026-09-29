@@ -87,14 +87,16 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   waiting on the player's ears.
 
 ### Freeplay round: Moo-dals and a farm that answers back
-- `moodals.py`: 25 achievements for freeplay (moo 50 times, make Chuck trip, knock over every prop, get the
-  herd to moo back, a day without being caught, find the bathroom mirror, ...). Each pays Golden Clovers
-  into the current run (Mooriarty's shop). Progress is a profile, `saves/moodals.json`, separate from the
+- `moodals.py`: 23 achievements for freeplay (moo 50 times, make Chuck trip, knock over every prop, get the
+  herd to moo back, a day without being caught, find the bathroom mirror, ...). They are the only source of
+  Golden Clovers (Mooriarty's shop currency): `Game.clovers()` = total Moo-dal payout minus
+  `flags["clovers_spent"]`. (The player asked for no collectibles, so the 20 hidden clovers are gone.)
+  Progress is a profile, `saves/moodals.json`, separate from the
   checkpoint save, so it carries across playthroughs and survives reloads. UI: banner on unlock
   (`UI.moodal_banner`, queued), list screen `UI.open_moodals` from the pause menu and the title screen,
   a count in the journal and a line plus a rank in the credits.
 - `Game.event(name, **kw)` is the hook: the player (moo, hop, step), farmer (chuck_trip, dale), game
-  (interact, knock, clover, caught, noise) and story (day_start, herd_talk) call it; `Moodals.on_event` and
+  (interact, knock, caught, noise) and story (day_start, herd_talk) call it; `Moodals.on_event` and
   `Life.on_event` listen. It swallows exceptions from those two: decoration never breaks the story. To add
   a Moo-dal: a row in `MOODALS`, a `GOALS`/`SET_GOALS` entry or an `unlock()` in `on_event`.
 - `life.py`: birds (8 spots, ground and perched; scatter when you come close, gallop or make a noise; only
@@ -109,6 +111,34 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - Herd cows you lean on step sideways out of your path (`HerdCow.update`, `_shoved`). Two cows standing
   shoulder to shoulder used to wall off the escort route for the bot, and are annoying for a player too.
 - Audio v9 adds `moodal`, `bird_flutter`, `frog_chorus`, `owl_hoot`.
+
+### Player feedback round (playtest notes, all addressed)
+- **Every item has a use.** Holdable = on the hotbar (Q use / R throw); the rest live in the journal and
+  work by themselves (keys). Pencil: Moozart writes the score with it. Pliers: needed to pull the live
+  fuse on Sunday. Radio: [Q] sets it down playing, Chuck comes to switch it off (also the way to get him out
+  of bed on Saturday night). Score: [Q] hums the opening, the herd joins in and Chuck stomps to the pasture
+  gate to shush them (`score_use`, 45 s cooldown, noise source `herd_hum`). Boot and tin can are throwables.
+  The spare key stays in the front door once used; the tractor key is used on Sunday; no fuse item.
+- **Hotbar has no cap** (it was silently 9, which hid late items like the spark plug): keys 1-9 and 0, scroll
+  for the rest, the bar shrinks past ten slots.
+- **Chuck handles doors** (`Farmer._doors_tick`, `OWN_DOORS`): pathfinding goes through his own doors
+  (`find_path(through=...)`), he opens them when he reaches them and shuts them behind him. A door the
+  player left open on his route gets a remark and he walks through it, instead of shutting it and opening
+  it again (that was the Friday "open/close glitch"). Friday's routines no longer script the front door.
+- **Sight** 30 m by day (was 24), 23 in rain, 9.5 in the dark, 27 in the torch beam; same 110° cone.
+- **Asleep, walking wakes him** (`footfall` noise, only while he sleeps, only if not sneaking), faster up
+  close and in the house; galloping is loud at any distance under 9 m.
+- **Cameras** aim with `game.aim_camera` (yaw/pitch, zero roll). Ursina 8's `look_at` rotates the shortest
+  way from the current orientation, so a cut facing the other way flipped the boss intro upside down.
+- **Boss takes 8 hits**, one per landed blow whatever it was (shotgun included).
+- **Truck tailgate** drops to a ramp, Moozart walks in over a temporary floor, a stand-in rides away.
+- **Barn windows** (`wall_gaps` takes an optional sill: invisible pane, see-through both ways, trim via
+  `_window_frame`): north at cow height, east south of the silo, east gable in the loft north of it.
+- **Moozart's melody** plays only the new bars each day (`moozart_5_8`, `_9_12`, `_13_15`), a short hum on
+  the walk to the truck, and no second music-box replay at the vigil.
+- **Dialogue** rewritten for more jokes and less sentiment (the player's words: funnier, edgier, the puns
+  are good but it was a bit innocent). Keep that register for new lines.
+- New sounds are generated on launch without a version bump (assets fill in missing files).
 
 ### Verified
 - Freeplay round, on the Windows machine: `--day 1 --to 7 --detect` passes; a scratch test mooed at the

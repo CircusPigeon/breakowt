@@ -15,6 +15,8 @@ import time
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, held_keys, mouse
 
 from .days import DayScripts, DAYS
+from .farmer import SIGHT_DAY
+from .game import aim_camera
 from .interact import Handler, Interactable
 from .items import ITEMS
 from .npc import FRIENDS, HERD_NAMES
@@ -47,18 +49,22 @@ SHOP = [
 ]
 
 HERD_LINES = [
-    "Moo. (Have you tried the grass by the fence? Same as the other grass.)",
-    "Moo. (I'm lying down because it might rain. It might not. I'm covered either way.)",
-    "Moo. (Chuck scratched my ears yesterday. I'm still thinking about it.)",
-    "Moo. (Do you ever look at the pond and think about the pond?)",
-    "Moo. (I've been chewing this since Tuesday. Last Tuesday.)",
-    "Moo. (Sir Loin told me he's descended from royalty. He told the fence post the same thing.)",
-    "Moo. (The hens say the rooster has a black belt. I don't know what that is.)",
-    "Moo. (I'm going to stand here. Then maybe over there. Big day.)",
-    "Moo. (Mooriarty sold me a Golden Clover. It was a regular clover. Painted.)",
-    "Moo. (If you see Clarabelle, tell her she still owes me a salt lick.)",
-    "Moo. (I heard the truck on Thursday. I didn't like it.)",
-    "Moo. (There's a fly on my back. Don't tell it I know.)",
+    "Moo. (Have you tried the grass by the fence? Same as the other grass. I'm going to try it again anyway.)",
+    "Moo. (I'm lying down because it might rain. It might not. I'm covered either way. By my own body.)",
+    "Moo. (Chuck scratched my ears yesterday. Then he looked at my rump for a really long time. I don't like it.)",
+    "Moo. (Do you ever look at the pond and think about the pond? The pond does not think about you.)",
+    "Moo. (I've been chewing this since Tuesday. Last Tuesday. I have four stomachs and they're all disappointed.)",
+    "Moo. (Sir Loin told me he's descended from royalty. He told the fence post the same thing. It believed him.)",
+    "Moo. (The hens say the rooster has a black belt. The hens say a lot. The hens are always saying.)",
+    "Moo. (I'm going to stand here. Then maybe over there. Big day. Huge.)",
+    "Moo. (Mooriarty sold me a Golden Clover. It was a regular clover. Painted. I ate it anyway.)",
+    "Moo. (If you see Clarabelle, tell her she still owes me a salt lick. And an apology. She knows what for.)",
+    "Moo. (I heard the truck on Thursday. I pretended I didn't. That's my whole coping strategy.)",
+    "Moo. (There's a fly on my back. Don't tell it I know. I'm playing the long game.)",
+    "Moo. (My mother always said 'you are what you eat'. Then she got eaten. Kind of undercut her.)",
+    "Moo. (Chuck calls us 'the girls'. Then he calls us 'the inventory'. Pick one, Chuck.)",
+    "Moo. (Somebody said 'free range'. I've been ranging for years. None of it's been free.)",
+    "Moo. (I'm not scared of Sunday. I'm scared of Dale. Have you seen Dale? You haven't. Nobody has.)",
 ]
 
 
@@ -237,8 +243,7 @@ class Story(DayScripts):
         for k in list(self.props):
             self.remove_prop(k)
         for k in list(g.world.items):
-            if not k.startswith("clover_"):
-                g.world.remove_item(k)
+            g.world.remove_item(k)
         for k in [k for k in g.ia.items if k.startswith(("st_", "dropped_"))]:
             g.ia.remove(k)
         for f in self.fx:
@@ -256,7 +261,7 @@ class Story(DayScripts):
         f.detect = True
         f.flashlight = False
         f.hearing = 1.0
-        f.range_day = 24.0
+        f.range_day = SIGHT_DAY
         f.walk_run = False
         f.trip_rate = 1 / 90.0
         f.dale_greeted = False
@@ -412,9 +417,7 @@ class Story(DayScripts):
         r = 70.0
         pos = (cx + math.sin(a) * r, 26 + math.sin(self.cam_t * 0.05) * 3, cz + math.cos(a) * r)
         camera.position = pos
-        camera.rotation = (0, 0, 0)
-        camera.look_at((cx * 0.5, 4, cz * 0.5))
-        camera.rotation_z = 0
+        aim_camera((cx * 0.5, 4, cz * 0.5))
 
     def title_input(self, key):
         if self.g.ui.modal == "settings":
@@ -572,6 +575,8 @@ class Story(DayScripts):
         if sel == "shotgun":
             g.fire_shotgun()
             return True
+        if sel == "score":
+            return self.score_use()
         if sel == "moustache":
             if p.disguised:
                 p.set_disguise(False)
@@ -584,17 +589,18 @@ class Story(DayScripts):
                           "Chuck keeps spares in his wardrobe.")
             return True
         uses = {
-            "cowbell": "Your old cowbell. It still smells a bit like you. [R] throws it.",
-            "tincan": "You shake the tin can. Nothing. You shake it again. Still nothing. Mysterious.",
-            "pencil": "You chew the pencil for a while. It's a good pencil.",
-            "pliers": "You click the pliers at nothing. Snip snip.",
-            "tractor_key": "WORLD'S OKAYEST FARMER, says the keychain. Sunday, then.",
-            "score": "Symphony No. 1 in Moo Major. For Forty-Seven. You can hear it when you look at it.",
-            "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy milk.",
-            "photo": "Chuck and Big Earl, Best in Show 2009. Moomaw would want this.",
+            "cowbell": "Your old cowbell. It still smells like you, which is to say: like a cow. [R] throws it.",
+            "tincan": "You shake the tin can. Nothing. You shake it again. Still nothing. [R] throws it, very loudly.",
+            "boot": "It smells like Chuck's foot. That's a weapon on its own. [R] throws it.",
+            "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy charcoal. Buy MORE charcoal.",
+            "photo": "Chuck and Big Earl, Best in Show 2009. Big Earl looks like he's planning something. Moomaw "
+                     "would want this.",
             "plank": "It's a plank. The cattle grid wants three of them.",
-            "house_key": "The spare key. It came out of a gnome.",
-            "sparkplug": "It smells of vinegar. It goes in the tractor.",
+            "sparkplug": "It smells of vinegar and Chuck's dentures. It goes in the tractor.",
+            "jerrycan": "Diesel. It goes in the tractor, not in you.",
+            "glasses": "Everything's blurry and huge. So this is how Chuck sees you. Cowpernicus wants these.",
+            "bucket": "A rusty bucket. Sir Loin wants it. Sir Loin wants to WEAR it.",
+            "rubber_chicken": "You squeeze it. It screams. You feel seen. [R] throws it.",
         }
         if sel in uses:
             g.examine(uses[sel])
@@ -675,11 +681,15 @@ class Story(DayScripts):
             g.audio.play("metal_clang", vol=0.8)
             yield from g.talk([
                 ("sirloin", "Is that... a helm? For me?"),
-                ("sirloin", "It fits. Of course it fits. It was always meant to fit."),
-                ("sirloin", "Kneel, Forty-Seven. Well. Stand, since you're a cow. We're all standing."),
-                ("sirloin", "I dub thee Dame Forty-Seven of the Pasture. When the fighting starts, I ride at your side."),
+                ("you", "Moo. (It's a bucket.)"),
+                ("sirloin", "It fits. Of course it fits. A bucket is just a helm that hasn't met its knight."),
+                ("sirloin", "Kneel, Forty-Seven. Well. Stand, since you're a cow. We're all standing. We sleep "
+                            "standing. Knighthood is exhausting."),
+                ("sirloin", "I dub thee Dame Forty-Seven of the Pasture. When the fighting starts, I ride at your side. "
+                            "Or in front. I can't see anything in this."),
                 ("you", "Moo. (You're going to walk into the fence wearing that.)"),
                 ("sirloin", "A knight does not walk into fences. A knight is walked into BY fences."),
+                ("sirloin", "...It smells like old paint and Chuck's feet. I've never been happier."),
             ])
             g.side_quest("helm", state="done")
             return True
@@ -691,20 +701,25 @@ class Story(DayScripts):
             yield from g.talk([
                 ("cowpernicus", "Are those... reading glasses? Plus two-point-five?"),
                 ("cowpernicus", "Oh. Oh, the sky has EDGES. I thought stars were blurry on purpose."),
-                ("cowpernicus", "Give me a second. I've been meaning to chart every Golden Clover on the farm by their glint."),
-                ("cowpernicus", "Done. They're on your map now. Tab to look. Don't tell Mooriarty I did this."),
+                ("cowpernicus", "And now I can see where Chuck CAN'T see. Every clump of tall grass, every bale. "
+                                "Hold still, I'm charting it."),
+                ("cowpernicus", "Done. Every hiding spot on the farm, on your map. Tab. You're welcome. I'm a genius. "
+                                "It was the glasses. It was mostly me."),
             ])
             g.side_quest("specs", state="done")
-            g.ui.toast("Golden Clovers marked on your map", "clover", col=BRASS)
+            g.ui.toast("Hiding spots marked on your map", "glasses", col=BRASS)
             return True
         if key == "moomaw" and g.inv.has("photo") and not self.done("sq_photo"):
             g.inv.remove("photo")
             self.setf("sq_photo")
             yield from g.talk([
                 ("moomaw", "Oh. Oh, look at him. Look at that big dumb handsome face."),
-                ("moomaw", "Best in Show, 2009. He hated that ribbon. He ate half of it."),
-                ("moomaw", "Thank you, sweetheart. Here. This was his. He found it by the gate the spring you were born."),
-                ("moomaw", "If Chuck ever gets his hands on you, drop it. He's tripped on it before. Twice."),
+                ("moomaw", "Best in Show, 2009. He hated that ribbon. He ate half of it. Then he ate the judge's hat."),
+                ("moomaw", "Chuck's standing next to him like they were friends. Earl bit him ten minutes after this. "
+                           "You can see Chuck's hand is already a little worried."),
+                ("moomaw", "Here. This was his lucky horseshoe. He wore it on a string. It didn't work. Obviously."),
+                ("moomaw", "But if Chuck grabs you, drop it at his feet. He's tripped on it twice. The man cannot "
+                           "handle a horseshoe."),
             ])
             g.inv.add("horseshoe")
             g.side_quest("photo", state="done")
@@ -727,11 +742,11 @@ class Story(DayScripts):
             price = next(p for kk, _, p, _ in SHOP if kk == k)
             if self.done(f"shop_{k}"):
                 return
-            if g.flags.get("clovers", 0) < price:
+            if g.clovers() < price:
                 g.audio.play("blip_lo", vol=0.5)
-                g.ui.toast("Not enough Golden Clovers")
+                g.ui.toast("Not enough Golden Clovers. Earn Moo-dals.")
                 return
-            g.flags["clovers"] -= price
+            g.flags["clovers_spent"] = g.flags.get("clovers_spent", 0) + price
             self.setf(f"shop_{k}")
             g.stats["bought"] = g.stats.get("bought", 0) + 1
             g.audio.play("clover", vol=0.6)
@@ -752,12 +767,13 @@ class Story(DayScripts):
             done["d"] = True
 
         def reopen():
-            g.ui.open_shop("MOORIARTY'S", entries(), g.flags.get("clovers", 0), buy, close)
+            g.ui.open_shop("MOORIARTY'S", entries(), g.clovers(), buy, close)
 
         yield from g.talk([("mooriarty", random.choice([
             "Psst. Over here. Take a look. Don't touch unless you're buying.",
             "Back again. I knew you would be. I know things.",
-            "Golden Clovers only. Don't ask me where the merchandise comes from.",
+            "Golden Clovers only. Don't ask me where the merchandise comes from. Or where the clovers go.",
+            "Every Moo-dal you earn, a clover finds its way to you. I don't make the rules. I sell the rules.",
         ]))])
         reopen()
         yield lambda: done["d"]
@@ -929,10 +945,10 @@ class Story(DayScripts):
             ("Sir Loin .......... a knight, he says", "small"),
             ("Cowpernicus .......... the brains", "small"),
             ("Mooriarty .......... no comment", "small"),
-            ("Moomaw .......... in memory of Big Earl", "small"),
+            ("Moomaw .......... in memory of Big Earl (and his bear)", "small"),
             ("Cluck Norris .......... himself", "small"),
             ("Chuck .......... Charles Rumpley", "small"),
-            ("Dale .......... never seen", "small"),
+            ("Dale .......... never seen, somehow still too much", "small"),
             ("", ""),
             ("Music", "head"),
             ("Symphony No. 1 in Moo Major, by Moozart", "small"),
@@ -940,7 +956,6 @@ class Story(DayScripts):
             ("", ""),
             ("Your week", "head"),
             (f"Times caught: {caught}", "small"),
-            (f"Golden Clovers found: {self.flags.get('clovers_total', 0)} of {len(g.world.clover_spots)}", "small"),
             (f"Rocks thrown: {st.get('thrown', 0)}", "small"),
             (f"Moos: {st.get('moos', 0)}", "small"),
             (f"Pathetic hops: {st.get('hops', 0)}", "small"),
@@ -950,7 +965,7 @@ class Story(DayScripts):
             (f"Moo-dals: {g.moodals.count_unlocked()} of {len(MOODALS)}  (rank: {g.moodals.rank()})", "small"),
             ("", ""),
             ("No cows were harmed in the making of this game.", "small"),
-            ("One farmer was.", "small"),
+            ("One farmer was. Well done.", "small"),
         ]
         col = Entity(parent=r)
         y = -0.62
@@ -992,20 +1007,29 @@ class Story(DayScripts):
 
     def epilogue_lines(self):
         out = [
-            "The herd crossed the county line a little after noon. Forty-seven cows, one bull, and a rooster riding on the bull.",
+            "The herd crossed the county line a little after noon. Forty-seven cows, one bull, and a rooster riding on "
+            "the bull, shouting directions nobody asked for.",
         ]
         if self.done("dale_cancelled"):
-            out.append("Dale got an email saying Chuck had gone vegetarian. He still brings it up at bowling.")
+            out.append("Dale got an email saying Chuck had gone vegetarian and hated his potato salad. He took the "
+                       "second part hardest.")
         else:
-            out.append("Dale showed up at one o'clock with the good potato salad. He waited on the porch until four.")
-        out.append("Cluck Norris runs the coop at an animal sanctuary two counties over. The hens there have a curfew.")
+            out.append("Dale showed up at one o'clock with the good potato salad and a new apron. He waited on the "
+                       "porch until four. He ate the whole potato salad. He cried a little.")
+        out.append("The collection for Chuck's funeral raised eleven dollars. Ten were from Dale. So was the other "
+                   "one. The caterer served burgers. Nobody could look at them.")
+        out.append("Cluck Norris runs security at an animal sanctuary two counties over. There have been no incidents. "
+                   "There have been several 'incidents'.")
         if self.done("sq_specs"):
-            out.append("Cowpernicus named a star after Moozart. He says the paperwork is pending.")
+            out.append("Cowpernicus named a star after Moozart. It turned out to be a satellite. He's keeping the name.")
         if self.done("sq_helm"):
-            out.append("Sir Loin still wears the bucket. He has asked to be buried in it. He is four.")
+            out.append("Sir Loin still wears the bucket. He has asked to be buried in it. He is four. He has also "
+                       "declared himself king of a traffic island.")
         if self.done("sq_photo"):
-            out.append("Moomaw keeps the photo of Big Earl under a flat rock by the new pond.")
-        out.append("Mooriarty sold the tractor. Nobody knows who to.")
-        out.append("Every evening at sunset, the whole herd moos Moozart's symphony. Badly, and all the way through.")
-        out.append("Happy Acres Family Farm is closed. The sign is still up.")
+            out.append("Moomaw hung the photo of Big Earl in the sanctuary barn. She tells new calves he died "
+                       "fighting a bear. He did not fight a bear.")
+        out.append("Mooriarty sold the tractor. Nobody knows who to. He has a boat now. Nobody asks.")
+        out.append("Every evening at sunset, the whole herd moos Moozart's symphony. Badly, off-key, and all the way "
+                   "through. Some of them are getting worse on purpose.")
+        out.append("Happy Acres Family Farm is closed. The sign is still up. Someone has added 'LOL' in paint.")
         return out

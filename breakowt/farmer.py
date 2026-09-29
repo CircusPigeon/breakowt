@@ -9,27 +9,47 @@ from ursina import Text, camera, color, destroy
 from . import models
 from .engine.shading import SHADOW_MASK
 from .npc import Walker, ang_diff
+from .world import _seg_hits_box
+
+# doors Chuck opens for himself on the way through, and shuts behind him (his house, his barn)
+OWN_DOORS = ("front_door", "back_door", "barn_side")
+# how far he sees: by day, in the dark, with the flashlight on you, and when you're under a lamp
+SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 30.0, 9.5, 27.0, 19.0
 
 INVESTIGATE_LINES = [
     "Who's there?", "Dang raccoons.", "Dale? That you?", "Huh. Could've sworn...", "Hello? ...Hello?",
     "If that's you again, Gerald, I swear...", "Probably the wind. The wind throws rocks now.",
     "I'm armed! ...With a very stern voice!", "Nothing. Nothing's ever there.",
+    "Show yourself! Unless you're big. Then don't.", "Is somebody stealin' my stuff? I got very little stuff!",
 ]
 GIVE_UP_LINES = ["Huh. Nothing.", "Eh. Must be hearin' things.", "Back to work, Chuck.", "Stupid wind.",
-                 "Note to self: get a dog. Another dog.", "Whatever it was, it's gone now."]
+                 "Note to self: get a dog. Another dog. A dog that stays.", "Whatever it was, it's gone now.",
+                 "Mama always said I'd hear things. She was right about everything. Except Dale."]
 SUSPICIOUS_LINES = ["Huh?", "Wha—?", "Hey...", "Is that a...?", "Hold on now..."]
-TRIP_LINES = ["OOF!", "Whoa-OA-oa!", "Dang it!", "Who put the GROUND there?!", "My back!"]
-GETUP_LINES = ["I'm okay!", "Nobody saw that.", "Meant to do that.", "Ground's gettin' lower every year."]
-DALE_LINES = ["Mornin', Dale!", "Dale! Lookin' good, buddy!", "Hey Dale. You lose weight?", "Dale! Save some room for Sunday!"]
+TRIP_LINES = ["OOF!", "Whoa-OA-oa!", "Dang it!", "Who put the GROUND there?!", "My back!", "MY OTHER BACK!",
+              "I'm suin' this dirt!"]
+GETUP_LINES = ["I'm okay!", "Nobody saw that.", "Meant to do that.", "Ground's gettin' lower every year.",
+               "That's a bruise. That's gonna be a bruise I show Dale."]
+DALE_LINES = ["Mornin', Dale!", "Dale! Lookin' good, buddy!", "Hey Dale. You lose weight?",
+              "Dale! Save some room for Sunday!", "Dale! Love the new look! Real... bovine!"]
 SLEEP_TALK = ["zzz... Dale... that's MY potato salad...", "mmf... strike... STRIKE...", "...no, Mama, I did feed 'em...",
-              "zzz... hnk... Big Earl... good boy...", "...forty-seven... forty-eight... zzz..."]
-DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale."]
-STIR_LINES = ["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad...", "...mm? ...Mama?"]
+              "zzz... hnk... Big Earl... good boy... tasty boy...", "...forty-seven... forty-eight... zzz...",
+              "...mmf... brisket... with a little rub... zzz..."]
+DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale.",
+                  "Dale, have you always had four legs?"]
+STIR_LINES = ["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad...", "...mm? ...Mama?",
+              "...zzz... hooves?... on the floor?... zzz..."]
 GET_UP_LINES = ["Alright. Who's in my HOUSE?", "Somebody's down there. I heard that.", "That's it. I'm up. I'm UP.",
-                "Gerald, if that's you, I've got a flashlight and I'm not afraid to shine it."]
-BACK_TO_BED_LINES = ["Nothin'. Back to bed, Chuck.", "Probably the house settlin'. Houses settle.", "...Stupid raccoons."]
+                "Gerald, if that's you, I've got a flashlight and I'm not afraid to shine it.",
+                "Is somebody walkin' around in hooves? Who WEARS hooves?"]
+HUM_LINES = ["Hey! HEY! No singin' in the pasture!", "Cows don't HUM! Stop HUMMIN'!",
+             "Y'all sound like a transmission goin'. Knock it OFF!", "Is that... HARMONY? Who taught you harmony?!",
+             "I'm comin' over there and I'm bringin' my stern voice!"]
+BACK_TO_BED_LINES = ["Nothin'. Back to bed, Chuck.", "Probably the house settlin'. Houses settle.", "...Stupid raccoons.",
+                     "If that was a ghost, I'm not payin' it rent."]
 DOOR_LINES = {"pasture_gate": ["Who left the GATE open?!", "The gate's open. The gate is OPEN. Who opens a gate?"],
-              "front_door": ["Now why's my front door open?", "Did I leave the door open? ...I didn't leave the door open."],
+              "front_door": ["Now why's my front door open?", "Did I leave the door open? ...I didn't leave the door open.",
+                             "Front door's open. If I've been robbed, they better've taken the lamp."],
               "back_door": ["Back door's open. I always lock the back door.", "Who's been usin' my back door?"],
               "_": ["Huh. Who left that open?", "That was shut. I know that was shut.", "Now that's funny. That was closed."]}
 
@@ -57,7 +77,7 @@ class Farmer(Walker):
         self.pose = "idle"
         self.head_yaw = 0.0
         self.fov = 110.0
-        self.range_day = 24.0
+        self.range_day = SIGHT_DAY
         self.hearing = 1.0
         self.flashlight = False
         self.trip_rate = 1 / 90.0
@@ -75,6 +95,8 @@ class Farmer(Walker):
         self.bed = None             # (pos, yaw, pose, outfit, getup) while he has somewhere to go back to sleep
         self.door_to_close = None   # a door he's walking over to shut
         self.door_t = 0.0
+        self.door_keys = OWN_DOORS
+        self._my_doors = set()      # doors he opened (or found open on his way) and will shut behind him
         self.boss = None
         self.tool = None
         self.catch_cb = None
@@ -296,18 +318,18 @@ class Farmer(Walker):
         dark = g.env.is_dark
         rng = self.range_day
         if dark:
-            rng = 7.5
+            rng = SIGHT_DARK
         lit = False
         if dark:
             if self.flashlight:
                 f = self.facing()
                 a = abs(ang_diff(math.degrees(math.atan2(dx, dz)), f))
-                if a < 24 and dist < 22:
+                if a < 24 and dist < SIGHT_TORCH:
                     lit = True
-                    rng = 22
+                    rng = SIGHT_TORCH
             if g.player_lit():
                 lit = True
-                rng = max(rng, 16)
+                rng = max(rng, SIGHT_LIT)
         if dist > rng:
             return 0.0, dist
         ang = abs(ang_diff(math.degrees(math.atan2(dx, dz)), self.facing()))
@@ -341,7 +363,18 @@ class Farmer(Walker):
             return False
         if self.sleeping:
             return self._hear_asleep(pos, radius, source)
+        if source == "footfall":
+            return False        # ordinary walking: only a light sleeper notices that
         d = math.hypot(pos[0] - self.x, pos[2] - self.z)
+        if source == "herd_hum":
+            # the herd singing: he stomps over to the pasture gate to yell at them
+            if self.state not in ("routine", "investigate") or d > radius * self.hearing:
+                return False
+            self.say(random.choice(HUM_LINES), force=True)
+            self.bark_cd = 5.0
+            self.investigate(pos, quiet=True)
+            self.inv_timer = 30.0       # long enough to get there from anywhere on the farm
+            return True
         eff = radius * self.hearing * (0.45 if self.sleeping else 1.0)
         if d > eff:
             return False
@@ -359,12 +392,19 @@ class Farmer(Walker):
     # ------------------------------------------------------------------
     def _disturbance(self, pos, radius, source):
         g = self.g
+        d = math.hypot(pos[0] - self.x, pos[2] - self.z)
+        if source == "footfall":
+            # walking (not sneaking) near him: a few strides close by and he's up, further off it takes a while
+            if g.phys.in_zone("house", pos[0], pos[2]) and g.phys.in_zone("house", self.x, self.z):
+                return 0.3 * max(0.2, 1.0 - d / 14.0)
+            return 0.3 * max(0.0, 1.0 - d / 6.0)
         if g.phys.in_zone("house", pos[0], pos[2]) and g.phys.in_zone("house", self.x, self.z):
             # anything that clatters wakes him outright; galloping on the floorboards takes a few strides
             return {"thrown": 1.0, "crash": 1.0, "flush": 1.0, "radio": 1.0, "moo": 1.0, "shotgun": 1.0, "headbutt": 0.7,
                     "steps": 0.35 if g.player.galloping else 0.2, "door": 0.35,
                     "drawer": 0.0 if g.player.crouching else 0.25}.get(source, 0.5)
-        d = math.hypot(pos[0] - self.x, pos[2] - self.z)
+        if source == "steps" and g.player.galloping and d < 9.0:
+            return 0.45     # hooves at a gallop: never quieter than walking past
         if d > radius * self.hearing * 0.45:
             return 0.0
         return 1.0 if source in ("thrown", "crash", "moo", "radio", "flush", "shotgun") else 0.45
@@ -426,7 +466,7 @@ class Farmer(Walker):
                 continue
             cx, cz = d.center()
             dist = math.hypot(cx - ex, cz - ez)
-            rng = 16.0 if not dark else (14.0 if self.flashlight else 6.0)
+            rng = 22.0 if not dark else (18.0 if self.flashlight else 8.0)
             if dist > rng:
                 continue
             if abs(ang_diff(math.degrees(math.atan2(cx - ex, cz - ez)), self.facing())) > self.fov / 2:
@@ -434,15 +474,65 @@ class Farmer(Walker):
             if not g.phys.line_of_sight((ex, ey, ez), (cx, 1.2, cz), (self.col, d.col)):
                 continue
             d.player_opened = False
-            self.door_to_close = key
             self.say(random.choice(DOOR_LINES.get(key, DOOR_LINES["_"])), force=dist < 20)
             self.bark_cd = 4.0
             g.audio.play("question", vol=0.7)
             self.susp = max(self.susp, 0.45)
+            if key in self.door_keys and self._route_crosses(d):
+                # he's going through it anyway: in he goes, and he shuts it behind him
+                self._my_doors.add(key)
+                return
+            self.door_to_close = key
             # walk up to it from his side and shut it
             k = 1.3 / max(dist, 0.01)
             self.investigate((cx + (ex - cx) * k, 0.0, cz + (ez - cz) * k), quiet=True)
             return
+
+    def _route_crosses(self, d, legs=4):
+        """Does the path he's on go through door d?"""
+        pts = [(self.x, self.y, self.z)] + list(self.path[:legs])
+        if len(pts) < 2 and self.state == "routine" and self.routine:
+            # between routine steps: the next "go" is where he's headed
+            for st in self.routine[self.r_i:self.r_i + 3]:
+                if st[0] == "go":
+                    pts.append(st[1])
+                    break
+        return any(_seg_hits_box(a, b, d.col, 0.2) for a, b in zip(pts, pts[1:]))
+
+    def _doors_tick(self):
+        """Open his own doors when one's in his way; shut the ones he opened once he's through."""
+        g = self.g
+        doors = g.world.doors
+        if self.path:
+            nx, _, nz = self.path[0]
+            dx, dz = nx - self.x, nz - self.z
+            d = math.hypot(dx, dz)
+            if d > 1e-3:
+                ahead = min(d, 1.3)
+                a = (self.x, self.y, self.z)
+                b = (self.x + dx / d * ahead, self.y, self.z + dz / d * ahead)
+                for key in self.door_keys:
+                    door = doors.get(key)
+                    if door is None or door.is_open or not _seg_hits_box(a, b, door.col, 0.25):
+                        continue
+                    door.set_open(True)
+                    cx, cz = door.center()
+                    g.audio.play("door_creak", vol=0.7, pos=(cx, self.y + 1, cz), rng=40)
+                    self._my_doors.add(key)
+        for key in list(self._my_doors):
+            door = doors.get(key)
+            if door is None or not door.is_open:
+                self._my_doors.discard(key)
+                continue
+            cx, cz = door.center()
+            if math.hypot(self.x - cx, self.z - cz) < 2.2 or self._route_crosses(door, 2):
+                continue
+            p = g.player
+            if math.hypot(p.x - cx, p.z - cz) < 1.3:
+                continue        # not on a cow standing in the doorway
+            door.set_open(False)
+            g.audio.play("door_close", vol=0.7, pos=(cx, self.y + 1, cz), rng=35)
+            self._my_doors.discard(key)
 
     def _shut_door(self):
         key, self.door_to_close = self.door_to_close, None
@@ -550,6 +640,8 @@ class Farmer(Walker):
             elif self.pose in ("walk", "run"):
                 self.pose = "idle"
         self._apply()
+        if self.state != "sleep":
+            self._doors_tick()
         # head look for alert states
         if self.state == "alert" and self.last_seen:
             want = math.degrees(math.atan2(self.last_seen[0] - self.x, self.last_seen[2] - self.z))

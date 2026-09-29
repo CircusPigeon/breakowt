@@ -74,7 +74,7 @@ last checkpoint, quit). Press **H** any time you're stuck for a hint.
 | R | throw a rock or the selected throwable |
 | Q | use the selected item |
 | M | moo |
-| 1-9 / scroll wheel | pick an item (press its number again to put it away) |
+| 1-9, 0 / scroll wheel | pick an item (press its number again to put it away) |
 | Tab or J | journal, inventory and map |
 | H | hint |
 | Esc | pause |
@@ -87,11 +87,13 @@ In the tractor: W/S throttle, A/D steer.
 
 - **It saves by itself** at every checkpoint. **Continue** picks up from the last one.
 - **Chuck can only catch you where a cow shouldn't be.** The pasture is safe. Sneak, stay out of his
-  line of sight, sneak into tall grass to hide, and throw rocks to make him look the other way.
-- **Golden Clovers** are hidden all over the farm. Trade them with Mooriarty, behind the hay bales in the
-  pasture.
+  line of sight, sneak into tall grass to hide, and throw rocks to make him look the other way. When
+  he's asleep, only sneaking is quiet enough: walk past his bed and he'll get up.
+- **Every item does something.** Its description in the journal (Tab) says what. Keys work on
+  their own; anything on the hotbar is used with Q or thrown with R.
 - **Moo-dals** are the game's achievements, for fooling around as much as for escaping. See them from the
-  pause menu or the title screen. They carry over between playthroughs.
+  pause menu or the title screen. They carry over between playthroughs, and each one pays out **Golden
+  Clovers**, the only currency Mooriarty (behind the hay bales in the pasture) accepts.
 - **Settings** (on the title screen or pause menu): volumes, mouse sensitivity, invert Y, fullscreen, and
   **Graphics** Low / Medium / High. On a slower laptop, pick Low.
 

@@ -17,7 +17,7 @@ from .engine.script import ScriptRunner
 from .engine.shading import Environment, FARM_SHADER
 from .engine.meshbuilder import MeshBuilder
 from .interact import Handler, InteractionSystem, Interactable
-from .items import ITEMS, Inventory
+from .items import ITEMS, SLOT_KEYS, Inventory
 from .npc import FRIENDS, HerdCow, Hen, NPCCow
 from .farmer import Farmer
 from .player import Player, THROWABLE
@@ -39,15 +39,18 @@ CAUGHT_LINES = [
     "Well, well, well. A cow. Out here. Doin' cow crimes.",
     "Oh no you don't. Back to the pasture, missy.",
     "Now how in the heck did you get through the fence? Again?",
-    "Forty-seven! You're supposed to be relaxing! You got a big Sunday!",
+    "Forty-seven! You're supposed to be relaxing! Stress makes the meat tough!",
     "Don't make me get the good rope.",
     "What are you, a cat? Get back in there.",
+    "You run around like that, you're burnin' off all my marbling!",
+    "Where d'you think you're goin'? There's nothin' out there for a cow but traffic and vegans.",
 ]
 CAUGHT_AFTER = [
     "Chuck marched you back to the pasture. He's added 'fix fence' to his to-do list. Again.",
-    "Chuck escorted you home with a long lecture about 'boundaries'. You understood every word.",
+    "Chuck escorted you home with a long lecture about 'boundaries'. You understood every word. He didn't.",
     "Back in the pasture. Chuck is counting fence posts, suspiciously.",
-    "Chuck returned you to the pasture and gave you a little pat. You hated it.",
+    "Chuck returned you to the pasture and gave you a little pat on the rump. Then he squeezed it. Thoughtfully.",
+    "Chuck walked you back, explaining the difference between chuck and brisket. He didn't see the irony.",
 ]
 
 
@@ -62,6 +65,16 @@ QUALITY = {
                  herd_lod=50, herd_shadows=True),
 }
 QUALITY_NAMES = {"low": "Low", "medium": "Medium", "high": "High"}
+
+
+def aim_camera(look):
+    """Point the (scene-parented) camera at `look`, level, no roll. Ursina's look_at turns the shortest way
+    from wherever the camera was pointing, so a cut that faces the other way flips it upside down."""
+    cx, cy, cz = camera.world_position
+    dx, dy, dz = look[0] - cx, look[1] - cy, look[2] - cz
+    if abs(dx) + abs(dy) + abs(dz) < 1e-6:
+        return
+    camera.rotation = (-math.degrees(math.atan2(dy, math.hypot(dx, dz))), math.degrees(math.atan2(dx, dz)), 0)
 
 
 class Game(Entity):
@@ -103,7 +116,6 @@ class Game(Entity):
         self.carrying = None
         self.herd_t = 0.0
         self.herd_i = 0
-        self.clover_items: dict = {}
         self.music_zone = None
         self.fullscreen = not getattr(args, "windowed", False)
         self.ui = UI(self, fonts)
@@ -407,7 +419,7 @@ class Game(Entity):
     def refresh_hotbar(self):
         keys = self.inv.hotbar_keys()
         entries = [(k, ITEMS[k][2], self.inv.count(k), ITEMS[k][0]) for k in keys]
-        self.ui.set_hotbar(entries, self.inv.sel if keys else -1, self.flags.get("clovers", 0))
+        self.ui.set_hotbar(entries, self.inv.sel if keys else -1, self.clovers() if hasattr(self, "moodals") else 0)
         sel = self.inv.selected()
         self.player.hold(sel)
 
@@ -423,11 +435,15 @@ class Game(Entity):
     def map_markers(self):
         out = list(self.story.markers())
         if self.flags.get("star_chart"):
-            for i, it in self.clover_items.items():
-                if it is not None:
-                    p = self.world.clover_spots[i]
-                    out.append((p[0], p[2], "clover"))
+            # Cowpernicus, in his new glasses, charted every place a cow can hide
+            for zn in self.phys.zones:
+                if zn.name == "hide":
+                    out.append(((zn.x0 + zn.x1) / 2, (zn.z0 + zn.z1) / 2, "hide"))
         return out
+
+    def clovers(self):
+        """Golden Clovers to spend: what your Moo-dals have paid out, less what Mooriarty's had off you."""
+        return max(0, self.moodals.total_reward() - self.flags.get("clovers_spent", 0))
 
     def set_objectives(self, objs):
         self.objectives = [{"key": k, "text": t, "done": False} for k, t in objs]
@@ -499,9 +515,6 @@ class Game(Entity):
         if ia.key.startswith("rockpile"):
             self.take_rock()
             return
-        if ia.key.startswith("clover_"):
-            self.pick_clover(int(ia.key.split("_")[1]))
-            return
         if ia.text:
             lines = ia.text if isinstance(ia.text, list) else [ia.text]
             self.examine(lines[ia.text_i % len(lines)])
@@ -525,33 +538,6 @@ class Game(Entity):
         self.inv.select_key("rock")
         self.audio.play("rock_land", vol=0.5, pitch=1.3)
         self.ui.toast(f"Rock ({self.inv.count('rock')}/{cap}) - [R] to throw", "rock")
-
-    def place_clovers(self):
-        got = set(self.flags.get("clover_got", []))
-        for i, p in enumerate(self.world.clover_spots):
-            key = f"clover_{i}"
-            if i in got:
-                self.clover_items[i] = None
-                continue
-            if key not in self.world.items:
-                self.world.add_item(key, "clover", p, bob=True, spin=True, glow=0.6)
-                self.ia.add(Interactable(key, p, 0.5, "Golden Clover", None, "Take the Golden Clover", 2.6))
-            self.clover_items[i] = self.world.items[key]
-
-    def pick_clover(self, i):
-        got = set(self.flags.get("clover_got", []))
-        got.add(i)
-        self.flags["clover_got"] = sorted(got)
-        self.flags["clovers"] = self.flags.get("clovers", 0) + 1
-        self.flags["clovers_total"] = self.flags.get("clovers_total", 0) + 1
-        self.world.remove_item(f"clover_{i}")
-        self.ia.remove(f"clover_{i}")
-        self.clover_items[i] = None
-        self.audio.play("clover", vol=0.8)
-        n = self.flags["clovers_total"]
-        self.ui.toast(f"Golden Clover! ({n}/{len(self.world.clover_spots)})", "clover", col=BRASS)
-        self.event("clover")
-        self.refresh_hotbar()
 
     def drop_item_at(self, kind, p):
         key = f"dropped_{kind}"
@@ -949,7 +935,7 @@ class Game(Entity):
     def cam_set(self, pos, look):
         self.cam_detach()
         camera.position = pos
-        camera.look_at(look)
+        aim_camera(look)
 
     def cam_move(self, pos, look, dur=2.0, look_to=None, ease=True):
         self.cam_detach()
@@ -963,7 +949,7 @@ class Game(Entity):
             if ease:
                 k = k * k * (3 - 2 * k)
             camera.position = (p0[0] + (pos[0] - p0[0]) * k, p0[1] + (pos[1] - p0[1]) * k, p0[2] + (pos[2] - p0[2]) * k)
-            camera.look_at((la0[0] + (la1[0] - la0[0]) * k, la0[1] + (la1[1] - la0[1]) * k, la0[2] + (la1[2] - la0[2]) * k))
+            aim_camera((la0[0] + (la1[0] - la0[0]) * k, la0[1] + (la1[1] - la0[1]) * k, la0[2] + (la1[2] - la0[2]) * k))
             yield None
 
     def set_time(self, preset, dur=0.0):
@@ -1097,7 +1083,7 @@ class Game(Entity):
                     prompt = h.prompt(self) if callable(h.prompt) else h.prompt
                 else:
                     prompt = self.target.prompt if not self.target.key.startswith(("cow_", "herd_")) else self.target.prompt
-                    if not self.target.key.startswith(("cow_", "herd_", "clover_", "rockpile")):
+                    if not self.target.key.startswith(("cow_", "herd_", "rockpile")):
                         prompt = f"Examine {self.target.name}"
                 self.ui.set_prompt(f"[E] {prompt}" if prompt else None)
             else:
@@ -1201,8 +1187,8 @@ class Game(Entity):
             self.ui.open_journal(self)
         elif key == "h":
             self.show_hint()
-        elif key in "123456789" and len(key) == 1:
-            self.inv.press_slot(int(key) - 1)
+        elif len(key) == 1 and key in SLOT_KEYS:
+            self.inv.press_slot(SLOT_KEYS.index(key))
         elif key == "scroll up":
             self.inv.cycle(-1)
         elif key == "scroll down":

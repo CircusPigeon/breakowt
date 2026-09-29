@@ -288,20 +288,24 @@ class UI:
             destroy(s)
         self.hot_slots = []
         n = len(entries)
+        # past ten slots the bar shrinks to keep within the right half of the screen
+        k = min(1.0, 10 / max(n, 1))
+        step = 0.085 * k
         for i, (key, icon, count, label) in enumerate(entries):
-            x = self.R - 0.06 - (n - 1 - i) * 0.085
-            e = Entity(parent=self.hot_root, position=(x, -0.43))
+            x = self.R - 0.06 - (n - 1 - i) * step
+            e = Entity(parent=self.hot_root, position=(x, -0.43), scale=k)
             sel = i == selected
             Entity(parent=e, model=Quad(radius=0.15), color=C(0.98, 0.78, 0.25, 0.85) if sel else PANEL, scale=0.075)
             if tex("icon_" + icon):
                 Entity(parent=e, model="quad", texture=tex("icon_" + icon), scale=0.064, z=-0.01)
             if count and count > 1:
                 txt(e, str(count), 0.034, -0.02, 0.9, CREAM, origin=(0.5, 0))
-            txt(e, str(i + 1), -0.034, 0.034, 0.7, DIM if not sel else C(0.1, 0.1, 0.1, 1))
+            if i < 10:
+                txt(e, "1234567890"[i], -0.034, 0.034, 0.7, DIM if not sel else C(0.1, 0.1, 0.1, 1))
             if sel:
                 # keep the label on screen for the right-most slots
-                lab_w = len(label) * 0.0105
-                lx = min(0.0, (self.R - 0.02 - lab_w / 2) - x)
+                lab_w = len(label) * 0.0105 * k
+                lx = min(0.0, (self.R - 0.02 - lab_w / 2) - x) / k
                 txt(e, label, lx, 0.058, 0.85, CREAM, origin=(0, 0))
             self.hot_slots.append(e)
         self.clover_text.text = f"Golden Clovers: {clovers}" if clovers else ""
@@ -730,12 +734,15 @@ class UI:
             u = (x - MAP_X0) / (MAP_X1 - MAP_X0)
             v = (z - MAP_Z0) / (MAP_Z1 - MAP_Z0)
             return mx - mw / 2 + u * mw, my - mw * MAP_H / MAP_W / 2 + v * mw * MAP_H / MAP_W
+        hide_col = C(0.45, 0.8, 0.4, 1)
         for (x, z, label) in g.map_markers():
             px, py = to_map(x, z)
-            Entity(parent=r, model=Quad(radius=0.5), color=BRASS if label != "clover" else C(1, 0.85, 0.2, 1),
-                   scale=0.014 if label != "clover" else 0.009, position=(px, py, -0.01))
-            if label not in ("clover",):
+            Entity(parent=r, model=Quad(radius=0.5), color=BRASS if label != "hide" else hide_col,
+                   scale=0.014 if label != "hide" else 0.011, position=(px, py, -0.01))
+            if label != "hide":
                 txt(r, label, px + 0.012, py + 0.01, 0.7, BRASS)
+        if g.flags.get("star_chart"):
+            txt(r, "green: hiding spots (Cowpernicus)", mx - mw / 2, my - mw * MAP_H / MAP_W / 2 - 0.03, 0.7, hide_col)
         px, py = to_map(g.player.x, g.player.z)
         Entity(parent=r, model=Quad(radius=0.1), color=RED, scale=(0.012, 0.03), position=(px, py, -0.02),
                rotation_z=g.player.yaw)

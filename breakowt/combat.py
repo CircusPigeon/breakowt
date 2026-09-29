@@ -309,14 +309,18 @@ class Thrown:
 # ---------------------------------------------------------------------------
 
 BOSS_TAUNTS = ["Nobody's leavin'!", "Get back in that pasture!", "I raised you from a CALF!",
-               "Do you know what a tractor COSTS?!", "Dale's gonna hear about this!", "Hold STILL!"]
-BOSS_STUCK = ["Dang it!", "C'mon, come OUT!", "Stupid... fork...", "Gimme a second here!"]
-BOSS_HURT = ["OW!", "Hey!", "That's my KIDNEY!", "Oof!", "Ow, my back!"]
-BOSS_THROW = ["Catch!", "Here, have a BUCKET!", "Milk can! Fresh!", "Incoming!"]
+               "Do you know what a tractor COSTS?!", "Dale's gonna hear about this!", "Hold STILL!",
+               "You're gonna be ground chuck! And I'M the Chuck! Wait.", "I'll have you rare!",
+               "This is how you treat the hand that feeds you?! And eats you?!"]
+BOSS_STUCK = ["Dang it!", "C'mon, come OUT!", "Stupid... fork...", "Gimme a second here!",
+              "Time out! TIME OUT! Cows don't respect time outs!"]
+BOSS_HURT = ["OW!", "Hey!", "That's my KIDNEY!", "Oof!", "Ow, my back!", "That's my GOOD knee!",
+             "You tenderized me! That's MY move!"]
+BOSS_THROW = ["Catch!", "Here, have a BUCKET!", "Milk can! Fresh!", "Incoming!", "Have a feed bin! You love feed!"]
 
 
 class ChuckBoss(Enemy):
-    MAX_HP = 6          # the bar empties exactly when he goes down; halfway, he starts throwing things
+    MAX_HP = 8          # hits, not damage: every blow that lands takes one; halfway, he starts throwing things
     radius = 0.55
     height = 1.9
 
@@ -388,7 +392,7 @@ class ChuckBoss(Enemy):
                 p.vx += dx / d * 7
                 p.vz += dz / d * 7
             return
-        self.hp -= n
+        self.hp -= 1        # a charged headbutt, a kick or Ol' Bessie: each lands as one of the eight
         g.audio.play("punch", vol=0.9)
         f.say(random.choice(BOSS_HURT), kind="ow", force=True)
         self.fx.append(Feathers(self.center(), col=(0.95, 0.9, 0.8, 1), n=6))
@@ -405,7 +409,8 @@ class ChuckBoss(Enemy):
             self.phase = 2
             self.state = "retreat"
             self.t = 2.0
-            f.say("Okay. OKAY. You wanna play rough?", force=True)
+            f.say("Okay. OKAY. You wanna play rough? I wrestled a hog at the county fair! I LOST, but I WRESTLED!",
+                  force=True)
         if kind == "shotgun":
             # knocked flat on his back by his own gun
             self.state = "fallen"

@@ -108,11 +108,12 @@ class Walker:
         self.trail_fn = None
         self.follow_dist = 3.0
         self.stuck_t = 0.0
+        self.door_keys = ()     # doors this walker opens himself (Chuck: his own house and barn)
 
     def goto(self, target, speed=2.0):
         tx, tz = target[0], target[2] if len(target) > 2 else target[1]
         ty = target[1] if len(target) > 2 else 0.0
-        self.path = self.g.world.find_path((self.x, self.y, self.z), (tx, ty, tz))
+        self.path = self.g.world.find_path((self.x, self.y, self.z), (tx, ty, tz), self.door_keys)
         self.walk_speed = speed
         self.trail_fn = None
         self.stuck_t = 0.0

@@ -19,7 +19,6 @@ def main():
         free = free + 1 if (g.controls_enabled() and not g.in_dialogue and not g.busy) else 0
         if free > 30:
             break
-    g.flags["clovers"] = 7
     g.inv.add("rock", 3, silent=True)
     g.inv.add("radio", silent=True)
     harness.step(app, 3)

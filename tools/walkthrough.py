@@ -681,7 +681,7 @@ class Bot:
                 yield
                 self.press("q")
                 yield
-                if boss.hp != hp0 - 3 or boss.state != "fallen":
+                if boss.hp != hp0 - 1 or boss.state != "fallen":
                     raise Stuck(f"shotgun didn't land: hp {hp0}->{boss.hp}, state {boss.state}")
                 print(f"    shotgun hit: hp {hp0}->{boss.hp}, shells left {g.flags.get('shells')}", flush=True)
                 continue

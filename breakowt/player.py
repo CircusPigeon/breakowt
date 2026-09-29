@@ -30,7 +30,10 @@ MOO_THOUGHTS = [
     "Moo. (Chuck, if you can hear this: no.)",
 ]
 
-THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0, "shoes": 12.0}
+THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0, "shoes": 12.0, "boot": 12.0,
+             "tincan": 16.0}
+# thrown things you can go and pick up again (the rest break, splat, or are Chuck's problem now)
+REUSABLE = ("cowbell", "rubber_chicken", "boot", "tincan")
 
 
 class Projectile:
@@ -81,13 +84,13 @@ class Projectile:
         self.ent.position = p
         self.pos = list(p)
         snd = {"rock": "rock_land", "cowbell": "cowbell_drop", "egg": "splash", "rubber_chicken": "squawk",
-               "shoes": "thump"}.get(self.kind, "rock_land")
-        g.audio.play(snd, vol=1.0, pos=p, rng=45)
-        loud = {"rock": 15, "cowbell": 22, "egg": 9, "rubber_chicken": 18}.get(self.kind, 14)
+               "shoes": "thump", "boot": "thump", "tincan": "metal_clang"}.get(self.kind, "rock_land")
+        g.audio.play(snd, vol=1.0, pos=p, rng=60 if self.kind == "tincan" else 45)
+        loud = {"rock": 15, "cowbell": 22, "egg": 9, "rubber_chicken": 18, "tincan": 28}.get(self.kind, 14)
         g.noise(p, loud, source="thrown")
         g.on_projectile_land(self, p)
         self.landed_t = 3.0 if self.kind == "rock" else 1.0
-        if self.kind in ("cowbell", "rubber_chicken"):
+        if self.kind in REUSABLE:
             # these can be picked up again
             g.drop_item_at(self.kind, p)
             self.alive = False
@@ -383,6 +386,11 @@ class Player:
             radius = max(radius, 5.0)
         if radius > 0:
             g.noise(self.pos, radius, source="steps")
+        elif not self.crouching:
+            # plain walking: only Chuck asleep nearby hears it (sneak past him)
+            f = g.farmer
+            if f is not None and f.visible and f.sleeping and math.hypot(f.x - self.x, f.z - self.z) < 16:
+                g.noise(self.pos, 6.0, source="footfall")
 
     # ------------------------------------------------------------------
     def hop(self):

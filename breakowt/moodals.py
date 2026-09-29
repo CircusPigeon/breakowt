@@ -1,8 +1,8 @@
 """Moo-dals: achievements for the things a cow does when nobody's making her escape.
 
 Progress lives in its own file next to the saves (moodals.json), so it carries across
-playthroughs and survives reloading a checkpoint. Each Moo-dal pays out Golden Clovers
-into the current run, which feeds Mooriarty's shop.
+playthroughs and survives reloading a checkpoint. Moo-dals are the only source of Golden
+Clovers, Mooriarty's currency: your purse is their total payout less what a run has spent.
 """
 from __future__ import annotations
 
@@ -28,8 +28,6 @@ MOODALS = [
     ("owl", "Who Goes There", "Trade hoots with the owl at night.", 1, True),
     ("birds_10", "Bird Brain", "Scatter 10 flocks of birds.", 1, False),
     ("wade_60", "Pond Life", "Spend a full minute wading in the pond.", 1, False),
-    ("clover_10", "Lucky Streak", "Find 10 Golden Clovers.", 2, False),
-    ("clover_all", "Pot of Gold", "Find every Golden Clover.", 5, False),
     ("ghost_day", "Ghost Cow", "Get through a whole day (Tuesday on) without being caught.", 2, False),
     ("caught_10", "Frequent Flyer", "Get marched back to the pasture 10 times. Winning, at something.", 1, False),
     ("mirror", "Know Thyself", "Look in the bathroom mirror.", 1, True),
@@ -90,7 +88,11 @@ class Moodals:
         return mid in self.data["unlocked"]
 
     def count_unlocked(self):
-        return len(self.data["unlocked"])
+        return sum(1 for m in self.data["unlocked"] if m in BY_ID)
+
+    def total_reward(self):
+        """Golden Clovers every Moo-dal you hold has paid out (they're the only way to get any)."""
+        return sum(BY_ID[m][3] for m in self.data["unlocked"] if m in BY_ID)
 
     def rank(self):
         n = self.count_unlocked()
@@ -112,10 +114,6 @@ class Moodals:
             return len(self.data["sets"].get("knocked", [])), max(1, len(self.g.knockables))
         if mid == "tourist":
             return len(self.data["sets"].get("visited", [])), len(TOURIST)
-        if mid == "clover_10":
-            return min(self.g.flags.get("clovers_total", 0), 10), 10
-        if mid == "clover_all":
-            return self.g.flags.get("clovers_total", 0), len(self.g.world.clover_spots)
         if mid == "all":
             return min(self.count_unlocked(), len(MOODALS) - 1), len(MOODALS) - 1
         return None
@@ -152,8 +150,7 @@ class Moodals:
         _, name, desc, reward, _ = BY_ID[mid]
         g = self.g
         if reward:
-            g.flags["clovers"] = g.flags.get("clovers", 0) + reward
-            g.refresh_hotbar()
+            g.refresh_hotbar()      # the clover count is worked out from the Moo-dals: see Game.clovers
         g.audio.play("moodal", vol=0.9)
         g.ui.moodal_banner(name, desc, reward)
         self.save()
@@ -172,12 +169,6 @@ class Moodals:
             self.add("knocked", kw.get("key"))
         elif name == "herd_talk":
             self.add("herd_talked", kw.get("idx"))
-        elif name == "clover":
-            n = g.flags.get("clovers_total", 0)
-            if n >= 10:
-                self.unlock("clover_10")
-            if n >= len(g.world.clover_spots):
-                self.unlock("clover_all")
         elif name == "interact":
             key = kw.get("key", "")
             if key == "mirror":
