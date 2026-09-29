@@ -3282,7 +3282,7 @@ class DayScripts:
         for e in ents:
             destroy(e)
         g.ui.set_fade(1.0, (0, 0, 0))
-        yield from self.credits()
+        yield from self.epilogue()
         self.setf("game_finished")
         g.save_checkpoint()
         self.to_title()

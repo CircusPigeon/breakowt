@@ -764,7 +764,7 @@ class Bot:
             if self.errors:
                 raise Stuck(f"script error: {self.errors[-1][0]}")
             if g.state == "title" and g.flags.get("game_finished"):
-                print("  reached the title screen after the credits", flush=True)
+                print("  reached the title screen after the epilogue", flush=True)
                 return "finished"
             if g.day > to_day:
                 print(f"  reached day {g.day}", flush=True)

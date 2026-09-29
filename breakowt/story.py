@@ -10,9 +10,7 @@ from __future__ import annotations
 import math
 import random
 
-import time
-
-from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, held_keys, mouse
+from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
 from .days import DayScripts, DAYS
 from .farmer import SIGHT_DAY
@@ -22,7 +20,6 @@ from .items import ITEMS
 from .npc import FRIENDS, HERD_NAMES
 from .ui import C, CREAM, BRASS, DIM, PANEL, PANEL_LIGHT, txt
 from . import models
-from .moodals import MOODALS
 
 
 def save_has_progress(save):
@@ -911,125 +908,37 @@ class Story(DayScripts):
     # ------------------------------------------------------------------
     # ending
     # ------------------------------------------------------------------
-    def credits(self):
-        """Generator: epilogue, credits and the post-credits line."""
+    def epilogue(self):
+        """Generator: a few short cards over black, then back to the title (no credits roll)."""
         g = self.g
-        st = g.stats
-        caught = st.get("caught", 0)
-        lines_epi = self.epilogue_lines()
         r = Entity(parent=g.ui.root, z=-0.95)
         self.credits_root = r
-        for text in lines_epi:
+        for text in self.epilogue_lines():
             t = txt(r, text, 0, 0.02, 1.35, CREAM, origin=(0, 0), wrap=54)
             t.color = C(1, 1, 1, 0)
-            for k in range(30):
-                t.color = C(0.98, 0.95, 0.86, k / 29)
+            for k in range(24):
+                t.color = C(0.98, 0.95, 0.86, k / 23)
                 yield None
-            yield 3.2 + len(text) * 0.03
-            for k in range(20):
-                t.color = C(0.98, 0.95, 0.86, 1 - k / 19)
+            yield 2.2 + len(text) * 0.03
+            for k in range(16):
+                t.color = C(0.98, 0.95, 0.86, 1 - k / 15)
                 yield None
             destroy(t)
-        yield 0.6
-        roll = [
-            ("BREAKOWT", "title"),
-            ("Seven Days to Steak", "sub"),
-            ("", ""),
-            ("A game by Ethan Mader", "head"),
-            ("with Claude", "small"),
-            ("", ""),
-            ("Cast", "head"),
-            ("Forty-Seven .......... you", "small"),
-            ("Cowleen .......... herself", "small"),
-            ("Moozart .......... #12", "small"),
-            ("Sir Loin .......... a knight, he says", "small"),
-            ("Cowpernicus .......... the brains", "small"),
-            ("Mooriarty .......... no comment", "small"),
-            ("Moomaw .......... in memory of Big Earl (and his bear)", "small"),
-            ("Cluck Norris .......... himself", "small"),
-            ("Chuck .......... Charles Rumpley", "small"),
-            ("Dale .......... never seen, somehow still too much", "small"),
-            ("", ""),
-            ("Music", "head"),
-            ("Symphony No. 1 in Moo Major, by Moozart", "small"),
-            ("finished by Forty-Seven", "small"),
-            ("", ""),
-            ("Your week", "head"),
-            (f"Times caught: {caught}", "small"),
-            (f"Rocks thrown: {st.get('thrown', 0)}", "small"),
-            (f"Moos: {st.get('moos', 0)}", "small"),
-            (f"Pathetic hops: {st.get('hops', 0)}", "small"),
-            (f"Times Chuck fell over: {st.get('chuck_trips', 0)}", "small"),
-            (f"Things knocked over: {st.get('knocked', 0)}", "small"),
-            (f"Favors done: {sum(1 for k in ('sq_helm', 'sq_specs', 'sq_photo') if self.done(k))} of 3", "small"),
-            (f"Moo-dals: {g.moodals.count_unlocked()} of {len(MOODALS)}  (rank: {g.moodals.rank()})", "small"),
-            ("", ""),
-            ("No cows were harmed in the making of this game.", "small"),
-            ("One farmer was. Well done.", "small"),
-        ]
-        col = Entity(parent=r)
-        y = -0.62
-        for text, kind in roll:
-            if kind == "title":
-                t = txt(col, text, 0, y, 3.4, CREAM, origin=(0, 0), font=g.fonts.get("title"))
-                y -= 0.11
-            elif kind == "sub":
-                txt(col, text, 0, y, 1.4, BRASS, origin=(0, 0))
-                y -= 0.07
-            elif kind == "head":
-                txt(col, text, 0, y, 1.3, BRASS, origin=(0, 0))
-                y -= 0.055
-            elif kind == "small":
-                txt(col, text, 0, y, 1.0, CREAM, origin=(0, 0))
-                y -= 0.045
-            else:
-                y -= 0.04
-        total = -y + 0.62
-        speed = 0.05
-        # hold a key to fast-forward. (This used to read the "advance" latch, which any earlier key press left
-        # switched on, so the whole roll flew past in a couple of seconds.)
-        hint = txt(r, "Hold Space to fast-forward", g.ui.R - 0.03, -0.47, 0.8, DIM, origin=(0.5, 0))
-        g._advance = False
-        while col.y < total + 0.1:
-            fast = any(held_keys[k] for k in ("space", "enter", "e", "left mouse"))
-            col.y += speed * (4.0 if fast else 1.0) * min(0.05, time.dt)
-            g._advance = False
-            yield None
-        destroy(hint)
-        destroy(col)
-        yield 1.0
-        t = txt(r, "Also, somebody should buy milk.", 0, 0, 1.4, CREAM, origin=(0, 0))
-        g.audio.play("ding", vol=0.4)
-        yield 4.0
-        destroy(t)
         destroy(r)
         self.credits_root = None
 
     def epilogue_lines(self):
-        out = [
-            "The herd crossed the county line a little after noon. Forty-seven cows, one bull, and a rooster riding on "
-            "the bull, shouting directions nobody asked for.",
-        ]
+        out = ["Forty-seven cows crossed the county line by noon. The rooster rode the bull."]
         if self.done("dale_cancelled"):
-            out.append("Dale got an email saying Chuck had gone vegetarian and hated his potato salad. He took the "
-                       "second part hardest.")
+            out.append("Dale never got over the potato salad email.")
         else:
-            out.append("Dale showed up at one o'clock with the good potato salad and a new apron. He waited on the "
-                       "porch until four. He ate the whole potato salad. He cried a little.")
-        out.append("The collection for Chuck's funeral raised eleven dollars. Ten were from Dale. So was the other "
-                   "one. The caterer served burgers. Nobody could look at them.")
-        out.append("Cluck Norris runs security at an animal sanctuary two counties over. There have been no incidents. "
-                   "There have been several 'incidents'.")
-        if self.done("sq_specs"):
-            out.append("Cowpernicus named a star after Moozart. It turned out to be a satellite. He's keeping the name.")
+            out.append("Dale waited on the porch till four, then ate the potato salad alone.")
+        out.append("Chuck's funeral fund raised eleven dollars. All from Dale.")
         if self.done("sq_helm"):
-            out.append("Sir Loin still wears the bucket. He has asked to be buried in it. He is four. He has also "
-                       "declared himself king of a traffic island.")
+            out.append("Sir Loin still wears the bucket.")
+        if self.done("sq_specs"):
+            out.append("Cowpernicus named a star after Moozart. It's a satellite.")
         if self.done("sq_photo"):
-            out.append("Moomaw hung the photo of Big Earl in the sanctuary barn. She tells new calves he died "
-                       "fighting a bear. He did not fight a bear.")
-        out.append("Mooriarty sold the tractor. Nobody knows who to. He has a boat now. Nobody asks.")
-        out.append("Every evening at sunset, the whole herd moos Moozart's symphony. Badly, off-key, and all the way "
-                   "through. Some of them are getting worse on purpose.")
-        out.append("Happy Acres Family Farm is closed. The sign is still up. Someone has added 'LOL' in paint.")
+            out.append("Moomaw tells the calves Big Earl fought a bear. He did not.")
+        out.append("Somebody should still buy milk.")
         return out

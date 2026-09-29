@@ -78,14 +78,10 @@ def main():
     harness.step(app, 80)
     g.ui.letterbox(False)
     g.ui.set_fade(1.0)
-    g.runner.start(s.credits(), name="credits")
+    g.runner.start(s.epilogue(), name="epilogue")
     harness.step(app, 60)
     harness.shot(app, "ui_epilogue")
-    for _ in range(12):
-        g._advance = True
-        harness.step(app, 40)
-    harness.shot(app, "ui_credits")
-    g.runner.stop("credits")
+    g.runner.stop("epilogue")
     s.to_title()
     harness.step(app, 40)
     harness.shot(app, "ui_title")

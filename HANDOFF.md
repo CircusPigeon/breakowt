@@ -33,7 +33,7 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - [x] UI (HUD, dialogue, menus, documents, keypad, password, map, shop, settings)
 - [x] Story days 1–7 (`days.py`), side quests, shop (`story.py`)
 - [x] Combat (Cluck Norris, Chuck boss), tractor driving (`combat.py`, `vehicle.py`)
-- [x] Ending + credits
+- [x] Ending + epilogue cards (the player asked for no credits roll)
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
 ### Latest round (player feedback)
@@ -64,8 +64,6 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - Ol' Bessie fires: Q with the shotgun selected (`Game.fire_shotgun`). Two shells (`flags["shells"]`, set
   when you take her from the cabinet and in the chapter-select preset). 3 damage and knocks Chuck flat
   whatever state he's in; a big noise (radius 60) anywhere else, so firing in the house wakes Chuck.
-- Credits: hold Space/E/Enter/click to fast-forward. The roll used to read the "advance" latch that any
-  earlier key press left on, so it flew past in seconds.
 - Earlier this round: farmhouse furnished room by room; TV and ChuckOS screens; the moo-hole wire sags
   and is held up by the boot; grass/flowers no longer grow through floors; porch roof no longer pokes
   into the living room; hotbar deselect (press the selected number again); the held item follows removals.
@@ -94,7 +92,7 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   Progress is a profile, `saves/moodals.json`, separate from the
   checkpoint save, so it carries across playthroughs and survives reloads. UI: banner on unlock
   (`UI.moodal_banner`, queued), list screen `UI.open_moodals` from the pause menu and the title screen,
-  a count in the journal and a line plus a rank in the credits.
+  and a count in the journal.
 - `Game.event(name, **kw)` is the hook: the player (moo, hop, step), farmer (chuck_trip, dale), game
   (interact, knock, caught, noise) and story (day_start, herd_talk) call it; `Moodals.on_event` and
   `Life.on_event` listen. It swallows exceptions from those two: decoration never breaks the story. To add
@@ -152,7 +150,6 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   real (not on purpose) it waits for the catch to play out and restarts the step's plan.
 - Boss: a scratch test shot him (6 -> 3 HP, knocked flat, 1 shell left), lost the fight, and got Chuck
   back at 6/6, phase 1, full hearts and 2 shells; the bar hits 0 exactly when he goes down.
-- Credits with a stale key press: about 110 s including the epilogue (it used to be a few seconds).
 - Chuck: rock in the living room -> gets up, investigates, back to bed under the quilt; galloping in the
   house wakes him after a few strides; a front door left open gets noticed and shut.
 - Full `--day 1 --to 7 --caught all --detect` passed after the drawer fix.
@@ -192,7 +189,7 @@ Graphics: Low / Medium (default) / High.
 
 ## Code map
 - `main.py` → `breakowt/app.py` (window, fonts, loading screen) → `game.py` (`Game`: state, input, update loop).
-- `story.py`: title screen, day runner, step/hook system, checkpoints, conversations, shop, credits.
+- `story.py`: title screen, day runner, step/hook system, checkpoints, conversations, shop, epilogue cards.
   Every story step is idempotent and records a flag; a checkpoint is the day plus flags plus inventory,
   and world state (doors, props, who's where) is rebuilt from flags at the start of each day
   (`apply_world_flags` in `days.py`).
