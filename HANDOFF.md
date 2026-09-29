@@ -135,7 +135,12 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - **Moozart's melody** plays only the new bars each day (`moozart_5_8`, `_9_12`, `_13_15`), a short hum on
   the walk to the truck, and no second music-box replay at the vigil.
 - **Dialogue** rewritten for more jokes and less sentiment (the player's words: funnier, edgier, the puns
-  are good but it was a bit innocent). Keep that register for new lines.
+  are good but it was a bit innocent). Keep that register for new lines. The soft scenes were then rebuilt
+  as comedy (the player's pick, plot unchanged, Moozart still goes on the truck): Thursday's vigil is
+  Moozart's funeral going off the rails (Sir Loin's eulogy, a sad trombone, Mooriarty selling "signed"
+  hoofprints); Saturday's stargazing is a dress rehearsal at the oak (Cluck's "quiet" practice crow, Chuck's
+  light flicks on, you charge the oak); the ending is one exchange on the hill cut off mid-word by a hard cut
+  to black, then short epilogue cards and straight back to the title. No credits roll.
 - New sounds are generated on launch without a version bump (assets fill in missing files).
 
 ### Verified

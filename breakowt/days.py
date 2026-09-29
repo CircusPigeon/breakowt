@@ -2062,8 +2062,8 @@ class DayScripts:
                 uv_rect=models.WHITE)
         self.prop("hoofprints", Entity(model=mb.build(), texture=tex("atlas"), shader=FARM_SHADER))
         yield from g.fade_in(2.0)
-        self.objectives(("prints", "Look at the hoofprints by the pond"))
-        self.mark((-44, -53, "Hoofprints"))
+        self.objectives(("prints", "Moozart's funeral, by the pond (look at the hoofprints)"))
+        self.mark((-44, -53, "Funeral"))
         ia = g.ia.add(Interactable("st_prints", (-43.5, 0.2, -52.9), 1.2, "Hoofprints", None, "Look at the hoofprints",
                                    4.0))
         seen = {"d": False}
@@ -2074,19 +2074,44 @@ class DayScripts:
         ia.handlers.append(Handler("Look at the hoofprints", look, None, "global"))
         yield lambda: seen["d"]
         g.complete("prints")
+        # the funeral, which goes about as well as everything else on this farm
         g.cutscene_start(letterbox=True)
         g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
         yield from g.talk([
-            ("cowleen", "He wrote his whole symphony into the mud. With his hooves. In the rain. Show-off."),
-            ("sirloin", "He was braver than me. I'm the knight, and he was braver than me. If anyone repeats that, "
-                        "I'll deny it with my horns."),
-            ("moomaw", "Earl would have liked him. Earl liked anybody who sang. Earl liked anybody. Earl was easy."),
-            ("cowpernicus", "I redid the numbers for Sunday. One fewer. It works. It's tight. I'm tight. Everything's "
-                            "fine. I'm fine."),
-            ("mooriarty", "Whatever you need from me, no charge. Tell anyone I did something for free and I'll "
-                          "have you killed. Which, around here, is a low bar."),
-            ("cowleen", "Sunday we get everyone out. Everyone. And then somebody's buying Moozart a drink. "
-                        "We'll pour it in the pond."),
+            ("cowleen", "Okay. We're here to say goodbye to Moozart. Short. Dignified. Sir Loin asked to do the "
+                        "eulogy, and I was too tired to say no."),
+            ("sirloin", "Friends. Cows. Mooriarty."),
+            ("mooriarty", "Hey."),
+            ("sirloin", "Moozart was a composer. And a cow. And a composer. He had... a great many bars."),
+            ("sirloin", "Once he told me my moo had 'the texture of wet gravel'. I think about it every day. I will "
+                        "never forgive him. Rest in peace."),
+            ("moomaw", "That was lovely, dear. Now say something nice."),
+            ("sirloin", "He was quite tall."),
+        ])
+        g.audio.play("sad_trombone", vol=0.7)
+        yield 2.2
+        g.cam_set((-45.5, 1.7, -48.5), (-49.5, 1.1, -53.3))
+        yield from g.talk([
+            ("cowpernicus", "He was average height. I measured everyone. It's on the diagram. Sir Loin sat on the "
+                            "diagram."),
+            ("mooriarty", "While we're all gathered. I've got a strictly limited run of Moozart memorabilia. Signed "
+                          "hoofprints. Authentic."),
+            ("cowleen", "Those are YOUR hoofprints. You're standing in them."),
+            ("mooriarty", "He'd have wanted them to be his. Five clovers each. Grief discount."),
+            ("moomaw", "When Earl went, we didn't have a funeral. Chuck had a cookout. Everyone said the burgers "
+                       "were very moving."),
+            ("cowleen", "MOOMAW."),
+            ("moomaw", "What? It's a nice memory. For Chuck."),
+        ])
+        g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
+        yield from g.talk([
+            ("cowleen", "Right. Here's the eulogy: on Sunday we get everyone out, and Chuck finds out what a "
+                        "stampede is from the inside. The end."),
+            ("sirloin", "Can I add one thing?"),
+            ("cowpernicus", "No."),
+            ("moomaw", "No, dear."),
+            ("mooriarty", "No."),
+            ("you", "Moo. (No.)"),
         ])
         g.cutscene_end_now()
         yield from g.fade_out(2.0)
@@ -2638,7 +2663,8 @@ class DayScripts:
                              hint="Chuck's asleep. The cabinet key's in the nightstand by his bed; the gun cabinet is "
                                   "in the office. Sneak (C) the whole way: walking wakes him. Or set the radio down "
                                   "playing in the kitchen (Q) and let him get up to deal with it.")
-        yield from self.step("d6_stars", self.d6_stars, hint="Cowleen's by the Old Oak.")
+        yield from self.step("d6_stars", self.d6_stars, hint="The crew's rehearsing at the Old Oak. Get back into the "
+                                                             "pasture and join them.")
         yield from self._run_day(7)
 
     def d6_wake(self):
@@ -2794,32 +2820,60 @@ class DayScripts:
         c = g.cows["cowleen"]
         c.teleport((-48.0, 0, -39.5), 20)
         c.look = "player"
-        self.objectives(("back", "Get back to the pasture"), ("cowleen", "Find Cowleen"))
-        self.mark((-48, -39.5, "Cowleen"))
+        self.gather_at(OAK_MEET)
+        self.objectives(("back", "Get back to the pasture"), ("cowleen", "Dress rehearsal at the Old Oak"))
+        self.mark((-50, -35, "Rehearsal"))
         yield lambda: g.phys.in_zone("pasture", p.x, p.z) and not g.runner.running("caught")
         g.complete("back")
-        yield lambda: math.hypot(p.x - c.x, p.z - c.z) < 4.5 and not g.busy
+        yield lambda: math.hypot(p.x + 50, p.z + 35) < 7.5 and not g.busy
         g.complete("cowleen")
+        # the dress rehearsal, which goes about as well as you'd expect
         g.cutscene_start(letterbox=True)
-        p.teleport(-46.5, 0, -41.0, 330)
-        g.cam_set((-44.5, 1.2, -44.5), (-47.5, 2.8, -38.0))
-        self.lock_hud_music("music_night", 0.5, 2.0)
+        self.gather_at(OAK_MEET)
+        p.teleport(-50.5, 0, -41.5, 0)
+        g.cam_set((-56.5, 3.2, -43.0), (-50, 1.2, -34.5))
+        self.lock_hud_music(None, 0, 1.0)
         yield from g.talk([
-            ("cowleen", "Can't sleep either?"),
-            ("you", "Moo. (I've got a stolen shotgun under my hay. So, no.)"),
-            ("cowleen", "When we were calves you told me the stars were holes in the barn roof. You said the sky was "
-                        "just a bigger barn."),
-            ("you", "Moo. (It still might be. Run by a bigger Chuck.)"),
-            ("cowleen", "Don't. I can't handle a bigger Chuck. One's already too many Chucks."),
-            ("cowleen", "Tomorrow, whatever happens at that gate, you don't stop. You keep going till you hit the "
-                        "road, and then you keep going till you hit a state where they don't eat cows."),
-            ("you", "Moo. (Is there one?)"),
-            ("cowleen", "Cowpernicus says India. Sir Loin says Narnia. We'll start driving and see."),
-            ("you", "Moo. (You keep going too.)"),
-            ("cowleen", "Obviously. I'm very fast when I want to be. You've just never seen me want to."),
+            ("cowleen", "Good, you've got the gun. Dress rehearsal. Everyone in position. Quietly: Chuck's asleep."),
+            ("cowpernicus", "Positions! The oak is the main gate. Forty-Seven is the tractor. Sir Loin is... the "
+                            "herd."),
+            ("sirloin", "I contain multitudes."),
+            ("cowpernicus", "Cluck gives the signal. Cluck! A practice crow, please. QUIETLY."),
         ])
-        g.runner.start(g.cam_move((-44.5, 3.0, -44.5), (-47.5, 12, -32.0), dur=4.0), name="cam", tag="day")
-        yield from g.fade_out(4.0)
+        g.audio.play("rooster_crow", vol=1.0, pos=(41, 3.5, -29.5), rng=250)
+        yield 2.6
+        g.world.set_lamp("house_bed", True)
+        g.audio.play("dun_dun", vol=0.5)
+        yield from g.talk([
+            ("cowleen", "..."),
+            ("mooriarty", "Nobody move. Nobody breathe. Sir Loin, stop chewing."),
+            ("chuck", "...mmf... Dale?... it's the middle of the NIGHT, Dale... zzz..."),
+        ])
+        g.world.set_lamp("house_bed", False)
+        yield 1.0
+        yield from g.talk([
+            ("cowpernicus", "Okay. Okay. Step two. The tractor charges the gate. Go, Forty-Seven."),
+            ("you", "Moo. (Vroom.)"),
+        ])
+        g.audio.play("thump", vol=1.0)
+        g.audio.play("wood_crack", vol=0.5, pos=(-50, 1, -35), rng=40)
+        g.player.shake = 0.4
+        yield 0.8
+        yield from g.talk([
+            ("you", "Moo. (Ow. I hit the gate. It's a tree.)"),
+            ("cowleen", "You were supposed to STOP at the tree. The tree is the gate. You don't hit the gate "
+                        "until Sunday."),
+            ("sirloin", "The herd is also confused. The herd has run into the trough."),
+            ("moomaw", "Earl's plan went better than this, and Earl's plan was a hamburger."),
+            ("cowpernicus", "Statistically, a bad dress rehearsal means a good opening night."),
+            ("cowleen", "Is that true?"),
+            ("cowpernicus", "It's a theatre thing. We're not a theatre. We're cows."),
+            ("cowleen", "Bed. Everyone. Tomorrow we do it for real. And nobody practise anything else tonight."),
+            ("sirloin", "Understood."),
+        ])
+        g.audio.play("thump", vol=0.8, pos=(-53.6, 0.5, -36.5), rng=40)
+        yield from g.talk([("sirloin", "That was the trough again. I'm fine. Goodnight.")])
+        yield from g.fade_out(2.0)
         g.cutscene_end_now()
         self.unlock_music()
 
@@ -3266,22 +3320,20 @@ class DayScripts:
                        name="cam", tag="day")
         yield 12.5
         yield from g.talk([
-            ("cowleen", "So. What now?"),
-            ("you", "Moo. (Grass. Somewhere with no numbers on anything.)"),
-            ("cowleen", "Sir Loin wants to found a kingdom. Cowpernicus wants to find the edge of the sky. Mooriarty "
-                        "already sold the tractor."),
-            ("you", "Moo. (To who?)"),
-            ("cowleen", "He won't say. He just keeps winking. Listen. They're humming it again. They're so bad at it."),
-            ("you", "Moo. (He'd hate it.)"),
-            ("cowleen", "He'd LOVE hating it."),
+            ("cowleen", "So. Where are we going?"),
+            ("you", "Moo. (Somewhere without a barbecue.)"),
+            ("cowleen", "Cowpernicus made a list."),
+            ("cowpernicus", "It's a short list. It's India."),
+            ("sirloin", "AND NARNIA!"),
+            ("cowpernicus", "Narnia is not a real pla—"),
         ])
-        g.runner.start(g.cam_move((hx - 2, hy + 7, hz - 14), (0, 2, hz + 40), dur=14.0), name="cam", tag="day")
-        yield 10.0
-        yield from g.fade_out(4.0)
+        # hard cut to black, mid-argument, music and all
+        g.ui.set_fade(1.0, (0, 0, 0))
+        g.audio.stop_everything()
         self.hooks.pop("update", None)
         for e in ents:
             destroy(e)
-        g.ui.set_fade(1.0, (0, 0, 0))
+        yield 1.5
         yield from self.epilogue()
         self.setf("game_finished")
         g.save_checkpoint()
@@ -3353,13 +3405,13 @@ SUN   #47 -> PROCESSING
         BBQ w/ Dale!!!
         buy milk"""
 
-HOOFPRINTS = """Sixteen bars, pressed into the mud one hoof at a time. Three to a bar.
+HOOFPRINTS = """Sixteen bars, pressed into the mud one hoof at a time. Nobody knows when he found the time. Show-off.
 
-The first four are the ones he played you on Monday. The next four he stole from a country song about a truck. Then Cluck Norris's crow, going up and up.
+Bars one to four: Monday. Five to eight: stolen from a country song about a truck. Nine to twelve: Cluck Norris, going up and up.
 
-The last hoofprint is set apart from the others and pressed in deeper. It's slightly flat.
+The last hoofprint is set apart and pressed in deeper. It's slightly flat. That one's yours. Underneath, scratched in with a hoof: 'CREDIT: 47 (ONE NOTE)'.
 
-That one's yours. Underneath it, scratched in with a hoof: 'CREDIT: 47 (ONE NOTE)'."""
+Somebody has already stepped in bar nine. It was Sir Loin. He is pretending it wasn't."""
 
 EMAILS = """FROM: Dale
 RE: sunday!!!
