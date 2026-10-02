@@ -767,6 +767,13 @@ class Game(Entity):
     def until(self, cond):
         yield cond
 
+    def player_name(self):
+        """Your name is Moodysseus. Once you're on Chuck's list the herd stops saying it (their custom), until
+        they decide to stop that custom."""
+        fl = self.flags
+        listed = fl.get("on_list") or self.day >= 2
+        return "Moodysseus" if fl.get("renamed") or not listed else "Forty-Seven"
+
     def speaker(self, who):
         if who in self.cows:
             c = self.cows[who]
@@ -774,7 +781,7 @@ class Game(Entity):
         if isinstance(who, HerdCow):
             return who.name, None, who
         if who in ("you", "player"):
-            return "Forty-Seven", "player", None
+            return self.player_name(), "player", None
         if who == "chuck":
             return "Chuck", "chuck", self.farmer
         if who == "cluck":

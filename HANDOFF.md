@@ -100,6 +100,25 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **The argument** (the player asked for real positions, not philosopher catchphrases). Monday, Moocrates
+  asks why Chuck is allowed to do it, and each friend answers from their own philosophy; at the meeting she
+  takes every answer apart: Heifercleitus' "the river only runs one way" (but everything flows), Epicowrus'
+  "death is nothing to us" (then it's nothing to Chuck, so we could eat him), Moogenes' "natural" (a habit
+  that forgot it was a choice), and the humans' old rule that nothing without reason is owed justice (the
+  cows are reasoning, so by their own rule they're owed it). No argument moves a man who isn't listening,
+  so they escape instead. The thread then runs through the week: a motive isn't a reason (Tue);
+  Cluckydides' "the strong do what they can", and the weak can change what they can do (Wed); Moocrates
+  asks whether a cow is the kind of thing that adds, and Archimoodes answers that he's only using Chuck's
+  arithmetic (Wed, then the truck); Epicowrus notices his consolation works best for whoever holds the rope
+  (funeral); custom did everyone's thinking (Fri); Chuck states the rule himself in the finale ("cows don't
+  THINK, that's why it's okay") and you answer with it. Moothagoras has held the Pythagorean view (one soul,
+  so eating any of us is eating family) all along. The herd's chatter switches from "it's like weather"
+  (`HERD_LINES`) to the waking-up lines (`HERD_LINES_LATE`) after Thursday.
+- **Your name is Moodysseus.** The herd stops saying a cow's name once she's on Chuck's list ("it makes
+  Thursdays easier"), so from the planner page on you're Forty-Seven, and Moocrates catches herself doing
+  the same to Archimoodes. At the funeral they notice they've said his name all night; on the hill at the
+  end Moocrates says yours. The nameplate follows (`Game.player_name`, flags `on_list` / `renamed`).
+  Archimoodes points out that Odysseus escaped the Cyclops as "Nobody".
 - **All cow names are Greek** (the player's call): Moobius became Archimoodes, Big Earl became Big Ajax
   (password BIGAJAX), Clarabelle became Echo (who repeats whatever she heard last), and the whole herd
   (`npc.HERD_NAMES`, 42 names). A named herd cow's first line is her own (`story.HERD_SAYS`): Xenophanes on

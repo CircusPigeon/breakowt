@@ -48,30 +48,41 @@ SHOP = [
 # bought again each time (the rest are yours for good, and come with you into the next playthrough)
 CONSUMABLE = ("coffee", "shells")
 
+# the herd's chatter, Monday to Wednesday: it's all weather
 HERD_LINES = [
+    "Moo. (The truck comes, someone goes, the grass grows back. It's like weather. You don't argue with weather.)",
+    "Moo. (Chuck counted us last night. It's nice to be counted. It means you matter. Numerically.)",
+    "Moo. (Somebody's on the list this week. We don't say who. It's polite.)",
     "Moo. (The grass by the fence tastes the same as the other grass. I keep checking. That's empiricism.)",
-    "Moo. (If a cow is raised to be eaten and knows it, is she livestock or a tragic hero? Asking for me.)",
     "Moo. (Chuck scratched my ears yesterday, then looked at my rump for a really long time. Kindness with an "
     "invoice.)",
-    "Moo. (I stare at the pond and the pond doesn't stare back. I'm told that's a relief. I'm told a lot of things.)",
     "Moo. (Four stomachs. I've processed more than any philosopher alive. Mostly grass. Some regret.)",
     "Moo. (Moogenes says he's descended from royalty. So is everyone, if you go back far enough. Also from "
     "bacteria.)",
     "Moo. (The rooster's writing a history of the coop. Eight volumes. The hens are in none of them. The hens "
     "are an oral tradition.)",
-    "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno never met a salt lick.)",
+    "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno has never met a salt "
+    "lick.)",
     "Moo. (Epicowrus sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
     "hallucination.)",
-    "Moo. (If you see Echo, don't tell her anything. Not even this. By supper the whole herd will think it was "
-    "their idea.)",
-    "Moo. (The truck comes, someone goes, the grass grows back. It's like weather. You don't argue with weather. "
-    "...Do you?)",
-    "Moo. (Chuck counted us last night. It's nice to be counted. It means you matter. Numerically.)",
-    "Moo. (There's a fly on my back. I know. It knows I know. We're in a standoff of mutual awareness.)",
     "Moo. (My mother said 'you are what you eat'. Then she got eaten. The syllogism was grim for everyone.)",
+    "Moo. (Moothagoras won't eat meat. Very brave. We're cows. He keeps saying that's not the point.)",
+]
+# Thursday on, after the first funeral the farm has ever had
+HERD_LINES_LATE = [
+    "Moo. (I said 'it's like weather' for nine years. I've stopped saying it. It sounds different out loud.)",
+    "Moo. (They held a funeral. For Twelve. I didn't know we were allowed to have those. Nobody said we weren't.)",
+    "Moo. (I went to say a name I'd stopped saying. It came straight back. Names do that.)",
     "Moo. (Chuck calls us 'the girls'. Then 'the inventory'. The distance between those words is the whole "
     "industry.)",
-    "Moo. ('Free range.' I've ranged for years. None of it was free. Marketing is violence with a font.)",
+    "Moo. (Moothagoras has said it for years: one soul in all of us, even Chuck. I used to laugh. He never "
+    "stopped saying it. I stopped laughing.)",
+    "Moo. (Epicowrus says death is nothing to us. Fine. It's everything before it I'd like to discuss.)",
+    "Moo. (They named the bull after a floor cleaner. Heifercleitus told me. I keep thinking about who gets to "
+    "do the naming.)",
+    "Moo. (If you see Echo, don't tell her anything. Not even this. By supper the whole herd will think it was "
+    "their idea.)",
+    "Moo. ('Free range.' I've ranged for years. None of it was free.)",
     "Moo. (I'm not scared of Sunday. I'm scared of Dale. Nobody's seen Dale. Dale is a Platonic horror.)",
 ]
 
@@ -758,7 +769,8 @@ class Story(DayScripts):
         if n == 0 and cow.name in HERD_SAYS:
             line = HERD_SAYS[cow.name]
         else:
-            line = HERD_LINES[(cow.idx * 7 + n) % len(HERD_LINES)]
+            lines = HERD_LINES_LATE if self.day >= 5 or self.done("moozart_gone") else HERD_LINES
+            line = lines[(cow.idx * 7 + n) % len(lines)]
         self.talk_i[f"herd{cow.idx}"] = n + 1
         yield from g.talk([(cow, line)])
         return True

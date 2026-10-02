@@ -30,6 +30,7 @@ SPEAKER_COLORS = {
     "Cluckydides": C(1.0, 0.55, 0.2, 1),
     "You": C(1.0, 0.95, 0.9, 1),
     "Forty-Seven": C(1.0, 0.95, 0.9, 1),
+    "Moodysseus": C(1.0, 0.95, 0.9, 1),
 }
 
 

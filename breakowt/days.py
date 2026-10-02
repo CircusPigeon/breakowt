@@ -763,7 +763,8 @@ class DayScripts:
         g.player.look_at_point((c.x, 1.3, c.z))
         yield from g.fade_in(1.4)
         yield from g.talk([
-            ("cowleen", "Forty-Seven. Wake up. I have a question, and you're the only one I can annoy with it."),
+            ("cowleen", "Moodysseus. Wake up. I have a question, and you're the only one patient enough to hear it "
+                        "twice."),
             ("you", "Moo. (It's dawn. Questions are a lunchtime activity.)"),
             ("cowleen", "Chuck dropped his planner at the fence. The wind put a page up the Old Oak. I saw the word "
                         "'Sunday' on it, and a number."),
@@ -844,13 +845,22 @@ class DayScripts:
         yield from g.talk([
             ("you", "Moo. (Forty-seven. Sunday. That's me.)"),
             ("cowleen", "And twelve on Thursday. Filed between 'oil tractor' and 'bowling'."),
+        ])
+        self.flags["on_list"] = True
+        yield from g.talk([
+            ("cowleen", "...Forty-Seven."),
+            ("you", "Moo. (Since when do you call me Forty-Seven?)"),
+            ("cowleen", "Since just now. Once a cow's on the list, we stop using the name. Everybody does. It makes "
+                        "Thursdays easier."),
+            ("you", "Moo. (Easier for who?)"),
+            ("cowleen", "...That's a better question than mine. Hold on to it."),
             ("you", "Moo. (Well. It's a farm. This is what farms are for.)"),
             ("cowleen", "Is it? Who told you that?"),
             ("you", "Moo. (Everyone. My mother. Her mother. The truck.)"),
-            ("cowleen", "So nobody. A thing everybody knows and nobody has ever checked. Go ask the others. I'd like "
-                        "to hear one of them defend it."),
+            ("cowleen", "So nobody. Go and ask the others why it's allowed. I'd like to hear one of them defend it. "
+                        "Oak at sundown."),
             ("cowleen", "Archimoodes is by the pond. Moogenes is at the salt lick, Moothagoras under the oak, Epicowrus "
-                        "in his hay bales in the far corner, Heifercleitus at the trough. Oak at sundown."),
+                        "in his hay bales in the far corner, Heifercleitus at the trough."),
         ])
         c.look = "player"
 
@@ -893,12 +903,12 @@ class DayScripts:
                 ("moozart", "Lemma one: Chuck cannot count past forty without losing his place. I once worked out "
                             "how many grains of sand would fill the sky. He loses count of us at forty. One of us has "
                             "a problem of scale, and it isn't me."),
-                ("you", "Moo. (Chuck's planner says I'm going to Processing on Sunday. And number twelve on "
-                        "Thursday.)"),
-                ("moozart", "Moocrates asked you why that's allowed, didn't she. She asked me too. It's an irritating "
-                            "question. It's the first new question this farm has had in years."),
-                ("moozart", "Nobody has ever shown it has to be this way. It's just been repeated until it sounded "
-                            "proved. I'll find out which it is."),
+                ("you", "Moo. (Chuck's planner says I'm going to Processing on Sunday. Twelve goes on Thursday. "
+                        "Moocrates wants to know why that's allowed.)"),
+                ("moozart", "Of course she does. It's a question about justice, and I can't do justice. Justice has "
+                            "no units."),
+                ("moozart", "But I can tell you nobody has ever proved it has to be this way. It's just been repeated "
+                            "until it sounded proved. Give me a week."),
                 ("moozart", "Twelve, though. Divisible by one, two, three, four and six. A very cooperative number."),
             ])
 
@@ -908,11 +918,14 @@ class DayScripts:
                 ("you", "Moo. (It's six in the morning.)"),
                 ("sirloin", "It's the principle. A king once stood where you're standing and asked what I wanted. I "
                             "told him to move. He moved."),
-                ("you", "Moo. (That was a different bull.)"),
+                ("you", "Moo. (That was a different philosopher.)"),
                 ("sirloin", "Prove it. What do you want?"),
-                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
-                ("sirloin", "Naturally. A cow who lives by custom dies by custom. I gave custom up. I live like a dog "
-                            "now: I eat in public, I sleep in the open, and I bark at the powerful."),
+                ("you", "Moo. (Chuck's going to eat me on Sunday. Moocrates wants to know why that's allowed.)"),
+                ("sirloin", "Because it's 'natural'. Ask anyone. 'Natural' is what a habit calls itself once nobody "
+                            "can remember defending it."),
+                ("sirloin", "Eating cows is natural. Neckties are natural. Chuck singing in the truck is, I'm told, "
+                            "natural. I gave up customs. I live like a dog: I eat in public, I sleep in the open, "
+                            "and I bark at the powerful."),
                 ("you", "Moo. (You're a bull.)"),
                 ("sirloin", "Philosophically I'm a dog. But even a dog needs a kennel. Find me something to live in: "
                             "a jar, a barrel, a bucket. A home nobody can sell me."),
@@ -922,11 +935,14 @@ class DayScripts:
             yield from g.talk([
                 ("cowpernicus", "Shh. I'm counting. Everything is number, Forty-Seven. Fence posts: two hundred and "
                                 "six. Cows: fifty. Farmers: one, and he can't count either of the others."),
-                ("you", "Moo. (Chuck's planner. I'm on it. Sunday.)"),
-                ("cowpernicus", "Forty-seven. Prime. You can't be divided by anything but yourself. They'll try anyway: "
-                                "chuck, brisket, rib, round."),
-                ("cowpernicus", "I've told Chuck for years that all living things share one soul and he shouldn't eat "
-                                "any of them. He thinks I'm mooing for feed. Give me until sundown. The oak."),
+                ("you", "Moo. (Chuck's planner. I'm on it. Sunday. Moocrates wants to know why that's allowed.)"),
+                ("cowpernicus", "It isn't. I've been saying so for years. Every living thing shares one soul. It moves "
+                                "on when a body stops: into a cow, a chicken, possibly a Chuck. Eat any of us and you "
+                                "might be eating family."),
+                ("cowpernicus", "The herd thinks it's hilarious. 'Moothagoras won't eat meat. Brave of him.' They've "
+                                "missed the point. I'm not saying WE shouldn't. I'm saying HE shouldn't."),
+                ("cowpernicus", "Forty-seven, by the way. Prime. You can't be divided by anything but one and yourself. "
+                                "They'll try anyway: chuck, brisket, rib, round."),
                 ("cowpernicus", "Also: Chuck owns spare reading glasses. I'm very nearsighted. Every triangle I've ever "
                                 "drawn has been an educated guess. Find them and I'll draw you the whole farm."),
             ])
@@ -936,9 +952,10 @@ class DayScripts:
                 ("mooriarty", "Psst. In here. Welcome to the Garden."),
                 ("you", "Moo. (It's a pile of hay bales.)"),
                 ("mooriarty", "It's a philosophy. The good life: friends, simple food, and no fear. Also, I sell things."),
-                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
-                ("mooriarty", "Death is nothing to us. Where death is, we are not; where we are, death is not. "
-                              "I've sold that line for years. Very consoling. No refunds."),
+                ("you", "Moo. (Chuck's going to eat me on Sunday. Moocrates wants to know why that's allowed.)"),
+                ("mooriarty", "Because it does you no harm. Death is nothing to us: where death is, we are not, and "
+                              "where we are, death is not. You won't be there for it. No harm, no foul."),
+                ("mooriarty", "Very consoling. I've been selling that line for years. Everybody buys it. No refunds."),
                 ("mooriarty", "That said, I'd rather 'we are' a while longer, and so would you. My stock shifts the "
                               "odds: rocks, rubber, a disguise. Golden Clovers only."),
                 ("mooriarty", "Clovers come to cows who do something worth talking about. And a few grow where "
@@ -950,9 +967,9 @@ class DayScripts:
             yield from g.talk([
                 ("moomaw", "Morning, dear. You can't step into the same pasture twice. It's always a slightly "
                            "different pasture, and you're always a slightly older cow."),
-                ("you", "Moo. (He wrote my number next to Sunday. And 'barbecue'.)"),
-                ("moomaw", "Everything flows. Grass into cow, cow into Chuck. I've watched that river for eleven "
-                           "years. It only ever runs one way."),
+                ("you", "Moo. (He wrote my number next to Sunday. Moocrates wants to know why that's allowed.)"),
+                ("moomaw", "Allowed? Everything flows, dear. Grass into cow, cow into Chuck. I've watched that river "
+                           "for eleven years. It only ever runs one way."),
                 ("moomaw", "He did it to my Ajax. Circled him on the calendar, drew a little smiley face. Two "
                            "thousand pounds of bull. Chuck still calls it the best Fourth of July he ever had."),
                 ("moomaw", "Chuck called him Big Ajax, after the floor cleaner. There was a hero called Ajax first. "
@@ -997,26 +1014,36 @@ class DayScripts:
         g.player.teleport(-50.5, 0, -41.5, 0)
         g.cam_set((-56.5, 3.2, -43.0), (-50, 1.2, -34.5))
         yield from g.talk([
-            ("cowleen", "Thank you all for coming. I asked each of you why we let Chuck do this. Let's hear the "
+            ("cowleen", "Thank you all for coming. I asked each of you why Chuck is allowed to do this. Let's hear the "
                         "answers."),
-            ("mooriarty", "Because death is nothing to us."),
-            ("moomaw", "Because the river runs one way."),
-            ("sirloin", "Because the others let him. I've been meaning to object."),
-            ("cowleen", "So: a slogan, a metaphor, and a complaint. Nobody has an argument."),
-            ("moozart", "Nobody has ever needed one. 'It's the natural order' has never been asked to show its "
-                        "working."),
-            ("cowpernicus", "Then let's do it the honest way: definitions, postulates, proofs. I've drawn the Elements "
-                            "of Escape in the dirt. Moogenes, you're standing on Book One."),
+            ("moomaw", "Because the river only runs one way, dear."),
+            ("cowleen", "You also say everything flows. If everything flows, why can't the river?"),
+            ("moomaw", "...Because I'm eleven and my knees hurt. Next."),
+            ("mooriarty", "Because it does us no harm. Death is nothing to us. We won't be there for it."),
+            ("cowleen", "Then it would do Chuck no harm either. So we could eat him."),
+            ("mooriarty", "...I'd want a different argument for that."),
+            ("cowleen", "So would I. Moogenes?"),
+            ("sirloin", "It's not allowed. It's 'natural'. A habit that's forgotten it was ever a choice."),
+            ("cowleen", "Then it could be unlearned."),
+            ("sirloin", "Anything can. I unlearned shame in an afternoon. It's mostly about where you eat."),
+            ("cowpernicus", "The humans have a rule for it, written down centuries ago. Nothing that can't reason is "
+                            "owed justice. Animals can't reason, so anything goes."),
+            ("moozart", "We're reasoning right now."),
+            ("mooriarty", "Then by their own rule, they owe us. Do tell Chuck."),
+            ("cowleen", "So: a metaphor, a consolation, a habit, and a rule that convicts the people who wrote it. "
+                        "Nobody has an argument."),
+            ("moozart", "Nobody's ever needed one. Arguments are for people who are listening, and Chuck isn't. So "
+                        "let's not argue with Chuck. Let's prove our way out."),
+            ("moozart", "Definition: a fence is a line somebody paid for. Postulate: a straight line can be drawn "
+                        "from any cow to the road. The fence is merely in the way. Moogenes, you're standing on it."),
             ("sirloin", "I'm a dog. Dogs stand where they like."),
-            ("cowpernicus", "Definition one: a fence is a line somebody paid for. Postulate one: a straight line can be "
-                            "drawn from any cow to the road. The fence is merely in the way."),
-            ("cowpernicus", "Step one: the fence runs off a generator in the tool shed. No current, no fence. Step "
-                            "two: the main gate is chained, with a cattle grid in front. We need something heavier than "
-                            "a gate and less sentimental than a cow."),
+            ("moozart", "Step one: the fence runs off a generator in the tool shed. No current, no fence. Step two: "
+                        "the main gate is chained, with a cattle grid in front. We need something heavier than a "
+                        "gate and less sentimental than a cow."),
             ("sirloin", "Present."),
-            ("cowpernicus", "Heavier."),
-            ("mooriarty", "And step three?"),
-            ("cowpernicus", "Everyone runs. Step three is less a proof than a hope. I'm working on it."),
+            ("moozart", "Heavier."),
+            ("cowpernicus", "And step three?"),
+            ("moozart", "Everyone runs. Step three is less a proof than a hope. I'm working on it."),
             ("moomaw", "Ajax's plan was 'headbutt the truck'. One step. Very elegant."),
             ("cowleen", "How did that go?"),
             ("moomaw", "He's in a freezer in Ohio, dear. Several freezers."),
@@ -1419,6 +1446,9 @@ class DayScripts:
             g.audio.stop_loop("radio", 0.3)
             self.unduck()
             yield from g.talk([
+                ("you", "Moo. (So that's why it's allowed. Money.)"),
+                ("moozart", "That's why it happens. Why it's allowed is Moocrates' department. She'll tell you a "
+                            "motive isn't a reason, then ask what a reason is, and we'll be up all night."),
                 ("you", "Moo. (How are you this calm?)"),
                 ("moozart", "I'm not calm. I'm careful. Panic is a conclusion you reach before the proof. I'd like "
                             "to finish the proof first."),
@@ -1825,6 +1855,12 @@ class DayScripts:
             ("you", "Moo. (We're driving his tractor through the main gate on Sunday. All of us are leaving.)"),
             ("cluck", "...All of you? Cows have never done anything. That's why there's no history of cows. I "
                       "checked. It's one page and the page is a menu."),
+            ("you", "Moo. (Moocrates keeps asking why Chuck is allowed to eat us.)"),
+            ("cluck", "Allowed? Nobody allows anything. The strong do what they can and the weak suffer what they "
+                      "must. Eight volumes, and that's the one sentence I've never had to revise."),
+            ("you", "Moo. (So what do the weak do?)"),
+            ("cluck", "Historically? Suffer. Now and then one of them reads the sentence again, notices it's about "
+                      "what you CAN do, and goes and changes that. Those are the good chapters."),
             ("cluck", "Six years I've announced the sunrise, as if the sun needed my permission. You know what "
                       "Chuck calls me? 'Nuggets.' A historian. Nuggets. To my FACE."),
             ("cluck", "Sunday at dawn I crow like the world is ending, because for him it is. That's your signal. "
@@ -1889,12 +1925,19 @@ class DayScripts:
             ("you", "Moo. (You KNEW? Why didn't you tell anyone?)"),
             ("moozart", "Because you'd all have stopped thinking and started feeling, and I needed you thinking. "
                         "You can feel on Friday. I've pencilled it in."),
-            ("cowleen", "Then we hide him. Tomorrow, before the truck. Hayloft. Chuck hates the ramp: he says it's "
-                        "too steep for a man his age. He's forty-one."),
+            ("cowleen", "Then we hide you, Twelve. Tomorrow, before the truck. The hayloft: Chuck hates the ramp. "
+                        "He says it's too steep for a man his age. He's forty-one."),
+            ("moozart", "Archimoodes. I'm not on the truck yet. Use the long name while it's available."),
+            ("cowleen", "...Sorry. Habit. That's exactly the habit I mean."),
             ("moozart", "Hiding doesn't change the count, Moocrates. It changes who gets counted."),
-            ("cowleen", "Then we'll deal with that when the count comes. You're going up the ramp."),
+            ("cowleen", "You add cows up like grains of sand. Is a cow the kind of thing that adds?"),
+            ("moozart", "Chuck adds us. By the pound. I'm only using his arithmetic."),
+            ("cowleen", "That's what worries me. You're going up the ramp."),
             ("moozart", "Fine. It's quiet up there, and I have a proof to finish. I know how it ends. I'd like to "
                         "check my working anyway."),
+            ("moozart", "And Forty-Seven: they took your name on Monday, I notice. Odysseus told the Cyclops his "
+                        "name was Nobody, then walked out of the cave under a sheep. Nobody is an excellent name for "
+                        "getting out of places."),
         ])
         g.cutscene_end_now()
         g.set_time("dusk", 10)
@@ -2187,8 +2230,8 @@ class DayScripts:
             ("moozart", "It's simpler from the track. That truck leaves with a cow tonight. Chuck paid for one. If "
                         "it's you, nobody's at the tractor on Sunday and the whole herd is on the track. If it's "
                         "me, it's one."),
-            ("moozart", "I checked it last night. I checked it again this morning, hoping I'd made an error. I "
-                        "don't make errors. It's been a very lonely gift."),
+            ("moozart", "Moocrates asked me if a cow is the kind of thing that adds. I still don't know. But Chuck "
+                        "thinks it is, and tonight he's the one with the truck."),
             ("moozart", "Tell Moothagoras to redo his numbers: forty-nine. Chuck will still write fifty. And tell "
                         "Moogenes to stay off my circles by the pond."),
         ])
@@ -2317,18 +2360,22 @@ class DayScripts:
         yield from g.talk([
             ("cowpernicus", "I checked his proof. It holds. I spent all afternoon trying to break it, so at least he'd "
                             "have died for a typo. It's airtight. I've never hated a proof more."),
-            ("mooriarty", "Death is nothing to us. Where death is, we are not, and where we are, death is not. So "
-                          "he's fine. It's us standing in the rain."),
+            ("mooriarty", "Death is nothing to us. Where death is, we are not. I've sold that line for years. It "
+                          "works. The cows go calm."),
+            ("mooriarty", "Tonight I noticed who it works best for. A little for the cow. Enormously for whoever's "
+                          "holding the rope."),
             ("cowpernicus", "My school teaches that the soul moves on. Into another body."),
             ("sirloin", "Which body?"),
             ("cowpernicus", "...We don't usually follow that one through, on a farm."),
             ("moomaw", "When Ajax went, there wasn't a funeral. Chuck had a cookout. Everyone said the burgers were "
                        "very moving."),
             ("cowleen", "That's what I keep coming back to. Ajax. Io's sister. Echo's mother. That truck has come "
-                        "every month of my life, and this is the first funeral we've ever had. Why?"),
+                        "every other Thursday of my life, and this is the first funeral we've ever had. Why?"),
             ("mooriarty", "You won't like the answer, Moocrates."),
             ("moomaw", "Because it was weather, dear. You can't grieve the weather. You'd never stop."),
             ("cowleen", "Then maybe we should never have stopped."),
+            ("cowleen", "We've said his name all night. Have you noticed? We've never said one after a Thursday "
+                        "before."),
         ])
         yield 1.5
         g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
@@ -2795,7 +2842,9 @@ class DayScripts:
                             "us by the pound and wave at the truck."),
                 ("cowleen", "Nobody ever asked him to think about it. Nobody ever asked us, either, and we were the "
                             "ones in the truck."),
-                ("mooriarty", "That's a market, Moocrates. A place where nobody has to think about anything twice."),
+                ("sirloin", "Custom does his thinking for him. It did ours too, until Monday. Admit it, you all said "
+                            "'weather'."),
+                ("mooriarty", "And the market does the rest. A place where nobody has to think about anything twice."),
             ]
         lines += [
             ("cowpernicus", "Then the plan. Archimoodes' theorem with my logistics bolted on: the proof is his, the "
@@ -2906,8 +2955,8 @@ class DayScripts:
         g.player.look_at_point((c.x, 1.3, c.z))
         yield from g.fade_in(1.2)
         yield from g.talk([
-            ("cowleen", "Hear that? He's sharpening knives by the barn. Since six. Whistling. The banality of "
-                        "evil, but with a grindstone."),
+            ("cowleen", "Hear that? He's sharpening knives by the barn. Since six. Whistling. He isn't cruel. He's "
+                        "cheerful. I can't decide which is worse."),
             ("cowleen", "Upside: the grinder's loud. Near it, he can't hear a thing. Downside: the reason it's "
                         "loud."),
             ("cowleen", "Today we close what's still open: the tractor, the cattle grid, the herd. Tonight, the "
@@ -3606,11 +3655,11 @@ class DayScripts:
         p.hold("shotgun")
         g.cam_set((f.x - 2.5, 0.9, f.z + 2.5), (f.x + 0.3, 0.5, f.z + 0.6))
         yield from g.talk([
-            ("chuck", "Okay. Okay. Easy, girl. You're... you're just a cow."),
+            ("chuck", "Okay. Okay. Easy, now. You're... you're just a cow."),
             ("chuck", "Cows don't know how to work a shotgun. Right? Cows don't THINK. That's the whole... that's "
                       "the whole deal. That's why it's okay."),
-            ("you", "Moo. (We were never sure you could think either, Chuck. We gave you the benefit of the "
-                    "doubt. You never gave us one.)"),
+            ("you", "Moo. (We've done nothing but think all week, Chuck. By your own rule, you owe us. Stay down and "
+                    "we'll call it even.)"),
         ])
         g.cutscene_end_now()
         g.cutscene_start(letterbox=True)
@@ -3766,7 +3815,12 @@ class DayScripts:
         yield from g.talk([
             ("cowleen", "A whole herd on a public road. Archimoodes gave it five chances in six."),
             ("you", "Moo. (It came out six in six. He'd be furious. He hated being wrong, even upward.)"),
-            ("cowleen", "So. Where are we going?"),
+            ("cowleen", "So. Where are we going, Moodysseus?"),
+        ])
+        self.flags["renamed"] = True
+        yield from g.talk([
+            ("you", "Moo. (You said my name.)"),
+            ("cowleen", "It's a long walk. I wasn't going to say 'Forty-Seven' all the way there."),
             ("you", "Moo. (Somewhere without a barbecue.)"),
             ("cowleen", "Moothagoras made a list."),
             ("cowpernicus", "It's a short list. It's India."),
@@ -3924,8 +3978,7 @@ Dale, BBQ's off. I've gone vegetarian. Also I've always hated your potato salad.
 CHATTER = {
     0: {
         "cowleen": [["Keep your head down and your ears up. Chuck can't read faces, but he can read rumps."],
-                    ["If you get caught, Chuck walks you back. He doesn't know what we're doing. I'm not sure we "
-                     "do either. That's how you know it's philosophy."]],
+                    ["I don't know much. I know that I don't know, which puts me one ahead of Chuck."]],
         "moozart": [["Every fence is a proof that somebody thought you'd leave. Take it as a compliment."]],
         "sirloin": [["I live like a dog. I eat in public, I sleep where I fall, and I bark at authority. The authority "
                      "is mostly the fence."]],
@@ -3940,8 +3993,8 @@ CHATTER = {
                     ["Tell the others, then the oak at sundown. And don't tell Echo. Echo repeats whatever she "
                      "heard last to whoever's nearest. She thinks 'Processing' is a spa, because Chuck said so."]],
         "moozart": [["Lemma One. Chuck can't count past forty. That's not an insult. It's a load-bearing fact."]],
-        "sirloin": [["A dog should be ready to die anywhere, I've always said. I assumed I'd get to pick the "
-                     "anywhere."]],
+        "sirloin": [["Every custom on this farm calls itself nature. Give it fifty years and the fence will call "
+                     "itself a hill."]],
         "cowpernicus": [["Fifty cows. Fifty is the sum of two squares in two different ways. A very stable number. "
                          "Chuck is about to make it less stable."]],
         "mooriarty": [["Sunday, huh? Death is nothing to us, Forty-Seven. It's the Saturday I'd worry about. "
@@ -3960,7 +4013,9 @@ CHATTER = {
         "sirloin": [["If there's a bucket in that shed, I want it. A dog needs a house nobody can sell. I've checked "
                      "the market. Nobody sells buckets with dogs in them."]],
         "cowpernicus": [["The toolbox has a three-digit lock. Humans write their codes down. A species that invented "
-                         "cryptography and then wrote the key next to the lock."]],
+                         "cryptography and then wrote the key next to the lock."],
+                        ["I don't eat beans. Beans have souls. The herd says grass has souls too. I've asked the "
+                         "grass. It hasn't objected."]],
         "mooriarty": [["The loose board on the back of the shed? I loosened it. Years ago. You plan for "
                        "opportunities that don't exist yet. It's the only kind of planning that's any fun."]],
         "moomaw": [["You're so quiet without that bell. It's nice. A bell is a leash that sings."],
@@ -3970,14 +4025,13 @@ CHATTER = {
     3: {
         "cowleen": [["He's got a toothache. Slow and cranky. He naps on the porch around noon. Peak of "
                      "civilisation."],
-                    ["Moothagoras says the tractor needs three things. The farm is built like a puzzle box by "
-                     "someone who doesn't know it's a puzzle box."]],
+                    ["Moogenes says it's custom. Epicowrus says it's harmless. Heifercleitus says it's a river. "
+                     "Funny how every answer ends with us doing nothing."]],
         "moozart": [["There's a term in the theorem I can't eliminate. It's fine. Everything has one. Most things "
                      "just never check."]],
         "sirloin": [["The rooster? I've fought the rooster. We agreed it was a draw. He did not agree. History is "
                      "written by whoever can reach the coop wall with a beak."]],
-        "cowpernicus": [["Not your nose. Moogenes is the control group for 'nose'. Don't join him."],
-                        ["I don't eat beans. Beans have souls. Grass is fine. Grass has never once looked at me."]],
+        "cowpernicus": [["Not your nose. Moogenes is the control group for 'nose'. Don't join him."]],
         "mooriarty": [["Rubber chicken's in stock. It squeaks, it flies, it insulates. It's the most useful object "
                        "on this farm, and it's a joke. Remember that about the world."]],
         "moomaw": [["Chuck's dentist is Dale's cousin. The one at the plant. Teeth and beef. Same tools, different "
@@ -3997,7 +4051,7 @@ CHATTER = {
     },
     5: {
         "cowleen": [["House. Spark plug. Computer. Back by dark. Don't sit on his couch. It remembers him."],
-                    ["Last night was the first funeral this farm has ever had. Everybody's acting like it was "
+                    ["Last night was the first funeral this farm has ever had. Everyone's acting like it was "
                      "normal. It wasn't. It was the first normal thing we've ever done."]],
         "sirloin": [["I miss Archimoodes. He used to correct my logic until it was just silence. It was the most right "
                      "I've ever been."],
@@ -4005,10 +4059,12 @@ CHATTER = {
                      "deer. I respect a man committed to a premise."]],
         "cowpernicus": [["Computers have passwords. Humans use the name of whatever they love most. Try his truck. "
                          "Or himself. Or the one thing on this farm he ever called a friend."],
-                        ["I redid the numbers. Forty-nine. It's not prime. It's seven sevens. I keep checking it like "
-                         "it might change."]],
+                        ["I've said it for years: one soul in all of us, even Chuck. The herd used to laugh. Last "
+                         "night nobody laughed. I'd rather they'd laughed."]],
         "mooriarty": [["Chuck keeps the spare key where everybody keeps a spare key. Security through assuming "
-                       "nobody else has ever owned a doormat."]],
+                       "nobody else has ever owned a doormat."],
+                      ["Death is nothing to us. Still true. I've just stopped offering it to cows. It was only ever "
+                       "a comfort to the other side."]],
         "moomaw": [["If you're in the office, look for Ajax. He's the handsome one. Chuck's the one who looks like "
                     "a boiled ham that found religion."]],
     },
@@ -4022,8 +4078,9 @@ CHATTER = {
                          "Zero is just a hole with good intentions."]],
         "mooriarty": [["Bessie's no use empty. Chuck hid the shells from himself after the last barbecue. Where "
                        "does a man hide things from himself? Somewhere he swore he'd go and never does."]],
-        "moomaw": [["Ajax got out once. Made it as far as the mailbox. He said the view was worth it. Then he ate "
-                    "the mail. Live a little, dear, while you can."]],
+        "moomaw": [["Eleven years I said the river only runs one way. Then a black cow drew some circles in the "
+                    "mud and walked onto a truck, and here we all are, flowing uphill. I'd like my eleven years "
+                    "back."]],
     },
     7: {
         "cowleen": [["Go. We're right behind you. Well. Behind the fence. Then behind you."]],
