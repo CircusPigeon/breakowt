@@ -42,19 +42,21 @@ The player's long playtest list, all addressed. The design taste behind it is in
 the player's own words: as humorous as it is a thought piece, puzzles you have to think about, no
 hand-holding, no sentimentality.
 - **Cast = ancient Greek philosophers** (display names only; internal keys unchanged): Moocrates
-  (`cowleen`, Socratic questions), Moobius (`moozart`, Euclid: definitions, postulates, lemmas), Moogenes
+  (`cowleen`, Socratic questions), Archimoodes (`moozart`; was Moobius: Archimedes, who proves things in the
+  sand by the pond: "don't step on my circles", the grains of sand vs Chuck losing count at forty), Moogenes
   (`sirloin`, Diogenes the Cynic: lives like a dog, wants a bucket to live in, "out of my sunlight"),
   Moothagoras (`cowpernicus`, Pythagoras: everything is number, refuses beans, the glasses), Epicowrus
   (`mooriarty`, Epicurus: "death is nothing to us", runs the shop, now called THE GARDEN), Heifercleitus
-  (`moomaw`, Heraclitus: the river; Earl's widow), Cluckydides (the rooster, Thucydides: "the strong do what
+  (`moomaw`, Heraclitus: the river; widow of Ajax, the bull Chuck called "Big Ajax" after the floor cleaner),
+  Cluckydides (the rooster, Thucydides: "the strong do what
   they can"). Display names live in `npc.FRIENDS`, `ui.SPEAKER_COLORS` and the dialogue.
 - **The arc**: the herd starts out treating the truck as weather ("you don't argue with weather"), and
   wakes up over the week: Moocrates' question on Monday, the market report (Lemma Two), the first funeral
   ever held on the farm (Thursday), the "sold in bulk" emails (Friday), and optionally the ledger inside the
-  plant. Moobius works out the trolley problem himself and walks onto the truck (no "moo to accept the
+  plant. Archimoodes works out the trolley problem himself and walks onto the truck (no "moo to accept the
   axiom" any more; the loft scene is all dialogue). The funeral talks about mortality (Epicurus,
   transmigration, "you can't grieve the weather") with no "it's what he'd have wanted". Nobody does
-  anything "for Moobius". The epilogue cards end on a short, dry thought piece (serif font) and branch on
+  anything "for" him. The epilogue cards end on a short, dry thought piece (serif font) and branch on
   whether Chuck was shot, the side quests, and the ledger. Keep this register for new lines.
 - **Less hand-holding**: objectives say what, not how ("Get into the tool shed", "Make the cattle grid
   safe for hooves", "Find the cabinet key"); far fewer map markers; clues live in the world (the tractor's
@@ -74,7 +76,7 @@ hand-holding, no sentimentality.
   ("you get to live, and think about it").
 - **Happy Acres** (`build_plant_inside`, `DayScripts._plant`): a staff door at the back (`plant_back`,
   `PLANT_BACK`) with a keypad and Chuck's sticky note ("the year of the best day of my life"). 2009 (Big
-  Earl's Best in Show: the photo, and Heifercleitus says it in chatter); 1998 (the bowling trophy) gets a
+  Ajax's Best in Show: the photo, and Heifercleitus says it in chatter); 1998 (the bowling trophy) gets a
   joke. Inside: the hook rail, tables, drains, a safety board ("4,212 days without an incident"), and the
   intake ledger (`LEDGER`, shown with the new "ledger" document style). Reading it gives a Moo-dal, a
   conversation with Moocrates (`side_quest_talk`), and an epilogue line. `processing` is a room in
@@ -96,8 +98,19 @@ hand-holding, no sentimentality.
   is an inbox (`open_mail`); fonts picked per role in `assets.FONT_CHOICES`; the keypad takes typed digits;
   cutscenes and the caught sequence can't be paused; Esc works in the title's Moo-dals screen.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
-  player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Moobius gets up the
+  player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **All cow names are Greek** (the player's call): Moobius became Archimoodes, Big Earl became Big Ajax
+  (password BIGAJAX), Clarabelle became Echo (who repeats whatever she heard last), and the whole herd
+  (`npc.HERD_NAMES`, 42 names). A named herd cow's first line is her own (`story.HERD_SAYS`): Xenophanes on
+  gods drawn by whoever holds the brush, Chrysippus on the "no reason, no justice" rule, Aristotle (the cow
+  who's bought in), Plutarch, Porphyry, Homer's cattle of the Sun, and so on. Chuck only ever uses numbers.
+- **Fuse box puzzle (Sunday)**: three fuses on the shed wall labelled FENCE, HOUSE and SHED LIGHT, and
+  Chuck's note: "the electrician says every label is wrong". The true wiring is one of the two derangements
+  (`flags["fuse_map"]`, picked once per run). The fuse marked HOUSE is always safe to pull first (fence or
+  shed light), and what happens tells you the rest. Pulling the real house fuse kills the porch light and
+  the freezer: Chuck gets up and walks into the shed (he has the shed key on Sunday: `door_keys`) to put it
+  back (`_chuck_fixes_house`), then patrols. The fence fuse sets off the fence alarm, which also gets him up.
 - **Not reproduced**: "headbutting in the shed opened the menu". 96 scripted headbutts in every direction
   inside the shed opened nothing; the likely culprit is the Moo-dal banner (knocking things over in there).
 - Textures added since the last version bump are painted on launch (like sounds).
@@ -213,6 +226,9 @@ hand-holding, no sentimentality.
 - New sounds are generated on launch without a version bump (assets fill in missing files).
 
 ### Verified
+- Greek names + fuse box: `--day 1 --to 7 --detect` passes; the bot pulls the fuse marked HOUSE first and
+  reasons from what happens. A scratch test pulled the real house fuse: Chuck got up, walked into the shed,
+  put it back, carried on patrolling, and the fence fuse then ended the step.
 - Philosophers round, on the Windows machine: `--day 1 --to 7 --detect` passes (the bot now also shakes the
   deer stand, opens the plant, reads the ledger, picks the clovers, fires one shell and keeps one for the
   shot ending). A scratch test stalled the tractor next to Chuck on Sunday: he drags you off, you're back

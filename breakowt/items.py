@@ -7,7 +7,7 @@ from __future__ import annotations
 ITEMS = {
     "page": ("Soggy Planner Page", "Chuck's week, in his own handwriting. You're on it. Sunday. Next to 'buy charcoal'.",
              "page", False, False, True),
-    "pencil": ("Chuck's Pencil", "Stolen mid-headcount. Chewed at both ends. Moobius has been eyeing it: you can't "
+    "pencil": ("Chuck's Pencil", "Stolen mid-headcount. Chewed at both ends. Archimoodes has been eyeing it: you can't "
                "finish a proof in mud.", "pencil", False, False, False),
     "rock": ("Rock", "A good throwing rock. [R] to throw. Makes noise where it lands.", "rock", True, True, True),
     "pliers": ("Pliers", "Snipped your bell off. Insulated handles, so they're also good for grabbing things that "
@@ -33,12 +33,12 @@ ITEMS = {
                   "sparkplug", False, False, True),
     "house_key": ("Spare House Key", "Found inside a garden gnome, as all keys eventually are. Opens the front door.",
                   "house_key", False, False, False),
-    "score": ("Moobius's Proof", "The Escape Theorem, in pencil on the back of Chuck's planner. Eleven lines. The "
+    "score": ("Archimoodes' Proof", "The Escape Theorem, in pencil on the back of Chuck's planner. Eleven lines. The "
               "last says 'QED', and beside it, very small, '12'. [Q] to read it out: the whole herd starts arguing about step four, loudly, "
               "and Chuck stomps over to the pasture to shut them up.", "score", False, False, True),
-    "photo": ("Photo of Big Earl", "'Me & Big Earl, Best in Show 2009.' Heifercleitus should have this.", "photo", False,
+    "photo": ("Photo of Big Ajax", "'Me & Big Ajax, Best in Show 2009.' Heifercleitus should have this.", "photo", False,
               False, True),
-    "horseshoe": ("Big Earl's Lucky Horseshoe", "If Chuck catches you, maybe he trips on it instead. Once.",
+    "horseshoe": ("Big Ajax's Lucky Horseshoe", "If Chuck catches you, maybe he trips on it instead. Once.",
                   "horseshoe", False, False, False),
     "moustache": ("Fake Moustache", "Wear it with a straw hat and Chuck sees Dale. [Q] to put it on. Don't gallop. "
                   "Dale doesn't gallop. Dale hasn't hurried since 1994.", "moustache", False, False, True),

@@ -25,8 +25,8 @@ MOO_THOUGHTS = [
     "Moo. (Somebody moos back from the far side of the pasture. Solidarity, or an echo. Unfalsifiable.)",
     "Moo. (Four stomachs, one existential crisis.)",
     "Moo. (Proof by moo: I mooed, therefore a moo exists. Tight.)",
-    "Moo. (Moobius would say that was statistically insignificant.)",
-    "Moooo. (That one was for Big Earl. Two thousand pounds of dignity, served on a bun.)",
+    "Moo. (Archimoodes would say that was statistically insignificant.)",
+    "Moooo. (That one was for Big Ajax. Two thousand pounds of dignity, served on a bun.)",
     "Moo. (Chuck, if you can hear this: the answer is no.)",
 ]
 

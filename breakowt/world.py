@@ -60,7 +60,7 @@ def in_pond(x, z, pad=0.0):
 
 DEFAULT_TEXT = {
     "oak": ["The Old Oak. Every calf on the farm has tried to climb it. None of them managed, being cows.",
-            "Carved into the bark: 'B.E. + M. 1998'. Big Earl and Heifercleitus."],
+            "Carved into the bark: 'A + H, 1998'. Ajax and Heifercleitus. Two cows who could carve."],
     "trough": ["The trough. Today's water has a leaf in it. And a sock. Whose sock?",
                "You drink. It tastes like trough."],
     "saltlick": ["A salt lick. The closest thing this farm has to a nightclub."],
@@ -70,8 +70,13 @@ DEFAULT_TEXT = {
     "cowshed_sign": ["COWSHED. Chuck named it himself. He was very proud."],
     "stall_sign": ["Stall 47. Chuck painted the number himself and got the 4 backwards the first time."],
     "shed_door": ["The tool shed door. Padlocked, and the padlock is newer than the door."],
-    "generator": ["The generator. The fence runs off this. It hums a low note all day and all night.",
-                  "A label: 'MAIN FUSE: PULL TO KILL FENCE (DON'T)'. Chuck writes very honest labels."],
+    "generator": ["The generator. Everything runs off it: the fence, the house, the light in here. It hums a low "
+                  "note all day and all night."],
+    "fuse_note": ["A sticky note on the fuse box, in Chuck's capitals: 'ELECTRICIAN SAYS EVERY LABEL ON HERE IS "
+                  "WRONG. NOT PAYING HIM $80 TO SWAP THREE STICKERS. -C'"],
+    "fuse_0": ["A fat ceramic fuse. Chuck's masking tape under it says FENCE."],
+    "fuse_1": ["A fat ceramic fuse. Chuck's masking tape under it says HOUSE."],
+    "fuse_2": ["A fat ceramic fuse. Chuck's masking tape under it says SHED LIGHT."],
     "workbench": ["Chuck's workbench. Every tool is labeled 'MINE'."],
     "poster": ["EMPLOYEE OF THE MONTH: CHUCK. Every month since 1987. The only employee since 1987."],
     "trophy": ["A bowling trophy. The plaque reads: 'CHUCK · 1998 · HIGH SCORE: 117'."],
@@ -732,7 +737,7 @@ class World:
                                (-74, -24, 90, 0.9), (-76.3, -27.5, 0, 0)]:
             self.hay_bale(hx, y, hz, r)
         self.add_ia("hideout_bales", (-73, 1.0, -27.5), 1.2, "Hay bales", text_key=None).text = [
-            "Epicowrus's 'office'. A sign scratched into the hay: 'NO REFUNDS'."]
+            "Epicowrus' 'office'. A sign scratched into the hay: 'NO REFUNDS'."]
         # Cardboard Chuck
         scx, scz = -28, -66
         self.box("wood_dark", (scx, 0.6, scz), (0.08, 1.2, 0.08))
@@ -803,7 +808,25 @@ class World:
         self.mb("white").cylinder((gx + 0.4, 1.1, gz + 0.25), 0.06, 0.5, color=(0.2, 0.2, 0.2, 1), segs=6)
         self.sign("do_not_touch", (gx, 1.9, z0 + 0.12), (1.3, 0.65), rot_y=180)
         self.add_ia("generator", (gx, 0.9, gz), 0.8, "Generator")
-        self.add_ia("fuse", (gx + 0.5, 1.0, gz + 0.5), 0.35, "Main fuse", text_key="generator")
+        # the fuse box on the wall beside it: three fuses, three of Chuck's labels, one note
+        fz = z0 + 0.14
+        self.mb("white").box((-8.7, 1.42, fz), (1.32, 0.8, 0.08), color=(0.42, 0.44, 0.46, 1))
+        self.mb("white").box((-9.8, 1.2, fz + 0.01), (0.9, 0.05, 0.05), color=(0.1, 0.1, 0.1, 1))
+        self.fuses = []
+        for i, (fx_, label) in enumerate([(-9.15, "label_fence"), (-8.7, "label_house"), (-8.25, "label_shed")]):
+            self.mb("white").box((fx_, 1.33, fz + 0.06), (0.2, 0.3, 0.05), color=(0.15, 0.15, 0.16, 1))
+            fm = MeshBuilder()
+            fm.cylinder((0, -0.11, 0), 0.05, 0.22, color=(0.92, 0.9, 0.84, 1), segs=10)
+            for cy in (-0.11, 0.09):
+                fm.cylinder((0, cy, 0), 0.055, 0.025, color=(0.72, 0.6, 0.35, 1), segs=10)
+            self.fuses.append(Entity(model=fm.build(), texture=tex("white"), shader=FARM_SHADER,
+                                     position=(fx_, 1.34, fz + 0.11)))
+            # labels above the fuses, so the prompt under the crosshair doesn't cover them
+            self.sign(label, (fx_, 1.65, fz + 0.045), (0.4, 0.12), rot_y=180)
+            self.add_ia(f"fuse_{i}", (fx_, 1.3, fz + 0.12), 0.14, f"Fuse marked {('FENCE', 'HOUSE', 'SHED LIGHT')[i]}",
+                        reach=2.4)
+        self.sign("sticky_fuses", (-7.78, 1.55, fz + 0.045), (0.34, 0.34), rot_y=180)
+        self.add_ia("fuse_note", (-7.78, 1.55, fz + 0.06), 0.17, "Sticky note", prompt="Read the note", reach=2.4)
         # cable from the generator, out through the back wall, along the ground and up a fence post
         # to the wires (fence line x = -18, wires at 0.45 / 0.8 / 1.15)
         cable = (0.1, 0.1, 0.1, 1)
@@ -2295,7 +2318,7 @@ class World:
             cur = came[cur]
         path.reverse()
         # already partway up (or down) the barn ramp: don't walk back to the ramp end behind you first. (Following
-        # someone re-plans every couple of metres, and Moobius kept being sent back down to the bottom node.)
+        # someone re-plans every couple of metres, and Archimoodes kept being sent back down to the bottom node.)
         if len(path) > 1 and 29.5 <= start[0] <= 33.4 and -6.0 <= start[2] <= 4.0 and \
                 (path[0], path[1]) in (self.ramp_ends, self.ramp_ends[::-1]):
             path = path[1:]

@@ -26,8 +26,8 @@ def in_keep_clear(x, z, pad=0.0):
 FRIENDS = {
     # key: (display name, voice, model kwargs, ear tag)
     "cowleen": ("Moocrates", "cowleen", dict(hide="hide_brown", acc=("daisy",), bell=True), "tag_blank"),
-    # the key stays "moozart" (sounds, flags and saves use it); on screen he's Moobius, the logician
-    "moozart": ("Moobius", "moozart", dict(hide="hide_black", acc=("bowtie",), bell=True), "tag_12_mud"),
+    # the key stays "moozart" (sounds, flags and saves use it); on screen he's Archimoodes, the logician
+    "moozart": ("Archimoodes", "moozart", dict(hide="hide_black", acc=("bowtie",), bell=True), "tag_12_mud"),
     "sirloin": ("Moogenes", "sirloin", dict(hide="hide_red", bull=True, acc=("cape",)), "tag_blank"),
     "cowpernicus": ("Moothagoras", "cowpernicus", dict(hide="hide_dun", acc=("laurel",), bell=True), "tag_blank"),
     "mooriarty": ("Epicowrus", "mooriarty", dict(hide="hide_bw", acc=("fedora",)), "tag_blank"),
@@ -256,10 +256,12 @@ class NPCCow(Walker):
                                   vol=0.6, pos=(self.x, 1.5, self.z), rng=35, group="voice")
 
 
-HERD_NAMES = ["Clarabelle", "Buttercup", "Brie", "Moozie", "Cud-ney", "Moo-ana", "Beefany", "Barb Wire",
-              "Milky Joe", "Daisy Duke", "Heifer Lock", "Cow-lin Firth", "Lactose Tolerant", "Moo-donna",
-              "Steer Crow", "Udderly Amazing", "Madame Moo-ssaud", "Bovine Wonder", "Hay-ley", "Moo-lissa",
-              "Cow-abunga", "Miss Moo-ppet", "Moogan", "Chew-bacca", "Moo-riel"]
+# the herd named themselves too: Greek, every one (Chuck only uses the numbers)
+HERD_NAMES = ["Echo", "Io", "Hera", "Cassandra", "Zeno", "Achilles", "Parmoonides", "Xenophanes", "Demoocritus",
+              "Empedocles", "Protagoras", "Plutarch", "Porphyry", "Chrysippus", "Aristotle", "Theophrastus", "Homer",
+              "Antigone", "Niobe", "Sisyphus", "Hypatia", "Pheidippides", "Anaximoonder", "Xanthippe", "Aesop",
+              "Diotima", "Penelope", "Pythia", "Europa", "Thales", "Sappho", "Chloe", "Daphne", "Calliope", "Athena",
+              "Artemis", "Persephone", "Ariadne", "Thalia", "Iris", "Phoebe", "Melissa"]
 
 HERD_TAGS = [n for n in range(1, 51) if n not in (12, 47)]
 
@@ -304,7 +306,7 @@ class HerdCow(Walker):
     def __init__(self, g, idx, pos, yaw):
         super().__init__(g, pos[0], pos[1], yaw, 0.8)
         self.idx = idx
-        # the farm has fifty head: the herd's ear tags run 1-50, skipping 12 (Moobius) and 47 (you)
+        # the farm has fifty head: the herd's ear tags run 1-50, skipping 12 (Archimoodes) and 47 (you)
         self.name = HERD_NAMES[idx] if idx < len(HERD_NAMES) else f"Cow #{HERD_TAGS[idx % len(HERD_TAGS)]}"
         self.model = models.CowModel(hide=random.choice(HERD_HIDES), bell=True, tag="tag_blank",
                                      horns=random.random() < 0.2)

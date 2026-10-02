@@ -40,7 +40,7 @@ class Bot:
         self.log = []
         self.step_t0 = 0
         self.choice_queue = []
-        self.password = "BIGEARL"
+        self.password = "BIGAJAX"
         self.combo = "117"
         self.shots = args.shots
         self.catch = set((args.caught or "").split(",")) - {""}
@@ -493,7 +493,7 @@ class Bot:
         moo_t = [0.0]
 
         def pace():
-            # wait for Moobius to catch up and shush him when he starts humming
+            # wait for Archimoodes to catch up and shush him when he starts humming
             moo_t[0] -= DT
             st_warn = g.story.hooks.get("moo")
             if moo_t[0] <= 0 and not g.phys.in_zone("pasture", mz.x, mz.z):
@@ -507,7 +507,7 @@ class Bot:
                 yield
                 t += DT
                 if t > 40:
-                    raise Stuck(f"Moobius not following at ({x},{z}); he's at ({mz.x:.1f},{mz.z:.1f})")
+                    raise Stuck(f"Archimoodes not following at ({x},{z}); he's at ({mz.x:.1f},{mz.z:.1f})")
             pace()
         yield from self.open_door("barn_side")
         yield from self.wait(0.8)
@@ -520,11 +520,11 @@ class Bot:
                 yield
                 t += DT
                 if t > 40:
-                    raise Stuck(f"Moobius not following in barn at ({x},{z}); he's at "
+                    raise Stuck(f"Archimoodes not following in barn at ({x},{z}); he's at "
                                 f"({mz.x:.1f},{mz.y:.1f},{mz.z:.1f})")
 
     def p_d4_loft(self):
-        # all cutscene now: Moobius writes the proof, nobody has to moo
+        # all cutscene now: Archimoodes writes the proof, nobody has to moo
         yield from self.wait(0.5)
 
     def p_d4_back(self):
@@ -647,9 +647,16 @@ class Bot:
         yield from self.wait(2)
 
     def p_d7_fuse(self):
+        g = self.g
         yield from self.wait_ready()
         self.place(-7.5, -22, 270)
-        yield from self.interact("fuse")
+        # every label is wrong: the fuse marked HOUSE is the fence or the shed light, so pull it first
+        yield from self.interact("fuse_1")
+        yield from self.wait(0.5)
+        if g.story.cur == "d7_fuse" and not g.ia.get("fuse_1").active_handler(g).prompt.startswith("Pull"):
+            # it was the shed light: the fence is the one marked SHED LIGHT
+            print("    fuse marked HOUSE was the shed light; pulling SHED LIGHT", flush=True)
+            yield from self.interact("fuse_2")
 
     def p_d7_tractor(self):
         g = self.g

@@ -306,7 +306,7 @@ def moo(f0=120, kind="medium", tilt=1.0, rough=0.1, breath=0.2, vib=0.015, vr=5.
 
 
 def sung_moo(freq: float, dur: float, voice="moozart", open_=0.5, fs=1.0) -> np.ndarray:
-    """A moo held on a musical pitch (used by Moobius and the cow choir)."""
+    """A moo held on a musical pitch (used by Archimoodes and the cow choir)."""
     v = VOICES.get(voice, VOICES["moozart"])
     n = int(dur * SR)
     t = np.arange(n) / SR
@@ -942,7 +942,7 @@ def dun_dun_dunnn():
 # music
 # --------------------------------------------------------------------------
 
-# Moobius's melody: (note, beats). 3/4, 16 bars.
+# Archimoodes' melody: (note, beats). 3/4, 16 bars.
 MELODY = [
     [("A4", 2), ("C5", 1)], [("G4", 2), ("E4", 1)], [("F4", 1), ("A4", 1), ("D5", 1)], [("D5", 2), ("C5", 1)],
     [("C5", 2), ("A4", 1)], [("Bb4", 1), ("A4", 1), ("G4", 1)], [("E4", 1), ("G4", 1), ("C5", 1)], [("Bb4", 3)],
@@ -1027,7 +1027,7 @@ def music_box_theme(tempo_scale=1.25, bars=range(16), sparse=False) -> np.ndarra
 
 
 def ending_theme() -> np.ndarray:
-    """Moobius's Symphony No. 1 in Moo Major — full version for the ending/credits."""
+    """Archimoodes' Symphony No. 1 in Moo Major — full version for the ending/credits."""
     intro = 2 * BAR
     A = intro                      # music box solo, first 8 bars
     B = A + 8 * BAR                # strings+piano, bars 9-16

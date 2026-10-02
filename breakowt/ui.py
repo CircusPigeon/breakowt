@@ -21,7 +21,7 @@ GREEN = C(0.5, 0.9, 0.45, 1)
 
 SPEAKER_COLORS = {
     "Moocrates": C(0.98, 0.7, 0.45, 1),
-    "Moobius": C(0.8, 0.8, 1.0, 1),
+    "Archimoodes": C(0.8, 0.8, 1.0, 1),
     "Moogenes": C(1.0, 0.45, 0.4, 1),
     "Moothagoras": C(0.5, 0.85, 1.0, 1),
     "Epicowrus": C(0.75, 0.75, 0.75, 1),

@@ -13,7 +13,7 @@ import random
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
 from .days import DayScripts, DAYS
-from .farmer import HEARING, SIGHT_DAY
+from .farmer import HEARING, OWN_DOORS, SIGHT_DAY
 from .game import aim_camera
 from .interact import Handler, Interactable
 from .items import ITEMS
@@ -62,8 +62,8 @@ HERD_LINES = [
     "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno never met a salt lick.)",
     "Moo. (Epicowrus sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
     "hallucination.)",
-    "Moo. (If you see Clarabelle, tell her she owes me a salt lick and an apology. She knows why. She doesn't "
-    "know anything else.)",
+    "Moo. (If you see Echo, don't tell her anything. Not even this. By supper the whole herd will think it was "
+    "their idea.)",
     "Moo. (The truck comes, someone goes, the grass grows back. It's like weather. You don't argue with weather. "
     "...Do you?)",
     "Moo. (Chuck counted us last night. It's nice to be counted. It means you matter. Numerically.)",
@@ -75,6 +75,63 @@ HERD_LINES = [
     "Moo. (I'm not scared of Sunday. I'm scared of Dale. Nobody's seen Dale. Dale is a Platonic horror.)",
 ]
 
+
+
+# the first thing a named herd cow says to you (after that, the herd's general chatter)
+HERD_SAYS = {
+    "Echo": "Moo. (...barbecue. Barbecue! That's what Chuck keeps saying. I don't know what it means. Everybody "
+            "says it, so it must be true.)",
+    "Io": "Moo. (In the old story a god turns a girl into a heifer, and everyone agrees it's the worst thing that "
+          "could happen to her. I've been a heifer all my life. Nobody's written me a poem.)",
+    "Hera": "Moo. (The poets called the queen of the gods 'cow-eyed'. It was a compliment. I'd like to know when it "
+            "stopped being one.)",
+    "Cassandra": "Moo. (Every other Thursday the truck comes and takes one of us. I say so every time. I'm right "
+                 "every time. Nobody listens. They say I'm being negative.)",
+    "Zeno": "Moo. (To reach the fence you first have to get halfway. Then half of what's left. Then half again. You "
+            "never arrive. I proved it, so I stopped walking. I've been very safe ever since. ...Haven't I?)",
+    "Achilles": "Moo. (Zeno says I could never catch a tortoise. Fine. I'd like to see him outrun a truck.)",
+    "Parmoonides": "Moo. (Nothing really changes, Forty-Seven. Change is a trick of the senses. The truck is a trick "
+                   "of the senses. I'll be saying that right up until it isn't.)",
+    "Xenophanes": "Moo. (If cows could draw, we'd draw our gods as cows. Humans drew theirs as humans, and their gods "
+                  "agreed the cattle belonged to humans. A god always agrees with whoever's holding the brush.)",
+    "Demoocritus": "Moo. (It's all atoms. You, me, the grass, Chuck. The truck just rearranges us. Into burgers, "
+                   "mostly. I laugh so I don't do the other thing.)",
+    "Empedocles": "Moo. (Souls go round again, the old school says. So somewhere a man is eating his own grandmother "
+                  "and complimenting the marinade. Nobody's ever checked. That's what makes it a tradition.)",
+    "Protagoras": "Moo. (Man is the measure of all things. That's how we came to be measured in pounds.)",
+    "Plutarch": "Moo. (I don't wonder why some people won't eat us. I wonder about the first man who did. What he "
+                "told himself. Whether he looked at it first.)",
+    "Porphyry": "Moo. (Their reason is that we can't speak. I'm speaking. I expect the reason will survive me.)",
+    "Chrysippus": "Moo. (The rule goes: nothing that can't reason is owed justice. I worked that rule out by "
+                  "reasoning. I'm still deciding what that makes me.)",
+    "Aristotle": "Moo. (Nature makes nothing without a purpose. Grass is for cows, cows are for people. It's all very "
+                 "orderly. I find it calming. Don't look at me like that.)",
+    "Theophrastus": "Moo. (They used to kill us for the gods. Then they stopped bothering with the gods and kept the "
+                    "rest. I'm not sure who that was progress for.)",
+    "Homer": "Moo. (There's an old poem where sailors eat the Sun's cattle, and the gods drown every one of them for "
+             "it. Nobody ever tells that one at a barbecue.)",
+    "Antigone": "Moo. (Somebody should bury them. Every one the truck's taken since before I was born. Nobody ever "
+                "has. I keep thinking about that.)",
+    "Niobe": "Moo. (Chuck sells the calves. I've had four. I'm told you get used to it. I'm still waiting to.)",
+    "Sisyphus": "Moo. (Every day I lick the salt lick a little smaller. Every Monday Chuck brings a new one. One "
+                "must imagine me happy. I'd rather you didn't.)",
+    "Hypatia": "Moo. (I did the geometry on the chute outside the plant. It's exactly one cow wide. Somebody sat "
+               "down with a pencil and worked that out. I wonder what they thought they were working out.)",
+    "Pheidippides": "Moo. (When we run, I'm running all the way to the city. The man I'm named after did that and "
+                    "dropped dead on arrival. I'll pace myself.)",
+    "Anaximoonder": "Moo. (The oldest sentence anyone ever wrote down says everything pays for its injustice in the "
+                    "end, in the order of time. Even back then they knew there'd be a bill.)",
+    "Xanthippe": "Moo. (Moocrates asks questions all day and never answers one. Try standing next to her for four "
+                 "years.)",
+    "Aesop": "Moo. (In every fable I know, the animals talk and the humans learn something. Out here the animals "
+             "talk and the humans learn a recipe.)",
+    "Diotima": "Moo. (You start by loving one cow, then every cow, then the idea of cows. Chuck went the other way: "
+               "the idea of cows, then the price, then lunch.)",
+    "Penelope": "Moo. (I've been waiting years for somebody to come and get us out. I thought it'd be someone "
+                "taller.)",
+    "Pythia": "Moo. (The oracle says 'know thyself'. I looked. Turns out I'm a Grade A Choice. I'd like a second "
+              "opinion.)",
+}
 
 
 class Story(DayScripts):
@@ -280,6 +337,7 @@ class Story(DayScripts):
         self.flags.pop("coffee", None)
         f = g.farmer
         f.boss = None
+        f.door_keys = OWN_DOORS
         f.detect = True
         f.flashlight = False
         f.hearing = HEARING
@@ -617,7 +675,7 @@ class Story(DayScripts):
             "tincan": "You shake the tin can. Nothing. You shake it again. Still nothing. [R] throws it, very loudly.",
             "boot": "It smells like Chuck's foot. That's a weapon on its own. [R] throws it.",
             "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy charcoal. Buy MORE charcoal.",
-            "photo": "Chuck and Big Earl, Best in Show 2009. Big Earl looks like he's planning something. Heifercleitus "
+            "photo": "Chuck and Big Ajax, Best in Show 2009. Big Ajax looks like he's planning something. Heifercleitus "
                      "would want this.",
             "plank": "It's a plank. The cattle grid wants three of them.",
             "sparkplug": "It smells of vinegar and Chuck's dentures. It goes in the tractor.",
@@ -696,8 +754,12 @@ class Story(DayScripts):
             if res:
                 return True
         g.event("herd_talk", idx=cow.idx)
-        line = HERD_LINES[(cow.idx * 7 + self.talk_i.get(f"herd{cow.idx}", 0)) % len(HERD_LINES)]
-        self.talk_i[f"herd{cow.idx}"] = self.talk_i.get(f"herd{cow.idx}", 0) + 1
+        n = self.talk_i.get(f"herd{cow.idx}", 0)
+        if n == 0 and cow.name in HERD_SAYS:
+            line = HERD_SAYS[cow.name]
+        else:
+            line = HERD_LINES[(cow.idx * 7 + n) % len(HERD_LINES)]
+        self.talk_i[f"herd{cow.idx}"] = n + 1
         yield from g.talk([(cow, line)])
         return True
 
@@ -761,8 +823,12 @@ class Story(DayScripts):
                 ("moomaw", "Best in Show, 2009. He ate half the ribbon. Then the judge's hat. He understood "
                            "prizes better than anyone: they're just things people give you before they take the "
                            "rest."),
-                ("moomaw", "Chuck's standing next to him like they were friends. Earl bit him ten minutes after this. "
+                ("moomaw", "Chuck's standing next to him like they were friends. Ajax bit him ten minutes after this. "
                            "You can see Chuck's hand is already worried. That hand was right."),
+                ("moomaw", "You know the story of the other Ajax, the hero? One night he went mad and slaughtered a "
+                           "field of cattle, sure they were his enemies."),
+                ("moomaw", "In the morning he saw what he'd done, and the shame of it killed him. Cattle, dear. By "
+                           "mistake. Nobody has ever died of shame for doing it on purpose."),
                 ("moomaw", "Here. His lucky horseshoe. He wore it on a string. It didn't work. Luck is a story "
                            "survivors tell."),
                 ("moomaw", "But if Chuck grabs you, drop it at his feet. He's tripped on it twice. The man cannot "
@@ -1000,9 +1066,9 @@ class Story(DayScripts):
         if self.done("sq_helm"):
             out.append("Moogenes still lives in the bucket.")
         if self.done("sq_specs"):
-            out.append("Moothagoras found a star he was sure was Moobius. It's a satellite. He checked.")
+            out.append("Moothagoras found a star he was sure was Archimoodes. It's a satellite. He checked.")
         if self.done("sq_photo"):
-            out.append("Heifercleitus tells the calves Big Earl fought a bear. He did not.")
+            out.append("Heifercleitus tells the calves Ajax fought Hector. He fought a fence post, once, and lost.")
         if self.done("ledger_read"):
             out.append("The ledger at Happy Acres has room for four hundred more lines. Nobody has written in it "
                        "since.")

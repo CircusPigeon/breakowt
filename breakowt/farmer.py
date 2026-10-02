@@ -35,7 +35,7 @@ GETUP_LINES = ["I'm okay!", "Nobody saw that.", "Meant to do that.", "Ground's g
 DALE_LINES = ["Mornin', Dale!", "Dale! Lookin' good, buddy!", "Hey Dale. You lose weight?",
               "Dale! Save some room for Sunday!", "Dale! Love the new look! Real... bovine!"]
 SLEEP_TALK = ["zzz... Dale... that's MY potato salad...", "mmf... strike... STRIKE...", "...no, Mama, I did feed 'em...",
-              "zzz... hnk... Big Earl... good boy... tasty boy...", "...forty-seven... forty-eight... zzz...",
+              "zzz... hnk... Big Ajax... good boy... tasty boy...", "...forty-seven... forty-eight... zzz...",
               "...mmf... brisket... with a little rub... zzz..."]
 DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale.",
                   "Dale, have you always had four legs?"]

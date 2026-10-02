@@ -2,7 +2,7 @@
 
 Progress lives in its own file next to the saves (moodals.json), so it carries across
 playthroughs and survives reloading a checkpoint. Moo-dals are the only source of Golden
-Clovers, Epicowrus's currency: your purse is their total payout less what a run has spent.
+Clovers, Epicowrus' currency: your purse is their total payout less what a run has spent.
 """
 from __future__ import annotations
 

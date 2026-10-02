@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-TEX_VERSION = "13"
+TEX_VERSION = "15"
 _rng = np.random.default_rng(1987)
 
 FONT_DIRS = [r"C:\Windows\Fonts", "/usr/share/fonts/truetype/dejavu", "/Library/Fonts"]
@@ -565,6 +565,15 @@ def tex_sticky(text, color=(255, 240, 120), size=256, fsize=23):
     return img
 
 
+def tex_tape(text):
+    img = Image.new("RGB", (288, 88), (226, 212, 168))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, 287, 6], fill=(214, 198, 150))
+    d.rectangle([0, 81, 287, 87], fill=(214, 198, 150))
+    centered(d, (6, 6, 282, 82), text, font(HANDB, 44 if len(text) < 7 else 32), (25, 25, 30))
+    return img
+
+
 def tex_trophy_plaque():
     img = Image.new("RGB", (256, 128), (60, 45, 30))
     d = ImageDraw.Draw(img)
@@ -594,7 +603,7 @@ def tex_photo_earl():
     d = ImageDraw.Draw(img)
     d.rectangle([14, 14, 306, 242], fill=(190, 215, 235))
     d.rectangle([14, 170, 306, 242], fill=(110, 160, 80))
-    # Big Earl the bull
+    # Big Ajax the bull
     d.ellipse([60, 110, 200, 190], fill=(60, 45, 35))
     d.ellipse([170, 95, 230, 150], fill=(60, 45, 35))
     d.polygon([(175, 100), (160, 70), (185, 95)], fill=(235, 225, 190))
@@ -610,7 +619,7 @@ def tex_photo_earl():
     # ribbon
     d.ellipse([120, 60, 150, 90], fill=(40, 80, 200))
     d.polygon([(128, 88), (122, 110), (135, 100), (142, 110), (142, 88)], fill=(40, 80, 200))
-    centered(d, (14, 214, 306, 242), "Me & Big Earl, Best in Show 2009", font(HAND, 14), (30, 30, 30))
+    centered(d, (14, 214, 306, 242), "Me & Big Ajax, Best in Show 2009", font(HAND, 14), (30, 30, 30))
     return img
 
 
@@ -1348,6 +1357,10 @@ def all_textures():
         "sticky_keypad": lambda: tex_sticky("BACK DOOR CODE:\nthe year of the\nbest day of\nmy life! -C",
                                             (255, 225, 160)),
         "sign_deerstand": tex_sign_deerstand, "plant_board": tex_plant_board,
+        "label_fence": lambda: tex_tape("FENCE"), "label_house": lambda: tex_tape("HOUSE"),
+        "label_shed": lambda: tex_tape("SHED LIGHT"),
+        "sticky_fuses": lambda: tex_sticky("ELECTRICIAN SAYS\nEVERY LABEL ON\nHERE IS WRONG.\nNot paying $80\n"
+                                           "to swap 3 stickers\n-C", (255, 240, 120), fsize=21),
         "trophy_plaque": tex_trophy_plaque, "poster_employee": tex_poster_employee, "photo_earl": tex_photo_earl,
         "tv": tex_tv, "monitor": tex_monitor_login, "monitor_inbox": tex_monitor_inbox, "calendar": tex_calendar,
         "cookbook": tex_cookbook, "wall_living": tex_wall_living, "wall_kitchen": tex_wall_kitchen,

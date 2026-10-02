@@ -442,7 +442,7 @@ class Game(Entity):
         return out
 
     def clovers(self):
-        """Golden Clovers to spend: what your Moo-dals have paid out, less what Epicowrus's had off you."""
+        """Golden Clovers to spend: what your Moo-dals have paid out, less what Epicowrus' had off you."""
         return self.moodals.purse()
 
     def set_objectives(self, objs):
@@ -729,7 +729,7 @@ class Game(Entity):
             f.state = "routine"
             f.trip()
             f.fall_timer = 5.0
-            self.examine("Chuck lunges... and trips on Big Earl's lucky horseshoe! RUN!")
+            self.examine("Chuck lunges... and trips on Big Ajax's lucky horseshoe! RUN!")
             return
         self.stats["caught"] = self.stats.get("caught", 0) + 1
         self.event("caught")
@@ -1221,7 +1221,7 @@ class Game(Entity):
         h = self.story.hint()
         if h:
             self.audio.play(f"moo_cowleen_short_{random.randrange(2)}", vol=0.5, group="voice")
-            self.ui.popup_sub("Moocrates's voice in your head: " + h, 7)
+            self.ui.popup_sub("Moocrates' voice in your head: " + h, 7)
 
     def _modal_input(self, key):
         ui = self.ui
