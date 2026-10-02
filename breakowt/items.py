@@ -18,7 +18,7 @@ ITEMS = {
               "leave it alone: he'll come and turn it off. Pick it up again after.", "radio", False, False, True),
     "glasses": ("Spare Reading Glasses", "Chuck's backup glasses. +2.5. Somebody nerdy would love these.", "glasses",
                 False, False, True),
-    "bucket": ("Rusty Bucket", "A rusty bucket. Sir Loin would call it a helm. Sir Loin calls a lot of things a helm.",
+    "bucket": ("Rusty Bucket", "A rusty bucket. Moogenes would call it a helm. Moogenes calls a lot of things a helm.",
                "bucket", False, False, True),
     "boot": ("Chuck's Rubber Boot", "Size 13. Rubber doesn't conduct electricity. Also: [R] to throw it. It lands "
              "like a dead goose.", "boot", False, True, True),
@@ -36,7 +36,7 @@ ITEMS = {
     "score": ("Moobius's Proof", "The Escape Theorem, in pencil on the back of Chuck's planner. Eleven lines. The "
               "last one says 'QED (47)'. [Q] to read it out: the whole herd starts arguing about step four, loudly, "
               "and Chuck stomps over to the pasture to shut them up.", "score", False, False, True),
-    "photo": ("Photo of Big Earl", "'Me & Big Earl, Best in Show 2009.' Moomaw should have this.", "photo", False,
+    "photo": ("Photo of Big Earl", "'Me & Big Earl, Best in Show 2009.' Heifercleitus should have this.", "photo", False,
               False, True),
     "horseshoe": ("Big Earl's Lucky Horseshoe", "If Chuck catches you, maybe he trips on it instead. Once.",
                   "horseshoe", False, False, False),
@@ -47,7 +47,7 @@ ITEMS = {
     "coffee": ("Suspiciously Strong Coffee", "Gallop twice as long today. Your heart is doing something new.",
                "coffee", False, False, False),
     "tincan": ("Mysterious Tin Can", "Nothing in it. Rattles anyway. [R] to throw: the loudest thing on the farm. "
-               "Mooriarty was right. No refunds.", "tincan", False, True, True),
+               "Epicowrus was right. No refunds.", "tincan", False, True, True),
     "shoes": ("Chuck's Bowling Shoes", "Red and blue, and damp inside. [R] to throw them somewhere Chuck will go "
               "looking.", "shoes", False, True, True),
     "cabinet_key": ("Gun Cabinet Key", "Small and brass. Opens Chuck's gun cabinet: just walk up to it.",

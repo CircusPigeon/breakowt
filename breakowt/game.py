@@ -435,14 +435,14 @@ class Game(Entity):
     def map_markers(self):
         out = list(self.story.markers())
         if self.flags.get("star_chart"):
-            # Cowpernicus, in his new glasses, charted every place a cow can hide
+            # Moothagoras, in his new glasses, charted every place a cow can hide
             for zn in self.phys.zones:
                 if zn.name == "hide":
                     out.append(((zn.x0 + zn.x1) / 2, (zn.z0 + zn.z1) / 2, "hide"))
         return out
 
     def clovers(self):
-        """Golden Clovers to spend: what your Moo-dals have paid out, less what Mooriarty's had off you."""
+        """Golden Clovers to spend: what your Moo-dals have paid out, less what Epicowrus's had off you."""
         return max(0, self.moodals.total_reward() - self.flags.get("clovers_spent", 0))
 
     def set_objectives(self, objs):
@@ -621,14 +621,22 @@ class Game(Entity):
         return best
 
     def fire_shotgun(self):
-        """Q with Ol' Bessie: a big bang, a kick back, and whatever's in front of you gets knocked flat."""
+        """Q with Ol' Bessie: a big bang, a kick back, and whatever's in front of you gets knocked flat.
+        Only in the fight on Sunday: before that, one shot brings Chuck and the whole plan down."""
         p = self.player
         if p.frozen:
             return
-        shells = self.flags.get("shells", 2)
+        if self.farmer.boss is None:
+            self.examine(random.choice([
+                "You line Ol' Bessie up, then think about it. A gunshot now brings Chuck running, and the plan "
+                "says Sunday. You lower her.",
+                "Not yet. One shot and the farm becomes a crime scene before it becomes an exit.",
+            ]))
+            return
+        shells = self.flags.get("shells", 0)
         if shells <= 0:
             self.audio.play("blip_lo", vol=0.6)
-            self.examine("Click. Ol' Bessie's empty.")
+            self.examine("Click. Ol' Bessie's empty. Chuck kept the shells somewhere else.")
             return
         self.flags["shells"] = shells - 1
         self.audio.play("shotgun", vol=1.0)
@@ -766,7 +774,7 @@ class Game(Entity):
         if who == "chuck":
             return "Chuck", "chuck", self.farmer
         if who == "cluck":
-            return "Cluck Norris", "cluck", None
+            return "Cluckydides", "cluck", None
         if who == "narrator":
             return "", None, None
         return str(who), None, None
@@ -1050,6 +1058,8 @@ class Game(Entity):
             p.yaw += ((wy - p.yaw + 180) % 360 - 180) * min(1, dt * 5)
             p.pitch += (wp - p.pitch) * min(1, dt * 5)
         self.player.update(dt)
+        self.player.sync_body(dt, self.cam_free and self.vehicle is None and not self.player.driving
+                              and not getattr(self.story, "ending_active", False))
         if self.vehicle is not None:
             self.vehicle.update(dt)
         self.farmer.update(dt)
@@ -1074,8 +1084,8 @@ class Game(Entity):
         p = self.player
         lis = camera.world_position
         self.audio.update(dt, (lis.x, lis.y, lis.z), p.yaw if not self.cam_free else camera.world_rotation_y)
-        # interaction target
-        if self.controls_enabled() and not self.busy:
+        # interaction target (none while driving: no "climb in" prompt from the seat you're sitting in)
+        if self.controls_enabled() and not self.busy and self.vehicle is None and not p.driving:
             self.target = self.ia.find_target(p.eye_pos, p.forward())
             if self.target is not None:
                 h = self.target.active_handler(self)
@@ -1207,7 +1217,7 @@ class Game(Entity):
         h = self.story.hint()
         if h:
             self.audio.play(f"moo_cowleen_short_{random.randrange(2)}", vol=0.5, group="voice")
-            self.ui.popup_sub("Cowleen's voice in your head: " + h, 7)
+            self.ui.popup_sub("Moocrates's voice in your head: " + h, 7)
 
     def _modal_input(self, key):
         ui = self.ui
@@ -1217,6 +1227,8 @@ class Game(Entity):
                 ui.close_modal()
                 self.set_mouse(True)
                 self._doc_closed = True
+        elif m == "mail":
+            ui.mail_input(key)
         elif m == "combo":
             ui.combo_input(key)
         elif m == "password":
@@ -1233,17 +1245,26 @@ class Game(Entity):
                 elif m == "pause":
                     self.close_pause()
 
-    def show_document(self, title, body, paper=True):
+    def show_document(self, title, body, paper=True, style=None):
         """Generator: show a document and wait until it is closed."""
         self._doc_closed = False
-        self.ui.show_document(title, body, paper=paper)
+        self.ui.show_document(title, body, paper=paper, style=style)
         yield lambda: self._doc_closed
+
+    def show_mail(self, messages):
+        """Generator: Chuck's inbox (list of (sender, subject, body)); returns when it's closed."""
+        self.ui.open_mail(messages)
+        yield lambda: (getattr(self.ui, "_modal_state", None) or {}).get("closed")
+        self.ui.close_modal()
+        self.set_mouse(True)
 
     # ------------------------------------------------------------------
     # pause
     # ------------------------------------------------------------------
     def open_pause(self):
-        if self.state != "play":
+        # no pausing a cutscene (or getting caught): scripts kept running underneath the menu and left the
+        # fade, the freeze or the letterbox in a half-finished state
+        if self.state != "play" or self.cutscene or self.runner.running("caught"):
             return
         self.state = "paused"
         application.paused = False

@@ -13,7 +13,7 @@ import random
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
 from .days import DayScripts, DAYS
-from .farmer import SIGHT_DAY
+from .farmer import HEARING, SIGHT_DAY
 from .game import aim_camera
 from .interact import Handler, Interactable
 from .items import ITEMS
@@ -52,12 +52,12 @@ HERD_LINES = [
     "invoice.)",
     "Moo. (I stare at the pond and the pond doesn't stare back. Nietzsche was wrong. The abyss is busy.)",
     "Moo. (Four stomachs. I've processed more than any philosopher alive. Mostly grass. Some regret.)",
-    "Moo. (Sir Loin says he's descended from royalty. So is everyone, if you go back far enough. Also from "
+    "Moo. (Moogenes says he's descended from royalty. So is everyone, if you go back far enough. Also from "
     "bacteria.)",
     "Moo. (The hens say the rooster read Sun Tzu. The hens have never read anything. The hens are an oral "
     "tradition.)",
     "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno never met a salt lick.)",
-    "Moo. (Mooriarty sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
+    "Moo. (Epicowrus sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
     "hallucination.)",
     "Moo. (If you see Clarabelle, tell her she owes me a salt lick and an apology. She knows why. She doesn't "
     "know anything else.)",
@@ -264,7 +264,7 @@ class Story(DayScripts):
         f.boss = None
         f.detect = True
         f.flashlight = False
-        f.hearing = 1.0
+        f.hearing = HEARING
         f.range_day = SIGHT_DAY
         f.walk_run = False
         f.trip_rate = 1 / 90.0
@@ -284,6 +284,7 @@ class Story(DayScripts):
         self.clear_day()
         self.ending = False
         g.state = "title"
+        g.player.body.enabled = False
         g.audio.stop_everything()
         g.ui.show_hud(False)
         g.ui.set_fade(0.0)
@@ -424,7 +425,7 @@ class Story(DayScripts):
         aim_camera((cx * 0.5, 4, cz * 0.5))
 
     def title_input(self, key):
-        if self.g.ui.modal == "settings":
+        if self.g.ui.modal in ("settings", "moodals"):
             if key == "escape":
                 st = getattr(self.g.ui, "_modal_state", {}) or {}
                 if st.get("back_cb"):
@@ -597,13 +598,13 @@ class Story(DayScripts):
             "tincan": "You shake the tin can. Nothing. You shake it again. Still nothing. [R] throws it, very loudly.",
             "boot": "It smells like Chuck's foot. That's a weapon on its own. [R] throws it.",
             "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy charcoal. Buy MORE charcoal.",
-            "photo": "Chuck and Big Earl, Best in Show 2009. Big Earl looks like he's planning something. Moomaw "
+            "photo": "Chuck and Big Earl, Best in Show 2009. Big Earl looks like he's planning something. Heifercleitus "
                      "would want this.",
             "plank": "It's a plank. The cattle grid wants three of them.",
             "sparkplug": "It smells of vinegar and Chuck's dentures. It goes in the tractor.",
             "jerrycan": "Diesel. It goes in the tractor, not in you.",
-            "glasses": "Everything's blurry and huge. So this is how Chuck sees you. Cowpernicus wants these.",
-            "bucket": "A rusty bucket. Sir Loin wants it. Sir Loin wants to WEAR it.",
+            "glasses": "Everything's blurry and huge. So this is how Chuck sees you. Moothagoras wants these.",
+            "bucket": "A rusty bucket. Moogenes wants it. Moogenes wants to WEAR it.",
             "rubber_chicken": "You squeeze it. It screams. You feel seen. [R] throws it.",
         }
         if sel in uses:
@@ -950,10 +951,10 @@ class Story(DayScripts):
             out.append("Dale waited on the porch till four, then ate the potato salad alone.")
         out.append("Chuck's funeral fund raised eleven dollars. All from Dale.")
         if self.done("sq_helm"):
-            out.append("Sir Loin still wears the bucket.")
+            out.append("Moogenes still wears the bucket.")
         if self.done("sq_specs"):
-            out.append("Cowpernicus named a star after Moobius. It's a satellite. Moobius would have checked.")
+            out.append("Moothagoras named a star after Moobius. It's a satellite. Moobius would have checked.")
         if self.done("sq_photo"):
-            out.append("Moomaw tells the calves Big Earl fought a bear. He did not.")
+            out.append("Heifercleitus tells the calves Big Earl fought a bear. He did not.")
         out.append("Somebody should still buy milk.")
         return out

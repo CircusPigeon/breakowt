@@ -14,7 +14,9 @@ from .world import _seg_hits_box
 # doors Chuck opens for himself on the way through, and shuts behind him (his house, his barn)
 OWN_DOORS = ("front_door", "back_door", "barn_side")
 # how far he sees: by day, in the dark, with the flashlight on you, and when you're under a lamp
-SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 30.0, 9.5, 27.0, 19.0
+SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 40.0, 13.0, 34.0, 24.0
+# how far noises carry to him, as a multiple of each noise's own radius
+HEARING = 1.5
 
 INVESTIGATE_LINES = [
     "Who's there?", "Dang raccoons.", "Dale? That you?", "Huh. Could've sworn...", "Hello? ...Hello?",
@@ -37,6 +39,7 @@ SLEEP_TALK = ["zzz... Dale... that's MY potato salad...", "mmf... strike... STRI
               "...mmf... brisket... with a little rub... zzz..."]
 DALE_SUS_LINES = ["Dale... you look different.", "Dale, why are you... chewing like that?", "You smell like a barn, Dale.",
                   "Dale, have you always had four legs?"]
+DALE_GALLOP_LINES = ["Dale! Since when do you RUN?", "Easy, Dale! Your knees!", "Dale's jogging. Dale. Huh."]
 STIR_LINES = ["Hnnh? ...Dale?", "Wha... who's there...", "mmph... potato salad...", "...mm? ...Mama?",
               "...zzz... hooves?... on the floor?... zzz..."]
 GET_UP_LINES = ["Alright. Who's in my HOUSE?", "Somebody's down there. I heard that.", "That's it. I'm up. I'm UP.",
@@ -79,7 +82,7 @@ class Farmer(Walker):
         self.head_yaw = 0.0
         self.fov = 110.0
         self.range_day = SIGHT_DAY
-        self.hearing = 1.0
+        self.hearing = HEARING
         self.flashlight = False
         self.trip_rate = 1 / 90.0
         self.fall_timer = 0.0
@@ -670,20 +673,28 @@ class Farmer(Walker):
         restricted = g.player_restricted()
         if self.sleeping and (self.wake_timer <= 0 or self.wake_timer > 3.0):
             v = 0.0     # asleep, or only just stirring (half a second to duck before his eyes open)
-        disguised = p.disguised and not p.galloping
-        if v > 0 and restricted and disguised:
-            if dist > 3.5:
-                if not self.dale_greeted and dist < 14:
-                    self.dale_greeted = True
-                    self.say(random.choice(DALE_LINES))
-                    self.g.event("dale")
-                v = 0.0
-            else:
+        if v > 0 and restricted and p.disguised:
+            # Dale is Dale: he never gets caught. Up close, or galloping, Chuck just finds Dale a bit odd.
+            if not self.dale_greeted and dist < 18:
+                self.dale_greeted = True
+                self.say(random.choice(DALE_LINES))
+                self.g.event("dale")
+            elif (dist < 3.5 or p.galloping) and self.bark_cd <= 0:
                 self.dale_t += dt
-                if self.dale_t > 1.5 and self.bark_cd <= 0:
-                    self.say(random.choice(DALE_SUS_LINES))
-                    self.bark_cd = 5
-                v *= 0.35
+                if self.dale_t > 1.5:
+                    self.dale_t = 0.0
+                    self.say(random.choice(DALE_SUS_LINES if dist < 3.5 else DALE_GALLOP_LINES))
+                    self.bark_cd = 6
+            v = 0.0
+            if self.state == "investigate" and self.inv_phase == "go" and dist < 6:
+                # walked over to see what the noise was, and it's only Dale
+                if self.bed is not None and self.bed[4] is not None:
+                    self.say("Dale? In my house? At this hour? ...Lock up when you leave, buddy.", force=True)
+                    self.back_to_bed()
+                else:
+                    self.say(random.choice(["Oh. Just you, Dale.", "Dale! Was that you? Course it was.",
+                                            "Dale, you're a menace. Love ya."]), force=True)
+                    self.resume_routine()
         if v > 0 and restricted:
             rate = v / (0.18 + dist * 0.1)
             self.susp = min(1.0, self.susp + rate * dt)

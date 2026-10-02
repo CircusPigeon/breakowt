@@ -150,6 +150,31 @@ class Player:
         camera.clip_plane_near = 0.08
         self.snout = self._build_snout()
         self.driving = False
+        # your own body, seen from outside: only shown while a cutscene has the camera (see sync_body)
+        self.body = models.CowModel(hide="hide_brown", tag="tag_47", bell=True, pupils=[(0, 0), (0, 0)])
+        self.body.enabled = False
+        self._body_look = (self.has_bell, self.disguised)
+
+    def sync_body(self, dt, show):
+        """Keep the third-person body on the player while a cutscene camera is looking at the farm."""
+        b = self.body
+        if show:
+            cx, cy, cz = camera.world_position
+            # a camera practically inside our head would only see the inside of a cow
+            show = math.hypot(cx - self.x, cz - self.z) > 1.7 or abs(cy - (self.y + 1.2)) > 1.6
+        b.enabled = show
+        if not show:
+            return
+        look = (self.has_bell, self.disguised)
+        if look != self._body_look:
+            self._body_look = look
+            b.bell = self.has_bell
+            for a in ("moustache", "chuckhat"):
+                (b.acc.add if self.disguised else b.acc.discard)(a)
+            b.build()
+        b.position = (self.x, self.y, self.z)
+        b.rotation_y = self.yaw
+        b.animate(dt, self.speed if not self.frozen else 0.0, None)
 
     # ------------------------------------------------------------------
     def _build_snout(self):
@@ -325,6 +350,9 @@ class Player:
             if gh > self.y:
                 self.cam_y -= (gh - self.y)  # smooth the step up
             self.y = gh
+            # landing within 2 cm of the floor while still falling used to leave y_vel negative for good,
+            # and hop() refuses while y_vel != 0: hopping stopped working until the next teleport
+            self.y_vel = 0.0
         self.col.x, self.col.z = self.x, self.z
         # surface
         if self.in_water:

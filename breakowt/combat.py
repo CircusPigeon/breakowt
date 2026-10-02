@@ -1,4 +1,4 @@
-"""Fights: Cluck Norris in the coop, and Chuck at the main gate."""
+"""Fights: Cluckydides in the coop, and Chuck at the main gate."""
 from __future__ import annotations
 
 import math
@@ -90,7 +90,7 @@ class Enemy:
 
 
 # ---------------------------------------------------------------------------
-# Cluck Norris
+# Cluckydides
 # ---------------------------------------------------------------------------
 
 class CluckNorris(Enemy):

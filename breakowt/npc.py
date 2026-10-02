@@ -25,13 +25,13 @@ def in_keep_clear(x, z, pad=0.0):
 
 FRIENDS = {
     # key: (display name, voice, model kwargs, ear tag)
-    "cowleen": ("Cowleen", "cowleen", dict(hide="hide_brown", acc=("daisy",), bell=True), "tag_blank"),
+    "cowleen": ("Moocrates", "cowleen", dict(hide="hide_brown", acc=("daisy",), bell=True), "tag_blank"),
     # the key stays "moozart" (sounds, flags and saves use it); on screen he's Moobius, the logician
     "moozart": ("Moobius", "moozart", dict(hide="hide_black", acc=("bowtie",), bell=True), "tag_12_mud"),
-    "sirloin": ("Sir Loin", "sirloin", dict(hide="hide_red", bull=True, acc=("cape",)), "tag_blank"),
-    "cowpernicus": ("Cowpernicus", "cowpernicus", dict(hide="hide_dun", acc=("bowtie",), bell=True), "tag_blank"),
-    "mooriarty": ("Mooriarty", "mooriarty", dict(hide="hide_bw", acc=("fedora",)), "tag_blank"),
-    "moomaw": ("Moomaw", "moomaw", dict(hide="hide_gray", acc=("shawl", "bonnet"), bell=True), "tag_blank"),
+    "sirloin": ("Moogenes", "sirloin", dict(hide="hide_red", bull=True, acc=("cape",)), "tag_blank"),
+    "cowpernicus": ("Moothagoras", "cowpernicus", dict(hide="hide_dun", acc=("laurel",), bell=True), "tag_blank"),
+    "mooriarty": ("Epicowrus", "mooriarty", dict(hide="hide_bw", acc=("fedora",)), "tag_blank"),
+    "moomaw": ("Heifercleitus", "moomaw", dict(hide="hide_gray", acc=("shawl", "bonnet"), bell=True), "tag_blank"),
 }
 
 
@@ -261,6 +261,8 @@ HERD_NAMES = ["Clarabelle", "Buttercup", "Brie", "Moozie", "Cud-ney", "Moo-ana",
               "Steer Crow", "Udderly Amazing", "Madame Moo-ssaud", "Bovine Wonder", "Hay-ley", "Moo-lissa",
               "Cow-abunga", "Miss Moo-ppet", "Moogan", "Chew-bacca", "Moo-riel"]
 
+HERD_TAGS = [n for n in range(1, 51) if n not in (12, 47)]
+
 HERD_HIDES = ["hide_bw", "hide_bw", "hide_brown", "hide_black", "hide_gray", "hide_red", "hide_dun", "hide_bw"]
 
 
@@ -302,7 +304,8 @@ class HerdCow(Walker):
     def __init__(self, g, idx, pos, yaw):
         super().__init__(g, pos[0], pos[1], yaw, 0.8)
         self.idx = idx
-        self.name = HERD_NAMES[idx % len(HERD_NAMES)] if idx < len(HERD_NAMES) else f"Cow #{idx + 60}"
+        # the farm has fifty head: the herd's ear tags run 1-50, skipping 12 (Moobius) and 47 (you)
+        self.name = HERD_NAMES[idx] if idx < len(HERD_NAMES) else f"Cow #{HERD_TAGS[idx % len(HERD_TAGS)]}"
         self.model = models.CowModel(hide=random.choice(HERD_HIDES), bell=True, tag="tag_blank",
                                      horns=random.random() < 0.2)
         self.col = g.phys.add_dynamic(self.x, self.z, 0.85, 0, 1.6, owner=self)

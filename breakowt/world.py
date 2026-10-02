@@ -58,7 +58,7 @@ def in_pond(x, z, pad=0.0):
 
 DEFAULT_TEXT = {
     "oak": ["The Old Oak. Every calf on the farm has tried to climb it. None of them managed, being cows.",
-            "Carved into the bark: 'B.E. + M. 1998'. Big Earl and Moomaw."],
+            "Carved into the bark: 'B.E. + M. 1998'. Big Earl and Heifercleitus."],
     "trough": ["The trough. Today's water has a leaf in it. And a sock. Whose sock?",
                "You drink. It tastes like trough."],
     "saltlick": ["A salt lick. The closest thing this farm has to a nightclub."],
@@ -117,7 +117,7 @@ DEFAULT_TEXT = {
     "rockpile": ["A pile of good throwing rocks."],
     "gun_cabinet": ["A gun cabinet. Locked. Inside, Chuck's shotgun, 'Ol' Bessie'. You know three Bessies. None of them would approve."],
     "computer": ["Chuck's computer. ChuckOS 95. The fan sounds like a tractor with asthma."],
-    "alarm_clock": ["An alarm clock shaped like a rooster. Cluck Norris would be furious."],
+    "alarm_clock": ["An alarm clock shaped like a rooster. Cluckydides would be furious."],
     "nightstand": ["A nightstand. The drawer is shut."],
     "grinder": ["A grinding wheel on a stand. The dirt around it is full of little burn marks."],
     "truck": ["The truck. 'PROCESSING TRANSPORT'. Its engine is still warm."],
@@ -278,9 +278,10 @@ class World:
                 self.phys.add_box(x0 - t / 2, x0 + t / 2, za, zb, y0, y0 + h)
 
     def wall_gaps(self, x0, z0, x1, z1, h, gaps, t=0.2, texname="wood", y0=0.0, tex_in=None, inside=None,
-                  color=C_WHITE, uv=0.5):
+                  color=C_WHITE, uv=0.5, frame=True):
         """Wall with openings. gaps: list of (a, b, top) in the running coordinate, or (a, b, top, sill) for a
-        window: wall below the sill too, and an invisible pane you can see through but not climb through."""
+        window: wall below the sill too, and an invisible pane you can see through but not climb through.
+        frame=False leaves the trim to the caller (the farmhouse has its own)."""
         along_x = abs(z1 - z0) < 1e-6
         a0, a1 = (min(x0, x1), max(x0, x1)) if along_x else (min(z0, z1), max(z0, z1))
         cur = a0
@@ -304,7 +305,8 @@ class World:
                 else:
                     self.wall(x0, ga, x0, gb, sill, t, texname, y0, tex_in, inside, color, uv)
                     self.phys.add_box(x0 - t / 2, x0 + t / 2, ga, gb, y0 + sill, y0 + top, sight=False)
-                self._window_frame(along_x, z0 if along_x else x0, ga, gb, y0 + sill, y0 + top, t)
+                if frame:
+                    self._window_frame(along_x, z0 if along_x else x0, ga, gb, y0 + sill, y0 + top, t)
             cur = gb
         if cur < a1:
             if along_x:
@@ -717,7 +719,7 @@ class World:
                                (-74, -24, 90, 0.9), (-76.3, -27.5, 0, 0)]:
             self.hay_bale(hx, y, hz, r)
         self.add_ia("hideout_bales", (-73, 1.0, -27.5), 1.2, "Hay bales", text_key=None).text = [
-            "Mooriarty's 'office'. A sign scratched into the hay: 'NO REFUNDS'."]
+            "Epicowrus's 'office'. A sign scratched into the hay: 'NO REFUNDS'."]
         # Cardboard Chuck
         scx, scz = -28, -66
         self.box("wood_dark", (scx, 0.6, scz), (0.08, 1.2, 0.08))
@@ -842,7 +844,9 @@ class World:
         self.wall_gaps(x1, z0, x1, z1, H, [(-9.2, -7.6, 2.0, 1.0), (12.0, 13.6, LOFT_Y + 2.0, LOFT_Y + 0.9)], 0.3,
                        "barn_red", tex_in="wood_dark", inside=inside)
         self.wall_gaps(x0, z0, x1, z0, H, [(18, 26, 5.0)], 0.3, "barn_red", tex_in="wood_dark", inside=inside)
-        self.wall_gaps(x0, z0, x0, z1, H, [(-0.4, 1.8, 2.4)], 0.3, "barn_red", tex_in="wood_dark", inside=inside)
+        # west wall: the side door, and a window just south of it to check the yard before you step out
+        self.wall_gaps(x0, z0, x0, z1, H, [(-0.4, 1.8, 2.4), (-3.9, -2.3, 2.0, 1.0)], 0.3, "barn_red",
+                       tex_in="wood_dark", inside=inside)
         # white trim X on the big doors' header
         self.mb("white").box((22, 5.3, z0 - 0.2), (8.6, 0.25, 0.1), color=(0.95, 0.95, 0.92, 1))
         # gambrel roof
@@ -1050,15 +1054,22 @@ class World:
         LIV, KIT, HALL, OFF, BED, BATH = ("wall_living", "wall_kitchen", "wall_living", "wall_office",
                                           "wall_bedroom", "wall_bath")
         T = 0.25
-        self.wall_gaps(x0, z0, KX, z0, H, [(55.2, 56.8, 2.3)], T, "siding", y0=y, tex_in=LIV, inside=inside)
-        self.wall(KX, z0, x1, z0, H, T, "siding", y0=y, tex_in=KIT, inside=inside)
-        self.wall(x0, z1, 52, z1, H, T, "siding", y0=y, tex_in=OFF, inside=inside)
-        self.wall(52, z1, 62, z1, H, T, "siding", y0=y, tex_in=BED, inside=inside)
-        self.wall(62, z1, x1, z1, H, T, "siding", y0=y, tex_in=BATH, inside=inside)
+        # real window openings (see-through both ways, so Chuck can look out and you can look in), 1.4 x 1.1 m
+        # centred 1.6 m up: (centre, sill 1.05, top 2.15). The glass and trim are added further down.
+
+        def win(c):
+            return (c - 0.7, c + 0.7, 2.15, 1.05)
+        self.wall_gaps(x0, z0, KX, z0, H, [(55.2, 56.8, 2.3), win(47), win(52)], T, "siding", y0=y, tex_in=LIV,
+                       inside=inside, frame=False)
+        self.wall_gaps(KX, z0, x1, z0, H, [win(61), win(65)], T, "siding", y0=y, tex_in=KIT, inside=inside,
+                       frame=False)
+        self.wall_gaps(x0, z1, 52, z1, H, [win(48)], T, "siding", y0=y, tex_in=OFF, inside=inside, frame=False)
+        self.wall_gaps(52, z1, 62, z1, H, [win(55.6)], T, "siding", y0=y, tex_in=BED, inside=inside, frame=False)
+        self.wall_gaps(62, z1, x1, z1, H, [win(65)], T, "siding", y0=y, tex_in=BATH, inside=inside, frame=False)
         self.wall(x0, z0, x0, 40, H, T, "siding", y0=y, tex_in=LIV, inside=inside)
         self.wall(x0, 40, x0, 42, H, T, "siding", y0=y, tex_in=HALL, inside=inside)
-        self.wall(x0, 42, x0, z1, H, T, "siding", y0=y, tex_in=OFF, inside=inside)
-        self.wall(x1, z0, x1, 40, H, T, "siding", y0=y, tex_in=KIT, inside=inside)
+        self.wall_gaps(x0, 42, x0, z1, H, [win(45)], T, "siding", y0=y, tex_in=OFF, inside=inside, frame=False)
+        self.wall_gaps(x1, z0, x1, 40, H, [win(35)], T, "siding", y0=y, tex_in=KIT, inside=inside, frame=False)
         self.wall_gaps(x1, 40, x1, 42, H, [(40.2, 41.8, 2.3)], T, "siding", y0=y, tex_in=HALL, inside=inside)
         self.wall(x1, 42, x1, z1, H, T, "siding", y0=y, tex_in=BATH, inside=inside)
         # interior walls (texname: the face away from `inside`; tex_in: the face toward it)
@@ -1154,7 +1165,12 @@ class World:
         self.mb("stone").box((43.55, 6.6, 35), (0.72, 0.12, 1.34), uv_density=0.8)
         self.mb("white").box((43.55, 6.67, 35), (0.36, 0.02, 0.8), color=(0.06, 0.05, 0.05, 1))
         self.phys.add_box(43.12, 43.88, 34.1, 35.9, 0, 6.66)
-        self.house_glass = Entity(model=glass.build(), texture=tex("window"), shader=FARM_SHADER)
+        # glass you can see through (the walls behind it are open now): faintly blue by day, warm when the
+        # lights are on inside (see DayScripts.house_lights)
+        self.house_glass = Entity(model=glass.build(), texture=tex("white"), shader=FARM_SHADER,
+                                  color=(0.78, 0.9, 1.0, 0.16))
+        self.house_glass.setTransparency(TransparencyAttrib.MAlpha)
+        self.house_glass.setDepthWrite(False)
         no_shadow(self.house_glass)
         self.entities.append(self.house_glass)
         # porch
@@ -2109,6 +2125,7 @@ class World:
         it = nodes.index((31.4, L, 5.2))
         edges[ib].append(it)
         edges[it].append(ib)
+        self.ramp_ends = (nodes[ib], nodes[it])
         self.nav_edges = edges
 
     def _segment_clear(self, a, b, r=0.45):
@@ -2175,6 +2192,11 @@ class World:
             path.append(N[cur])
             cur = came[cur]
         path.reverse()
+        # already partway up (or down) the barn ramp: don't walk back to the ramp end behind you first. (Following
+        # someone re-plans every couple of metres, and Moobius kept being sent back down to the bottom node.)
+        if len(path) > 1 and 29.5 <= start[0] <= 33.4 and -6.0 <= start[2] <= 4.0 and \
+                (path[0], path[1]) in (self.ramp_ends, self.ramp_ends[::-1]):
+            path = path[1:]
         # smooth: skip the first node if we can see the second one
         if len(path) > 1 and self._segment_clear(start, path[1]) and abs(start[1] - path[1][1]) < 0.5:
             path = path[1:]

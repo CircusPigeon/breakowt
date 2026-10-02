@@ -97,6 +97,8 @@ class Bot:
                 ui.dlg_complete()
         if ui.modal == "document":
             g._modal_input("e")
+        elif ui.modal == "mail":
+            g._modal_input("e")
         elif ui.modal == "combo":
             st = ui._modal_state
             if st.get("result") is None:
@@ -491,7 +493,7 @@ class Bot:
         moo_t = [0.0]
 
         def pace():
-            # wait for Moozart to catch up and shush him when he starts humming
+            # wait for Moobius to catch up and shush him when he starts humming
             moo_t[0] -= DT
             st_warn = g.story.hooks.get("moo")
             if moo_t[0] <= 0 and not g.phys.in_zone("pasture", mz.x, mz.z):
@@ -505,7 +507,7 @@ class Bot:
                 yield
                 t += DT
                 if t > 40:
-                    raise Stuck(f"Moozart not following at ({x},{z}); he's at ({mz.x:.1f},{mz.z:.1f})")
+                    raise Stuck(f"Moobius not following at ({x},{z}); he's at ({mz.x:.1f},{mz.z:.1f})")
             pace()
         yield from self.open_door("barn_side")
         yield from self.wait(0.8)
@@ -518,7 +520,7 @@ class Bot:
                 yield
                 t += DT
                 if t > 40:
-                    raise Stuck(f"Moozart not following in barn at ({x},{z}); he's at "
+                    raise Stuck(f"Moobius not following in barn at ({x},{z}); he's at "
                                 f"({mz.x:.1f},{mz.y:.1f},{mz.z:.1f})")
 
     def p_d4_loft(self):
@@ -606,14 +608,14 @@ class Bot:
         yield from self.open_door("front_door")
         yield from self.wait(0.8)
         self.place(56, 32, 0)
-        yield from self.walk_path([(51.5, 35), (51.2, 38.9), (48.9, 39.2), (48.9, 41), (56.9, 41), (56.4, 43.9)])
-        # sneak for the drawer: opened standing up, it makes Chuck stir
+        # sneak the whole way: walking near his bed wakes him, and a drawer opened standing up creaks
         g.player.crouch_toggle = True
+        yield from self.walk_path([(51.5, 35), (51.2, 38.9), (48.9, 39.2), (48.9, 41), (56.9, 41), (56.4, 43.9)])
         yield from self.interact("nightstand")
         yield from self.until(lambda: g.inv.has("cabinet_key"), 5, "cabinet key")
-        g.player.crouch_toggle = False
         yield from self.walk_path([(56.9, 41), (47.9, 41), (47.9, 44.5)])
         yield from self.interact("gun_cabinet")
+        g.player.crouch_toggle = False
 
     def p_d6_stars(self):
         yield from self.wait_ready()

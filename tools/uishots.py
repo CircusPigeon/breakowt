@@ -53,7 +53,7 @@ def main():
     harness.shot(app, "ui_password")
     g.ui.close_modal()
     g.set_mouse(True)
-    g.runner.start(g.say("cowpernicus", "Okay. The plan, final version. I've drawn it again. Sir Loin, please. "
+    g.runner.start(g.say("cowpernicus", "Okay. The plan, final version. I've drawn it again. Moogenes, please. "
                                         "This line is long on purpose, to check that it wraps inside the box.",
                          choices=["Yes. Faint when Chuck comes in.", "Not yet."]), name="t")
     harness.step(app, 90)

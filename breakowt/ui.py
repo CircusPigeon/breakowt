@@ -20,14 +20,14 @@ DLG_WRAP = 74
 GREEN = C(0.5, 0.9, 0.45, 1)
 
 SPEAKER_COLORS = {
-    "Cowleen": C(0.98, 0.7, 0.45, 1),
+    "Moocrates": C(0.98, 0.7, 0.45, 1),
     "Moobius": C(0.8, 0.8, 1.0, 1),
-    "Sir Loin": C(1.0, 0.45, 0.4, 1),
-    "Cowpernicus": C(0.5, 0.85, 1.0, 1),
-    "Mooriarty": C(0.75, 0.75, 0.75, 1),
-    "Moomaw": C(0.9, 0.65, 0.95, 1),
+    "Moogenes": C(1.0, 0.45, 0.4, 1),
+    "Moothagoras": C(0.5, 0.85, 1.0, 1),
+    "Epicowrus": C(0.75, 0.75, 0.75, 1),
+    "Heifercleitus": C(0.9, 0.65, 0.95, 1),
     "Chuck": C(0.95, 0.85, 0.35, 1),
-    "Cluck Norris": C(1.0, 0.55, 0.2, 1),
+    "Cluckydides": C(1.0, 0.55, 0.2, 1),
     "You": C(1.0, 0.95, 0.9, 1),
     "Forty-Seven": C(1.0, 0.95, 0.9, 1),
 }
@@ -127,6 +127,9 @@ class UI:
         self.susp_bg = Entity(parent=self.hud, model="quad", color=C(0, 0, 0, 0.5), position=(0, 0.375), scale=(0.24, 0.012))
         self.susp = Entity(parent=self.hud, model="quad", color=BRASS, position=(-0.12, 0.375), scale=(0, 0.012), origin=(-0.5, 0))
         self.hearts = txt(self.hud, "", self.L + 0.03, -0.38, 1.6, RED)
+        # a standing reminder of where the journal, the map and hints live
+        self.keys_hint = txt(self.hud, "[Tab] journal & map    [H] hint", self.L + 0.03, -0.432, 0.78,
+                             C(0.85, 0.82, 0.75, 0.75))
         self.boss_name = txt(self.hud, "", 0, 0.46, 1.1, CREAM, origin=(0, 0))
         self.boss_bg = Entity(parent=self.hud, model="quad", color=C(0, 0, 0, 0.6), position=(0, 0.43), scale=(0.7, 0.018))
         self.boss_bar = Entity(parent=self.hud, model="quad", color=RED, position=(-0.35, 0.43), scale=(0.7, 0.018), origin=(-0.5, 0))
@@ -141,13 +144,15 @@ class UI:
         # --- toasts (top-right)
         self.toast_root = Entity(parent=self.hud)
 
-        # --- dialogue box
+        # --- dialogue box (grows upward with the number of lines; see dlg_show)
         self.dlg = Entity(parent=self.root, enabled=False)
         self.dlg_bg = Entity(parent=self.dlg, model=Quad(radius=0.02, aspect=1.25 / 0.2), scale=(1.25, 0.2), position=(0, -0.36),
                              color=PANEL)
         self.dlg_name = txt(self.dlg, "", -0.6, -0.27, 1.25, BRASS, font=fonts.get("ui"))
         self.dlg_text = txt(self.dlg, "", -0.6, -0.31, 1.18, CREAM, font=fonts.get("body"))
         self.dlg_hint = txt(self.dlg, "[Space]", 0.6, -0.44, 0.8, DIM, origin=(0.5, 0))
+        self.dlg_top = -0.26
+        self._dlg_quads = {}
         self.dlg_full = ""
         self.dlg_shown = 0.0
         self.dlg_speed = 55.0
@@ -235,7 +240,7 @@ class UI:
             return
         self.aspect, self.L, self.R = A, -A / 2, A / 2
         self.vignette.scale = (A + 0.02, 1.02)
-        for e in [self.day_text, self.day_sub, self.hearts] + self.obj_texts:
+        for e in [self.day_text, self.day_sub, self.hearts, self.keys_hint] + self.obj_texts:
             e.x = self.L + 0.03
         self.stam_bg.x, self.stam.x = self.L + 0.13, self.L + 0.03
         self.clover_text.x = self.R - 0.03
@@ -341,6 +346,9 @@ class UI:
     # ------------------------------------------------------------------
     # dialogue
     # ------------------------------------------------------------------
+    DLG_BOTTOM = -0.43      # just above the cutscene letterbox (which covers y < -0.44)
+    DLG_LINE = 0.032        # one line of body text at scale 1.18
+
     def dlg_show(self, name, text):
         self.dlg.enabled = True
         self.dlg_name.text = name
@@ -349,6 +357,22 @@ class UI:
         self.dlg_shown = 0.0
         self.dlg_text.text = ""
         self.dlg_hint.enabled = False
+        # size the box to the text, growing upward from a fixed bottom edge, so a long line never runs off
+        # the bottom of the screen (or under the letterbox)
+        n = self.dlg_full.count("\n") + 1
+        h = 0.09 + n * self.DLG_LINE + (0.0 if name else -0.035)
+        bottom = self.DLG_BOTTOM
+        top = bottom + h
+        qk = (n, bool(name))
+        if qk not in self._dlg_quads:
+            self._dlg_quads[qk] = Quad(radius=0.02, aspect=1.25 / h)
+        self.dlg_bg.model = self._dlg_quads[qk]
+        self.dlg_bg.scale = (1.25, h)
+        self.dlg_bg.y = bottom + h / 2
+        self.dlg_name.y = top - 0.012
+        self.dlg_text.y = top - (0.05 if name else 0.018)
+        self.dlg_hint.y = bottom + 0.018
+        self.dlg_top = top
 
     def dlg_hide(self):
         self.dlg.enabled = False
@@ -427,21 +451,134 @@ class UI:
         self.modal = None
         self._modal_state = {}
 
-    def show_document(self, title, body, footer="[E] / [Space] to close", paper=True):
+    def _fit(self, body, width, height, scale, lead=1.25, min_scale=0.7):
+        """Largest text scale (from `scale` down) at which `body` wrapped to `width` fits in `height`."""
+        s = scale
+        while True:
+            w = self._wrap_for(width, s)
+            lines = wrap_str(body, w).count("\n") + 1
+            if lines * 0.025 * s * lead <= height or s <= min_scale:
+                return s, w
+            s -= 0.04
+
+    def show_document(self, title, body, footer="[E] / [Space] to close", paper=True, style=None):
+        """style: 'note' (a sticky note: short scraps), 'paper' (ruled paper: the planner, letters) or
+        'screen' (ChuckOS). Text is fitted to the sheet, so long documents shrink instead of spilling off."""
+        style = style or (("note" if len(body) < 200 and body.count("\n") < 8 else "paper") if paper else "screen")
         r = self.open_modal("document")
-        w, h = 0.95, 0.84
-        if paper:
-            Entity(parent=r, model="quad", texture=tex("paper"), scale=(w, h), color=C(1, 1, 1, 1), z=0.05)
-            ink = C(0.15, 0.15, 0.3, 1)
+        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
+        hand, body_f = self.fonts.get("hand"), self.fonts.get("body")
+        if style == "note":
+            w = h = 0.66
+            sheet = Entity(parent=r, rotation_z=-2.5)
+            Entity(parent=sheet, model="quad", color=C(0, 0, 0, 0.35), scale=(w, h), position=(0.012, -0.014, 0.06))
+            Entity(parent=sheet, model="quad", color=C(0.99, 0.92, 0.5, 1), scale=(w, h), z=0.05)
+            Entity(parent=sheet, model="quad", color=C(0.96, 0.86, 0.38, 1), scale=(w, 0.07), y=h / 2 - 0.035, z=0.045)
+            Entity(parent=sheet, model="quad", color=C(1, 1, 1, 0.5), scale=(0.2, 0.05), y=h / 2 + 0.005,
+                   rotation_z=4, z=0.04)
+            ink = C(0.1, 0.12, 0.3, 1)
+            txt(sheet, title, -w / 2 + 0.05, h / 2 - 0.09, 1.25, C(0.45, 0.35, 0.15, 1), font=hand)
+            s, wr = self._fit(body, w - 0.1, h - 0.2, 1.55)
+            txt(sheet, body, -w / 2 + 0.05, h / 2 - 0.16, s, ink, wrap=wr, font=hand)
+            foot_col = C(0.85, 0.82, 0.75, 1)
+            foot_y = -h / 2 - 0.05
+        elif style == "paper":
+            w, h = 0.98, 0.88
+            sheet = Entity(parent=r, rotation_z=-1.0)
+            Entity(parent=sheet, model="quad", color=C(0, 0, 0, 0.35), scale=(w, h), position=(0.014, -0.016, 0.06))
+            Entity(parent=sheet, model="quad", texture=tex("paper"), scale=(w, h), color=C(1, 1, 1, 1), z=0.05)
+            # ruled lines and the red margin
+            for k in range(1, 22):
+                Entity(parent=sheet, model="quad", color=C(0.45, 0.6, 0.85, 0.35), scale=(w - 0.04, 0.0025),
+                       y=h / 2 - 0.12 - k * 0.034, z=0.045)
+            Entity(parent=sheet, model="quad", color=C(0.85, 0.3, 0.3, 0.5), scale=(0.003, h - 0.02),
+                   x=-w / 2 + 0.085, z=0.044)
+            ink = C(0.12, 0.13, 0.32, 1)
+            txt(sheet, title, -w / 2 + 0.11, h / 2 - 0.05, 1.7, ink, font=hand)
+            s, wr = self._fit(body, w - 0.17, h - 0.2, 1.25)
+            txt(sheet, body, -w / 2 + 0.11, h / 2 - 0.135, s, ink, wrap=wr, font=hand)
+            foot_col = C(0.85, 0.82, 0.75, 1)
+            foot_y = -h / 2 - 0.04
         else:
-            Entity(parent=r, model=Quad(radius=0.02, aspect=w / h), scale=(w, h), color=C(0.12, 0.28, 0.5, 0.97), z=0.05)
-            ink = C(0.95, 0.97, 1, 1)
-        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.55), scale=(3, 2), z=0.1)
-        txt(r, title, 0, h / 2 - 0.05, 1.6, ink, origin=(0, 0.5), font=self.fonts.get("hand") if paper else self.fonts.get("ui"))
-        txt(r, body, -w / 2 + 0.07, h / 2 - 0.14, 1.12, ink, origin=(-0.5, 0.5), wrap=58,
-            font=self.fonts.get("hand") if paper else self.fonts.get("body"))
-        txt(r, footer, 0, -h / 2 + 0.03, 0.9, C(0.4, 0.4, 0.4, 1) if paper else DIM, origin=(0, 0))
-        self.g.audio.play("paper", vol=0.7)
+            w, h = 1.05, 0.84
+            Entity(parent=r, model=Quad(radius=0.012, aspect=w / h), scale=(w + 0.012, h + 0.012),
+                   color=C(0.55, 0.57, 0.6, 1), z=0.06)
+            Entity(parent=r, model="quad", color=C(0.94, 0.95, 0.97, 1), scale=(w, h), z=0.05)
+            Entity(parent=r, model="quad", color=C(0.12, 0.3, 0.62, 1), scale=(w, 0.055), y=h / 2 - 0.0275, z=0.045)
+            txt(r, title, -w / 2 + 0.02, h / 2 - 0.012, 1.0, C(1, 1, 1, 1), font=self.fonts.get("ui"))
+            txt(r, "_  []  x", w / 2 - 0.02, h / 2 - 0.012, 0.9, C(1, 1, 1, 0.8), origin=(0.5, 0.5))
+            s, wr = self._fit(body, w - 0.08, h - 0.13, 1.05)
+            txt(r, body, -w / 2 + 0.04, h / 2 - 0.085, s, C(0.08, 0.08, 0.12, 1), wrap=wr,
+                font=self.fonts.get("mono") or body_f)
+            foot_col = DIM
+            foot_y = -h / 2 - 0.035
+        txt(r, footer, 0, foot_y, 0.85, foot_col, origin=(0, 0))
+        self.g.audio.play("paper" if style != "screen" else "type", vol=0.7)
+
+    # --- ChuckOS Mail -----------------------------------------------------
+    def open_mail(self, messages, title="ChuckOS Mail"):
+        """An inbox: the message list on the left, the open message on the right. messages: list of
+        (sender, subject, body). W/S or click to pick a message; E / Space / Esc to close."""
+        r = self.open_modal("mail")
+        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
+        w, h = 1.3, 0.84
+        lw = 0.4
+        Entity(parent=r, model=Quad(radius=0.012, aspect=w / h), scale=(w + 0.012, h + 0.012),
+               color=C(0.55, 0.57, 0.6, 1), z=0.06)
+        Entity(parent=r, model="quad", color=C(0.96, 0.96, 0.97, 1), scale=(w, h), z=0.05)
+        Entity(parent=r, model="quad", color=C(0.12, 0.3, 0.62, 1), scale=(w, 0.055), y=h / 2 - 0.0275, z=0.045)
+        txt(r, f"{title}  -  Inbox ({len(messages)})", -w / 2 + 0.02, h / 2 - 0.012, 1.0, C(1, 1, 1, 1),
+            font=self.fonts.get("ui"))
+        Entity(parent=r, model="quad", color=C(0.88, 0.9, 0.93, 1), scale=(lw, h - 0.055),
+               position=(-w / 2 + lw / 2, -0.0275, 0.044))
+        st = {"msgs": messages, "sel": 0, "rows": [], "pane": None, "w": w, "h": h, "lw": lw, "root": r}
+        for i, (frm, subj, _body) in enumerate(messages):
+            y = h / 2 - 0.09 - i * 0.085
+            row = Button(parent=r, z=-0.01, model="quad", color=C(0, 0, 0, 0), scale=(lw - 0.01, 0.08),
+                         position=(-w / 2 + lw / 2, y - 0.025), highlight_color=C(0.12, 0.3, 0.62, 0.12))
+            row.on_click = (lambda i=i: self._mail_pick(i))
+            txt(r, frm, -w / 2 + 0.02, y, 0.95, C(0.08, 0.08, 0.12, 1), font=self.fonts.get("ui"))
+            txt(r, subj, -w / 2 + 0.02, y - 0.03, 0.8, C(0.3, 0.32, 0.38, 1), wrap=self._wrap_for(lw - 0.04, 0.8))
+            st["rows"].append(row)
+        txt(r, "W/S or click: pick a message     E / Space: close", 0, -h / 2 - 0.035, 0.85,
+            C(0.85, 0.82, 0.75, 1), origin=(0, 0))
+        self._modal_state = st
+        self._mail_pick(0)
+        self.g.audio.play("type", vol=0.6)
+
+    def _mail_pick(self, i):
+        st = self._modal_state
+        if not st or "msgs" not in st:
+            return
+        st["sel"] = i % len(st["msgs"])
+        for k, row in enumerate(st["rows"]):
+            row.color = C(0.12, 0.3, 0.62, 0.22) if k == st["sel"] else C(0, 0, 0, 0)
+        if st["pane"] is not None:
+            destroy(st["pane"])
+        w, h, lw, r = st["w"], st["h"], st["lw"], st["root"]
+        pane = Entity(parent=r)
+        st["pane"] = pane
+        frm, subj, body = st["msgs"][st["sel"]]
+        x0 = -w / 2 + lw + 0.03
+        pw = w - lw - 0.06
+        ink = C(0.08, 0.08, 0.12, 1)
+        txt(pane, subj, x0, h / 2 - 0.08, 1.25, ink, font=self.fonts.get("ui"), wrap=self._wrap_for(pw, 1.25))
+        txt(pane, f"From: {frm}", x0, h / 2 - 0.135, 0.85, C(0.35, 0.37, 0.42, 1))
+        Entity(parent=pane, model="quad", color=C(0.75, 0.77, 0.8, 1), scale=(pw, 0.003),
+               position=(x0 + pw / 2, h / 2 - 0.165, -0.005))
+        s, wr = self._fit(body, pw, h - 0.25, 1.0)
+        txt(pane, body, x0, h / 2 - 0.19, s, ink, wrap=wr)
+
+    def mail_input(self, key):
+        st = self._modal_state
+        if key in ("w", "up arrow", "scroll up"):
+            self._mail_pick(st["sel"] - 1)
+            self.g.audio.play("blip", vol=0.3)
+        elif key in ("s", "down arrow", "scroll down"):
+            self._mail_pick(st["sel"] + 1)
+            self.g.audio.play("blip", vol=0.3)
+        elif key in ("e", "space", "escape", "enter"):
+            st["closed"] = True
 
     def open_combo(self, digits=3, title="Combination lock"):
         r = self.open_modal("combo")
@@ -690,43 +827,71 @@ class UI:
         bb.on_click = on_close
         self._modal_state = {"back_cb": on_close}
 
+    CHAR_W = 0.0122         # average glyph width per unit of text scale, for wrapping to a column width
+
+    def _wrap_for(self, width, scale):
+        return max(16, int(width / (self.CHAR_W * scale)))
+
     def open_journal(self, g):
+        """Three columns sized from the window's aspect: objectives and favours, inventory, map. Every block
+        is wrapped to its column and advances by the number of lines it actually took, so nothing overlaps
+        (the old fixed offsets ran together on a 3:2 screen)."""
         r = self.open_modal("journal")
         A = self.aspect
-        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.72), scale=(3, 2), z=0.1)
-        txt(r, "JOURNAL", self.L + 0.05, 0.46, 1.8, BRASS, font=self.fonts.get("title"))
-        txt(r, g.day_title + "  ·  " + g.day_sub, self.L + 0.05, 0.4, 1.0, DIM)
+        Entity(parent=r, model="quad", color=C(0, 0, 0, 0.78), scale=(3, 2), z=0.1)
+        margin, gap = 0.05, 0.05
+        W = A - 2 * margin
+        mw = min(0.62, W * 0.34)
+        colw = (W - mw - 2 * gap) / 2
+        x1 = self.L + margin
+        x2 = x1 + colw + gap
+        txt(r, "JOURNAL", x1, 0.47, 1.8, BRASS, font=self.fonts.get("title"))
+        txt(r, g.day_title + "  ·  " + g.day_sub, x1, 0.405, 1.0, DIM)
+        floor = -0.43
+
+        def block(x, y, text, scale, col, lh, width=colw):
+            w = self._wrap_for(width, scale)
+            txt(r, text, x, y, scale, col, wrap=w)
+            return y - lh * (wrap_str(text, w).count("\n") + 1)
+
         y = 0.34
-        txt(r, "OBJECTIVES", self.L + 0.05, y, 1.1, BRASS)
+        txt(r, "OBJECTIVES", x1, y, 1.05, BRASS, font=self.fonts.get("ui"))
         y -= 0.045
         for text, done in g.objective_lines():
-            t = txt(r, ("[x] " if done else "- ") + text, self.L + 0.05, y, 0.95, DIM if done else CREAM, wrap=48)
-            y -= 0.035 * (1 + len(text) // 48)
-        y -= 0.02
-        txt(r, "FAVORS FOR FRIENDS", self.L + 0.05, y, 1.1, BRASS)
-        y -= 0.045
-        for text, state in g.side_quest_lines():
-            col = GREEN if state == "done" else CREAM
-            t = txt(r, ("[x] " if state == "done" else "- ") + text, self.L + 0.05, y, 0.9, col, wrap=52)
-            y -= 0.033 * (1 + len(text) // 52)
-        # items
-        x2 = self.L + 0.62
-        txt(r, "INVENTORY", x2, 0.34, 1.1, BRASS)
-        yy = 0.29
-        for key, label, count, desc in g.inventory_lines():
-            if tex("icon_" + key):
-                Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.05, position=(x2 + 0.025, yy - 0.012))
-            txt(r, label + (f" x{count}" if count > 1 else ""), x2 + 0.06, yy, 0.95, CREAM)
-            txt(r, desc, x2 + 0.06, yy - 0.026, 0.75, DIM, wrap=48)
-            yy -= 0.065
-            if yy < -0.42:
+            if y < floor:
                 break
+            y = block(x1, y, ("[x] " if done else "- ") + text.strip(), 0.92, DIM if done else CREAM, 0.03) - 0.006
+        y -= 0.025
+        side = g.side_quest_lines()
+        if side and y > floor + 0.08:
+            txt(r, "FAVOURS", x1, y, 1.05, BRASS, font=self.fonts.get("ui"))
+            y -= 0.045
+            for text, state in side:
+                if y < floor:
+                    break
+                y = block(x1, y, ("[x] " if state == "done" else "- ") + text, 0.88,
+                          GREEN if state == "done" else CREAM, 0.029) - 0.006
+        # inventory: icon, name, and its description wrapped to the column
+        yy = 0.34
+        txt(r, "INVENTORY", x2, yy, 1.05, BRASS, font=self.fonts.get("ui"))
+        yy -= 0.05
+        items = g.inventory_lines()
+        if not items:
+            txt(r, "Nothing. You are a cow.", x2, yy, 0.85, DIM)
+        for i, (key, label, count, desc) in enumerate(items):
+            if yy < floor + 0.05:
+                txt(r, f"...and {len(items) - i} more", x2 + 0.06, yy, 0.8, DIM)
+                break
+            if tex("icon_" + key):
+                Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.045, position=(x2 + 0.022, yy - 0.016))
+            yy = block(x2 + 0.055, yy, label + (f" x{count}" if count > 1 else ""), 0.92, CREAM, 0.03,
+                       colw - 0.055)
+            yy = block(x2 + 0.055, yy + 0.004, desc, 0.72, DIM, 0.024, colw - 0.055) - 0.016
         # map
         if self.map_tex is None:
             self.map_tex = Texture(build_map_image())
-        mw = 0.6
-        mx = self.R - mw / 2 - 0.04
-        my = 0.02
+        mx = self.R - margin - mw / 2
+        my = 0.05
         Entity(parent=r, model="quad", texture=self.map_tex, scale=(mw, mw * MAP_H / MAP_W), position=(mx, my))
         txt(r, "MAP", mx - mw / 2, my + mw * MAP_H / MAP_W / 2 + 0.05, 1.1, BRASS)
         # markers
@@ -741,17 +906,18 @@ class UI:
                    scale=0.014 if label != "hide" else 0.011, position=(px, py, -0.01))
             if label != "hide":
                 txt(r, label, px + 0.012, py + 0.01, 0.7, BRASS)
+        map_bottom = my - mw * MAP_H / MAP_W / 2
         if g.flags.get("star_chart"):
-            txt(r, "green: hiding spots (Cowpernicus)", mx - mw / 2, my - mw * MAP_H / MAP_W / 2 - 0.03, 0.7, hide_col)
+            txt(r, "green: hiding spots", mx - mw / 2, map_bottom - 0.02, 0.72, hide_col)
         px, py = to_map(g.player.x, g.player.z)
         Entity(parent=r, model=Quad(radius=0.1), color=RED, scale=(0.012, 0.03), position=(px, py, -0.02),
                rotation_z=g.player.yaw)
         txt(r, "You", px + 0.012, py - 0.012, 0.7, RED)
         txt(r, "[Tab] close", 0, -0.47, 0.9, DIM, origin=(0, 0))
         st = g.stats
-        txt(r, f"Times caught: {st.get('caught', 0)}   Moos: {st.get('moos', 0)}   "
-               f"Moo-dals: {g.moodals.count_unlocked()} (pause menu)",
-            mx, my - mw * MAP_H / MAP_W / 2 - 0.04, 0.8, DIM, origin=(0, 0))
+        stats = (f"Caught: {st.get('caught', 0)}    Moos: {st.get('moos', 0)}    "
+                 f"Moo-dals: {g.moodals.count_unlocked()} (pause menu)")
+        txt(r, stats, mx - mw / 2, map_bottom - 0.065, 0.76, DIM, wrap=self._wrap_for(mw, 0.76))
 
     # ------------------------------------------------------------------
     def update(self, dt):
@@ -767,7 +933,10 @@ class UI:
                     self.g.audio.play("type", vol=0.08, pitch=1.4)
         if self.dlg.enabled:
             self.dlg_hint.enabled = self.dlg_revealed() and not self.choice_root.enabled
-        # popup
+        # popup: above the dialogue box while one is up (they used to print over each other)
+        py = (self.dlg_top + 0.02 + self.popup_bg.scale_y / 2) if self.dlg.enabled else -0.3
+        if abs(self.popup.y - py) > 1e-4:
+            self.popup.y = self.popup_bg.y = py
         if self.popup_t > 0:
             self.popup_t -= dt
             if self.popup_t <= 0:

@@ -70,16 +70,38 @@ class InteractionSystem:
         for ia in self.items.values():
             ia.handlers = [h for h in ia.handlers if h.scope != scope]
 
+    # rooms whose contents can only be reached from inside (the line-of-sight test below stops short of the
+    # target, so a workbench against the shed wall answered from outside it)
+    ROOMS = ("shed", "house", "coop")
+
+    def _room(self, ia):
+        r = getattr(ia, "_room", 0)
+        if r == 0:
+            r = None
+            doorish = ia.key in self.g.world.doors or ia.key in ("shed_board", "moohole") or ia.follow is not None
+            if not doorish:
+                px, py, pz = ia.pos
+                for z in self.ROOMS:
+                    if self.g.phys.in_zone(z, px, pz, py):
+                        r = z
+                        break
+            ia._room = r
+        return r
+
     def find_target(self, eye, fwd):
         """Best interactable the player is looking at."""
         best, best_score = None, 1e9
         ex, ey, ez = eye
         fx, fy, fz = fwd
         phys = self.g.phys
+        here = {z for z in self.ROOMS if phys.in_zone(z, ex, ez, ey)}
         for ia in self.items.values():
             if not ia.enabled:
                 continue
             if ia.visible_cond is not None and not ia.visible_cond(self.g):
+                continue
+            room = self._room(ia)
+            if room is not None and room not in here:
                 continue
             px, py, pz = ia.world_pos()
             dx, dy, dz = px - ex, py - ey, pz - ez
