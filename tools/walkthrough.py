@@ -271,6 +271,56 @@ class Bot:
         self.press("left mouse down")
         yield from self.wait(0.9)
 
+    def push_crate(self, key, dirx, dirz, n=1):
+        """Headbutt a crate n steps along (dirx, dirz), standing behind it each time like a player would."""
+        g = self.g
+        pb = g.world.pushables[key]
+        for _ in range(n):
+            yield from self.wait_ready()
+            x0, z0 = pb.x, pb.z
+            self.place(pb.x - dirx * 1.3, pb.z - dirz * 1.3, y=pb.y)
+            yield
+            self.face((pb.x, pb.y + 0.5, pb.z))
+            yield
+            self.press("left mouse down")
+            yield from self.wait(1.0)
+            if math.hypot(pb.x - x0, pb.z - z0) < 0.5:
+                raise Stuck(f"{key} didn't move from ({x0:.1f},{z0:.1f}) toward ({dirx},{dirz})")
+
+    def push_to(self, key, tx, tz):
+        """Push a crate to (tx, tz) from wherever it is now: along x first, then along z."""
+        pb = self.g.world.pushables[key]
+        nx = round((tx - pb.x) / pb.step)
+        if nx:
+            yield from self.push_crate(key, 1 if nx > 0 else -1, 0, abs(nx))
+        nz = round((tz - pb.z) / pb.step)
+        if nz:
+            yield from self.push_crate(key, 0, 1 if nz > 0 else -1, abs(nz))
+
+    def hop_onto(self, x, z, top, from_dx, from_dz):
+        """Walk at something from (x + from_dx, z + from_dz) and hop up onto it, for real."""
+        from ursina import held_keys
+        g = self.g
+        p = g.player
+        yield from self.wait_ready()
+        self.place(x + from_dx, z + from_dz, y=p.y if p.y > 0.2 else None)
+        yield
+        p.yaw = math.degrees(math.atan2(x - p.x, z - p.z))
+        p.pitch = 0
+        held_keys["w"] = 1
+        try:
+            for i in range(60):
+                if i == 4:
+                    self.press("space")
+                yield
+                if p.y >= top - 0.05 and math.hypot(p.x - x, p.z - z) < 0.45:
+                    break
+        finally:
+            held_keys["w"] = 0
+        yield from self.wait(0.3)
+        if p.y < top - 0.05:
+            raise Stuck(f"couldn't hop up onto ({x},{z}) top {top}: at y {p.y:.2f}")
+
     def get_rock(self):
         g = self.g
         if not g.inv.has("rock"):
@@ -379,16 +429,29 @@ class Bot:
         yield from self.wait(0.5)
 
     def p_d2_shed(self):
-        yield from self.interact("toolbox")
-        yield from self.until(lambda: self.g.inv.has("pliers"), 20, "pliers")
-        yield from self.until(lambda: not self.g.busy, 20, "bell")
-        yield from self.interact("st_glasses")
-        yield from self.interact("st_bucket")
-        yield from self.interact("st_radio")
+        g = self.g
+        # (a catch restarts this plan: skip whatever's already done)
+        if not g.inv.has("pliers"):
+            yield from self.interact("toolbox")
+            yield from self.until(lambda: g.inv.has("pliers"), 20, "pliers")
+            yield from self.until(lambda: not g.busy, 20, "bell")
+        for k in ("st_glasses", "st_bucket"):
+            if g.ia.get(k) is not None:
+                yield from self.interact(k)
+        if g.inv.has("radio"):
+            return
+        # the radio's on the tall cabinet: nudge the crate over, hop up, take it
+        yield from self.push_to("shed_crate", -5.5, -24.6)
+        pb = self.g.world.pushables["shed_crate"]
+        yield from self.hop_onto(pb.x, pb.z, pb.y + pb.h, -1.4, 0)
+        yield from self.interact("st_radio", dist=1.0)
 
     def p_d2_return(self):
         g = self.g
         yield from self.wait_ready()
+        if g.phys.in_zone("pasture", g.player.x, g.player.z):
+            yield from self.wait(1.0)       # a catch already put us back in the pasture: that's the step done
+            return
         self.place(-7.5, -22, 270)
         yield from self.walk_path([(-11, -22), (-14, -22.2), (-15, -30), (-15.5, -35)])
         if not g.world.doors["pasture_gate"].is_open:
@@ -428,14 +491,17 @@ class Bot:
 
     def p_d3_parts(self):
         g = self.g
-        # the key: rock at the rafter from the loft
-        yield from self.get_rock()
+        # the key: up the ramp, nudge the loft crate under it, hop on, hop for it
         yield from self.wait_ready()
         self.place(14, 0.7)
         yield from self.walk_path([(15, -6), (29, -6.5), (31.4, -7.0), (31.4, 5.5), (25, 8)])
-        yield from self.throw_at((20.0, 5.55, 10.0), (20.0, 3.2, 7.2))
-        yield from self.until(lambda: g.ia.get("st_tractor_key") is not None, 5, "key falls")
-        yield from self.interact("st_tractor_key")
+        yield from self.push_to("loft_crate", 22.0, 10.0)
+        pb = g.world.pushables["loft_crate"]
+        yield from self.hop_onto(pb.x, pb.z, pb.y + pb.h, 0, -1.4)
+        yield from self.wait(0.6)
+        self.press("space")
+        yield from self.until(lambda: g.inv.has("tractor_key"), 3, "hop-grab the key")
+        yield from self.wait(0.6)
         # the coop
         yield from self.wait_ready()
         self.place(31.5, -35, 90)
@@ -669,9 +735,18 @@ class Bot:
             if tries > 1:
                 print(f"    Chuck got us off the tractor ({g.flags.get('_grab')}); again", flush=True)
             yield from self.wait_ready()
-            self.place(13, 0.7, 90)
-            yield from self.interact("tractor")
-            yield from self.until(lambda: g.vehicle is not None, 10, "driving")
+            # up the ramp to the hayloft, break the rickety railing over the tractor, and drop in
+            self.place(31.4, -7.0, 0)
+            yield from self.walk_path([(31.4, 5.5), (22, 5.4)])
+            if not g.flags.get("rail_broken"):
+                yield from self.headbutt_at((22, 3.8, 4.1), dist=1.3)
+                yield from self.wait(0.3)
+                yield from self.headbutt_at((22, 3.8, 4.1), dist=1.3)
+                yield from self.until(lambda: g.flags.get("rail_broken"), 3, "railing breaks")
+            yield from self.wait_ready()
+            self.place(22, 4.8, 180, y=3.2)
+            yield from self.walk_to(22, 2.0, timeout=8)
+            yield from self.until(lambda: g.vehicle is not None, 6, "landed in the tractor")
             g.flags.pop("_grab", None)
             yield from self.drive_out()
             for k in ("w", "a", "s", "d"):

@@ -175,14 +175,18 @@ class Physics:
         return None
 
     # ------------------------------------------------------------------
-    def resolve(self, x, z, r, y=0.0, h=1.6, ignore=None, iterations=3, include_dynamic=True):
-        """Push a circle (x,z,r) spanning [y, y+h] out of solid shapes."""
+    def resolve(self, x, z, r, y=0.0, h=1.6, ignore=None, iterations=3, include_dynamic=True, climb=0.0):
+        """Push a circle (x,z,r) spanning [y, y+h] out of solid shapes. climb: shapes tagged "climb" (crates,
+        bales: things with a floor on top) stop blocking once their top is within this much of y, so a walker
+        can step or hop up onto them."""
         for _ in range(iterations):
             moved = False
             for s in self.nearby(x - r, x + r, z - r, z + r):
                 if not s.enabled or not s.solid or s is ignore:
                     continue
                 if s.y1 <= y + 0.05 or s.y0 >= y + h:
+                    continue
+                if climb and s.tag == "climb" and s.y1 <= y + climb:
                     continue
                 if isinstance(s, Box):
                     px = min(max(x, s.x0), s.x1)
@@ -235,12 +239,12 @@ class Physics:
                 break
         return x, z
 
-    def move(self, x, z, dx, dz, r, y=0.0, h=1.6, ignore=None, include_dynamic=True):
+    def move(self, x, z, dx, dz, r, y=0.0, h=1.6, ignore=None, include_dynamic=True, climb=0.0):
         dist = math.hypot(dx, dz)
         steps = max(1, int(dist / (r * 0.5)) + 1)
         sx, sz = dx / steps, dz / steps
         for _ in range(steps):
-            x, z = self.resolve(x + sx, z + sz, r, y, h, ignore, include_dynamic=include_dynamic)
+            x, z = self.resolve(x + sx, z + sz, r, y, h, ignore, include_dynamic=include_dynamic, climb=climb)
         return x, z
 
     def blocked_at(self, x, z, r, y=0.0, h=1.6):

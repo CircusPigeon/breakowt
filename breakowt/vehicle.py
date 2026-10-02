@@ -69,6 +69,9 @@ class Tractor:
         col = g.world.colliders.get("tractor")
         if col is not None:
             col.enabled = False
+        fl = getattr(g.world, "tractor_floor", None)
+        if fl is not None:
+            fl.enabled = False
         camera.parent = self.seat
         camera.position = (0, 0, 0)
         camera.rotation = (0, 0, 0)

@@ -67,9 +67,9 @@ last checkpoint, quit). Press **H** any time you're stuck for a hint.
 | Mouse | look |
 | Shift | gallop (uses stamina) |
 | C or hold Ctrl | sneak |
-| Space | hop (pathetically) |
+| Space | hop (onto a crate, if you mean it) |
 | E | interact / talk |
-| Left click | headbutt |
+| Left click | headbutt (also nudges crates along) |
 | Right click | back-kick (hits what's behind you) |
 | R | throw a rock or the selected throwable |
 | Q | use the selected item |

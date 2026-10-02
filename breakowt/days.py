@@ -16,8 +16,8 @@ from .interact import Handler, Interactable
 from .farmer import HEARING, OWN_DOORS
 from .npc import FRIENDS, ang_diff
 from .vehicle import Tractor
-from .world import BARN, COOP_RUN, DEER_STAND, GATE_PASTURE, HOUSE, HOUSE_Y, LOFT_Y, PASTURE, PLANT_BACK, PROC, SHED, \
-    in_pond
+from .world import BARN, COOP_RUN, DEER_STAND, GATE_PASTURE, HOUSE, HOUSE_Y, LOFT_Y, PASTURE, PLANT_BACK, PROC, \
+    RADIO_SPOT, SHED, TRACTOR_TOP, in_pond
 
 Y = HOUSE_Y
 L = LOFT_Y
@@ -255,7 +255,20 @@ class DayScripts:
         horiz = abs(math.sin(math.radians(yaw))) > 0.7
         fx, fz = math.sin(math.radians(yaw)), math.cos(math.radians(yaw))
         cx, cz = x + fx * 0.2, z + fz * 0.2
-        w.colliders["tractor"] = g.phys.add_box_c(cx, cz, 4.4 if horiz else 2.4, 2.4 if horiz else 4.4, 0, 2.6)
+        w.colliders["tractor"] = g.phys.add_box_c(cx, cz, 4.4 if horiz else 2.4, 2.4 if horiz else 4.4, 0,
+                                                  TRACTOR_TOP, tag="climb")
+        # its top (the hood and the big wheels): out of a hop's reach from the ground, but you can land on it
+        fl = w.tractor_floor
+        hw, hd = (2.2, 1.2) if horiz else (1.2, 2.2)
+        fl.x0, fl.x1, fl.z0, fl.z1 = cx - hw, cx + hw, cz - hd, cz + hd
+        fl.enabled = True
+
+    def on_tractor(self):
+        """Standing on top of the parked tractor (dropped onto it from the hayloft, most likely)."""
+        p = self.g.player
+        fl = self.g.world.tractor_floor
+        return (fl.enabled and fl.x0 <= p.x <= fl.x1 and fl.z0 <= p.z <= fl.z1 and abs(p.y - TRACTOR_TOP) < 0.12
+                and p.y_vel == 0 and self.g.vehicle is None)
 
     def lay_planks(self, n):
         g = self.g
@@ -401,6 +414,71 @@ class DayScripts:
         self._deer_stand()
         self._plant()
         self._clover_patch()
+        self._loft_rail()
+        for pb in self.g.world.pushables.values():
+            pb.reset()
+
+    def _loft_rail(self):
+        """The stretch of hayloft railing over the tractor: twine and optimism. Two headbutts (or one at a
+        gallop) and it goes, loudly."""
+        g = self.g
+        w = g.world
+        ia = g.ia.get("loft_rail")
+        broken = bool(self.flags.get("rail_broken"))
+        w.loft_rail.enabled = not broken
+        w.loft_rail.position = (22, L, 4.1)
+        w.loft_rail.rotation = (0, 0, 0)
+        w.colliders["loft_rail"].enabled = not broken
+        ia.enabled = not broken
+        hits = {"n": 0}
+
+        def wobble():
+            for k in range(14):
+                w.loft_rail.rotation_x = math.sin(k * 1.4) * 7 * (1 - k / 14)
+                yield None
+            w.loft_rail.rotation_x = 0
+
+        def butt(gg):
+            if self.flags.get("rail_broken"):
+                return
+            hits["n"] += 2 if getattr(gg, "last_charge", False) else 1
+            if hits["n"] < 2:
+                gg.audio.play("wood_crack", vol=0.7, pos=(22, L + 0.8, 4.1), rng=40)
+                gg.noise((22, L, 4.1), 10.0, "crash")
+                gg.runner.start(wobble(), name="rail_wobble", tag="day")
+                gg.ui.popup_sub("CRACK. The twine creaks. It wouldn't take much more.", 3)
+                return
+            self.flags["rail_broken"] = True
+            w.colliders["loft_rail"].enabled = False
+            ia.enabled = False
+            gg.audio.play("crash", vol=1.0, pos=(22, L, 4.1), rng=70)
+            gg.audio.play("wood_crack", vol=1.0, pos=(22, L, 4.1), rng=50)
+            gg.noise((22, L, 4.1), 22.0, "crash")
+            gg.runner.start(self._rail_falls(), name="rail_fall", tag="day")
+            gg.ui.popup_sub("The whole stretch of railing goes over the edge and lands on the barn floor. The "
+                            "tractor is right there, two metres down.", 4)
+        ia.on_headbutt = butt
+
+    def _rail_falls(self):
+        w = self.g.world
+        t = 0.0
+        while t < 0.7:
+            t += min(0.05, time.dt)
+            k = min(1.0, t / 0.7)
+            w.loft_rail.position = (22, L - (L - 0.05) * k * k, 4.1 + 0.9 * k)
+            w.loft_rail.rotation_x = 90 * k
+            yield None
+        self.g.audio.play("thump", vol=1.0, pos=(22, 0.3, 5), rng=40)
+
+    def _slide_off_tractor(self):
+        g = self.g
+        p = g.player
+        fl = g.world.tractor_floor
+        p.teleport(fl.x0 - 0.75, 0, min(fl.z1, max(fl.z0, p.z)), p.yaw)
+        g.audio.play("thump", vol=0.8)
+        p.shake = 0.3
+        g.ui.popup_sub("You land on the tractor, skid off the hood, and meet the floor. Undignified. Educational, "
+                       "though.", 4)
 
     TIN_Z = (-0.55, -0.72, -0.84)
 
@@ -641,6 +719,10 @@ class DayScripts:
     # ------------------------------------------------------------------
     def base_update(self, dt):
         self.radio_tick(dt)
+        if "rafter_key" in self.props:
+            self._rafter_grab()
+        if self.cur != "d7_tractor" and self.on_tractor():
+            self._slide_off_tractor()
 
     def morning(self, preset="morning", music="music_pasture", amb="day"):
         g = self.g
@@ -1153,7 +1235,11 @@ class DayScripts:
             gg.inv.add("radio")
             gg.complete("radio")
         if not g.inv.has("radio") and not self.done("radio_taken"):
-            self.item("radio", "radio", (-7.4, 1.08, -18.62), "Chuck's radio", "Take the radio", radio, rot=10)
+            ia = self.item("radio", "radio", RADIO_SPOT, "Chuck's radio", "Take the radio", radio, rot=200,
+                           cond=lambda gg: gg.player.y > 0.5)
+            ia.handlers.append(Handler("Look at the radio", lambda gg: gg.examine(
+                "Chuck's radio, on top of the cabinet. From down here you can admire it. From something a bit "
+                "taller, you could have it."), lambda gg: gg.player.y <= 0.5, "global"))
 
         def glasses(gg):
             self.remove_item("glasses")
@@ -1270,8 +1356,10 @@ class DayScripts:
             "One of the boards on the back of the shed, facing the pasture, is loose. Headbutt it three times, "
             "but only while Chuck is revving the tractor: the engine covers the noise."))
         yield from self.step("d2_shed", self.d2_shed, hint=(
-            "Who chose the combination? And is a man's perfect score the same as a perfect score?",
-            "The note says Chuck's PERFECT bowling score. Not a perfect game: his. His trophy is on the shelf."))
+            "Who chose the combination: and is a man's perfect score the same as a perfect score? And what could "
+            "a cow stand on?",
+            "The note says Chuck's PERFECT bowling score. Not a perfect game: his. His trophy is on the shelf. "
+            "The radio's on the tall cabinet: headbutt the crate over to it, then hop up (Space)."))
         yield from self.step("d2_return", self.d2_return, hint=(
             "Which side of the pasture gate is the bolt on?",
             "The bolt is on the outside, where you are. Open the gate and walk in."))
@@ -1569,40 +1657,47 @@ class DayScripts:
         return Entity(model=mb.build(), texture=tex("wood"), shader=FARM_SHADER, position=(pos[0], pos[1], pos[2]),
                       rotation_y=yaw)
 
+    KEY_SPOT = (22.0, 5.95, 10.0)       # tied to a nail on the hayloft rafter
+
     def _rafter_key(self):
         g = self.g
-        pos = (20.0, 5.55, 10.0)
+        pos = self.KEY_SPOT
         key = models.item_model("tractor_key", position=pos, rotation=(90, 0, 0), scale=2.0)
-        string = MeshBuilder().box((0, 0.35, 0), (0.015, 0.7, 0.015), color=(0.85, 0.8, 0.6, 1), uv_rect=models.WHITE)
+        string = MeshBuilder().box((0, 0.12, 0), (0.015, 0.24, 0.015), color=(0.85, 0.8, 0.6, 1), uv_rect=models.WHITE)
         s = Entity(model=string.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER, position=pos)
         for c in key.children:
             c.set_shader_input("u_emissive", 0.35)
         self.prop("rafter_key", key)
         self.prop("rafter_string", s)
         ia = g.ia.add(Interactable("st_rafter_key", pos, 0.35, "Tractor key", None, "Look at the key", 6.0))
-        ia.handlers.append(Handler("Look at the key", lambda gg: gg.examine(
-            "The tractor key, hanging off a nail on the rafter. Much too high. Something thrown could knock it down."),
-            None, "global"))
-        ia.on_rock = lambda gg, hit: self._key_falls()
 
-    def _key_falls(self):
+        def look(gg):
+            if gg.player.y > L + 0.5:
+                gg.examine("Nearly. It's just above your nose. A hop would do it.")
+            else:
+                gg.examine("The tractor key, tied to a nail on the rafter with twine. Well out of reach. Cows don't "
+                           "climb. Cows do stand on things, though.")
+        ia.handlers.append(Handler("Look at the key", look, None, "global"))
+        ia.on_rock = lambda gg, hit: gg.examine(
+            "Tink. The rock bounces off. The key's tied to the nail. Somebody would have to get up there and bite "
+            "through the twine.")
+
+    def _rafter_grab(self):
+        """A hop from on top of something, with your head up by the key: you bite it off the nail."""
         g = self.g
+        p = g.player
+        kx, ky, kz = self.KEY_SPOT
+        if math.hypot(p.x - kx, p.z - kz) > 0.9 or abs(p.y + 1.45 - ky) > 0.35:
+            return
         g.ia.remove("st_rafter_key")
         self.remove_prop("rafter_string")
-        k = self.props.pop("rafter_key", None)
-        if k:
-            destroy(k)
-        g.audio.play("metal_clang", vol=0.7, pos=(20, 4, 10), rng=30)
-        land = (20.0, L + 0.06, 10.0)
-
-        def take(gg):
-            self.remove_item("tractor_key")
-            gg.inv.add("tractor_key")
-            self.setf("tractor_key_taken")
-            gg.complete("key")
-        self.item("tractor_key", "tractor_key", land, "Tractor key", "Take the tractor key", take, scale=2.0,
-                  glow=0.4, radius=0.35)
-        g.ui.popup_sub("Clink. The key drops onto the hayloft floor.", 3)
+        self.remove_prop("rafter_key")
+        g.audio.play("metal_clang", vol=0.6, pos=(kx, ky, kz), rng=25)
+        g.inv.add("tractor_key")
+        self.setf("tractor_key_taken")
+        g.complete("key")
+        g.ui.popup_sub("SNAP. You bite through the twine at the top of the hop and come down with the key in your "
+                       "teeth.", 4)
 
     def _jerrycan(self):
         def take(gg):
@@ -1626,10 +1721,11 @@ class DayScripts:
             "Moothagoras wanted to know what the tractor needs. Who's going to look?",
             "The barn's side door, on the west wall, is never locked. Look the tractor over."))
         yield from self.step("d3_parts", self.d3_parts, hint=(
-            "A nail nobody can reach, and a feather on the fuel cap. Where does each one point?",
-            "The key hangs from a nail on a rafter above the hayloft: go up the ramp and knock it down with a "
-            "rock. The diesel's in the chicken run, and Cluckydides guards it. Chuck naps on the porch around "
-            "midday."))
+            "A nail nobody can reach, and a feather on the fuel cap. Cows can't climb, but they can stand on "
+            "things, and they can hop. What could go under the key?",
+            "The key's tied to the rafter over the hayloft. Headbutt the loft crate until it's under the key, hop up "
+            "onto it, then hop again to bite the key off. The diesel's in the chicken run, guarded by "
+            "Cluckydides; Chuck naps on the porch around midday."))
         yield from self.step("d3_trough", self.d3_trough, hint="Archimoodes is waiting at the trough.")
         yield from self.step("d3_sleep", self.sleep_step, hint="Bed. Stall 47.")
         yield from self._run_day(4)
@@ -3205,9 +3301,10 @@ class DayScripts:
             "The fuse marked HOUSE can't be the house, so it's the fence or the shed light: safe either way. If the "
             "light goes out, the fence is the one marked SHED LIGHT. Pull fuses with the pliers."), save=False)
         yield from self.step("d7_tractor", self.d7_tractor, hint=(
-            "He's hunting for whatever killed his freezer. Where will he look, and where won't he?",
-            "Stay out of his flashlight, sneak (C), and get into the barn by the side door. Throw something to send "
-            "him the other way. Once you're driving, keep moving: he can't catch a tractor, only a stopped one."),
+            "A cow can't climb into a tractor. Can a cow fall into one? And where's Chuck looking?",
+            "Sneak into the barn and up the ramp to the hayloft. The railing above the tractor is rickety: headbutt "
+            "it till it goes (it's loud), then step off onto the tractor. Once you're driving, keep moving: he can't "
+            "catch a tractor, only a stopped one."),
                              save=False)
         yield from self.step("d7_boss", self.d7_boss,
                              hint="Dodge his lunges. When the pitchfork sticks in the ground, hit him. When he's out of "
@@ -3369,17 +3466,25 @@ class DayScripts:
         home = (w.tractor.x, w.tractor.z, w.tractor.rotation_y)
         started = {"d": False}
 
-        def start(gg):
-            started["d"] = True
-        g.on("tractor", "Climb in, turn the key, start her up", start,
+        g.on("tractor", "Climb in", lambda gg: gg.examine(
+            "The seat's up there and you're a cow. Cows don't climb. Cows do, however, fall."),
              cond=lambda gg: gg.inv.has("tractor_key") and not started["d"])
         g.on("tractor", "Climb in", lambda gg: gg.examine("No key, no tractor. You can't hotwire it: you're a cow."),
              cond=lambda gg: not gg.inv.has("tractor_key"))
+
+        def landing(dt):
+            # dropped onto the tractor from the hayloft: that's you in the seat
+            if not started["d"] and g.inv.has("tractor_key") and self.on_tractor():
+                started["d"] = True
+                g.ui.popup_sub("You land in the seat. Mostly. Hooves on the pedals, chin on the wheel, and the key "
+                               "goes in.", 4)
+            self.base_update(dt)
         smashed = {"barn": False, "main": False}
         while True:
             started["d"] = False
-            self.objectives(("start", "Get to the tractor"))
+            self.objectives(("start", "Get into the tractor"))
             self.mark((22, 1, "Barn"))
+            self.hook("update", landing)
             yield lambda: started["d"]
             g.complete("start")
             tr = Tractor(g, w.tractor, on_smash=lambda name: smashed.__setitem__(name, True))

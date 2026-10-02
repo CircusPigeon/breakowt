@@ -13,6 +13,8 @@ from . import models
 from .world import in_pond
 
 EYE = 1.42
+STEP_UP = 0.55          # how high a ledge you walk up (a hop adds about half a metre: enough for a crate)
+HOP_VEL = 4.6
 EYE_SNEAK = 0.95
 RADIUS = 0.55
 SNOUT_Y = -0.38
@@ -332,7 +334,8 @@ class Player:
         self.vx += (tvx - self.vx) * k
         self.vz += (tvz - self.vz) * k
         ox, oz = self.x, self.z
-        self.x, self.z = g.phys.move(self.x, self.z, self.vx * dt, self.vz * dt, RADIUS, self.y, 1.5, ignore=self.col)
+        self.x, self.z = g.phys.move(self.x, self.z, self.vx * dt, self.vz * dt, RADIUS, self.y, 1.5, ignore=self.col,
+                                     climb=STEP_UP)
         moved = math.hypot(self.x - ox, self.z - oz)
         self.speed = moved / dt if dt > 0 else 0
         # vertical
@@ -344,6 +347,8 @@ class Player:
                 if self.y_vel < -6:
                     g.audio.play("thump", vol=0.6)
                     self.shake = 0.25
+                elif gh > self.y + 0.05:
+                    self.cam_y -= (gh - self.y)     # caught the top of a crate mid-hop: ease the camera up
                 self.y = gh
                 self.y_vel = 0.0
         else:
@@ -424,8 +429,8 @@ class Player:
     def hop(self):
         if self.hop_cd > 0 or self.y_vel != 0 or self.frozen:
             return
-        self.y_vel = 3.4
-        self.hop_cd = 0.9
+        self.y_vel = HOP_VEL
+        self.hop_cd = 0.5
         self.g.audio.play("boing", vol=0.35, pitch=random.uniform(0.95, 1.1))
         self.g.stats["hops"] = self.g.stats.get("hops", 0) + 1
         self.g.event("hop")

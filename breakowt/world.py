@@ -12,7 +12,8 @@ from panda3d.core import TransparencyAttrib
 from .engine.assets import tex
 from .engine.meshbuilder import MeshBuilder
 from .engine.shading import FARM_SHADER, no_shadow
-from .interact import Interactable
+from .engine.physics import Box
+from .interact import Handler, Interactable
 from . import models
 
 # ---------------------------------------------------------------------------
@@ -230,6 +231,148 @@ class WorldItem:
         destroy(self.ent)
 
 
+TRACTOR_TOP = 1.7          # the hood and the big wheels: what you land on, dropping in from the loft
+LOFT_CRATE = (18.0, 6.0)   # where the loft crate starts (Wednesday: nudge it under the tractor key)
+SHED_CRATE = (-6.5, -20.6)
+RADIO_SPOT = (-4.6, 2.13, -25.42)   # on top of the shed's tall cabinet
+
+
+class Pushable:
+    """A crate a cow can nudge with her head: one step per nudge, in whichever of the four directions she's
+    pushing it. It has a floor on top (hop up onto it), it blocks Chuck's view like any crate, and pushed off a
+    ledge it falls. It can't leave its zone, and if you leave the zone for a couple of seconds it goes back
+    where it started, so a crate wedged in a corner can never strand a puzzle."""
+
+    def __init__(self, world, key, pos, size=(1.0, 0.85, 1.0), texture="wood", name="Crate", zone=None, step=1.0):
+        self.world = world
+        self.key = key
+        self.home = tuple(pos)
+        self.w, self.h, self.d = size
+        self.step = step
+        self.zone = zone
+        w, h, d = size
+        mb = MeshBuilder()
+        mb.box((0, h / 2, 0), (w, h, d), uv_density=0.8)
+        dark = (0.6, 0.47, 0.34, 1)
+        for sy in (0.06, h - 0.06):
+            mb.box((0, sy, 0), (w + 0.02, 0.1, d + 0.02), color=dark, uv_density=0.8)
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                mb.box((sx * (w / 2 - 0.04), h / 2, sz * (d / 2 - 0.04)), (0.1, h, 0.1), color=dark, uv_density=0.8)
+        self.ent = Entity(model=mb.build(), texture=tex(texture), shader=FARM_SHADER)
+        self.col = None
+        self.floor = world.phys.add_floor(0, 0, 0, 0, 0.0, surface="wood")
+        self.anim = None
+        self.away_t = 0.0
+        self.x = self.y = self.z = 0.0
+        self.ia = world.add_ia(key, pos, max(w, d) * 0.55, name, text_key=None,
+                               follow=lambda: (self.x, self.y + self.h * 0.6, self.z))
+        self.ia.text = [f"A {name.lower()}. A good headbutt would shift it. You could hop up onto it (Space), too."]
+        self.ia.on_headbutt = self.nudge_by_player
+        self.ia.handlers.append(Handler("Nudge it", lambda gg: self.nudge_by_player(gg), None, "global"))
+        self.set_pos(*pos)
+
+    def set_pos(self, x, y, z):
+        self.x, self.y, self.z = x, y, z
+        self.ent.position = (x, y, z)
+        self.ent.rotation = (0, 0, 0)
+        ph = self.world.phys
+        if self.col is not None:
+            ph.remove(self.col)
+        self.col = ph.add_box_c(x, z, self.w, self.d, y, y + self.h, tag="climb")
+        f = self.floor
+        f.x0, f.x1, f.z0, f.z1, f.h0 = x - self.w / 2, x + self.w / 2, z - self.d / 2, z + self.d / 2, y + self.h
+
+    def reset(self):
+        self.anim = None
+        self.away_t = 0.0
+        self.set_pos(*self.home)
+
+    def nudge_by_player(self, g):
+        p = g.player
+        if self.anim is not None or p.y > self.y + self.h - 0.3 or p.y < self.y - 0.6:
+            return True     # standing on it (or underneath it): nothing to push against
+        dx, dz = self.x - p.x, self.z - p.z
+        if abs(dx) > abs(dz):
+            dirx, dirz = (1 if dx > 0 else -1), 0
+        else:
+            dirx, dirz = 0, (1 if dz > 0 else -1)
+        if not self.nudge(dirx, dirz):
+            g.audio.play("thump", vol=0.4, pitch=0.7, pos=(self.x, self.y + 0.5, self.z), rng=15)
+            g.ui.popup_sub(random.choice(["It won't go that way.", "Something's in the way.", "Stuck."]), 1.5)
+        return True
+
+    def nudge(self, dirx, dirz):
+        g = self.world.g
+        ph = self.world.phys
+        tx, tz = self.x + dirx * self.step, self.z + dirz * self.step
+        hw, hd = self.w / 2 - 0.04, self.d / 2 - 0.04
+        y = self.y
+        if self.zone and not ph.in_zone(self.zone, tx, tz, y + 0.1):
+            return False
+        self.col.enabled = False
+        self.floor.enabled = False
+        try:
+            # anything in the way at the new spot: walls, other crates, cows, Chuck
+            for s in list(ph.nearby(tx - hw, tx + hw, tz - hd, tz + hd)) + list(ph.dynamic):
+                if not s.enabled or not s.solid or s.y1 <= y + 0.05 or s.y0 >= y + self.h - 0.05:
+                    continue
+                if isinstance(s, Box):
+                    if s.x1 > tx - hw and s.x0 < tx + hw and s.z1 > tz - hd and s.z0 < tz + hd:
+                        return False
+                else:
+                    cx, cz = min(max(s.x, tx - hw), tx + hw), min(max(s.z, tz - hd), tz + hd)
+                    if (s.x - cx) ** 2 + (s.z - cz) ** 2 < s.r * s.r:
+                        return False
+            # what's under the new spot: the same floor, or nothing (it goes over the edge)
+            gh, _ = ph.ground(tx, tz, y + 0.1, step=0.0)
+        finally:
+            self.col.enabled = True
+            self.floor.enabled = True
+        if gh > y + 0.05:
+            return False
+        self.anim = {"t": 0.0, "from": (self.x, self.z), "to": (tx, tz), "fall_to": gh, "vy": 0.0, "fy": y}
+        g.audio.play("wood_crack", vol=0.45, pitch=0.55, pos=(self.x, y + 0.4, self.z), rng=25)
+        g.noise((self.x, y, self.z), 6.0, "push")
+        g.event("push", key=self.key)
+        return True
+
+    def update(self, dt):
+        g = self.world.g
+        a = self.anim
+        if a is not None:
+            if a["t"] < 0.28:
+                a["t"] += dt
+                k = min(1.0, a["t"] / 0.28)
+                e = k * k * (3 - 2 * k)
+                self.ent.x = a["from"][0] + (a["to"][0] - a["from"][0]) * e
+                self.ent.z = a["from"][1] + (a["to"][1] - a["from"][1]) * e
+                if k >= 1.0:
+                    self.set_pos(a["to"][0], self.y, a["to"][1])
+                    if a["fall_to"] >= self.y - 0.05:
+                        self.anim = None
+                return
+            # over the edge: drop, tumbling a little
+            a["vy"] -= 20.0 * dt
+            a["fy"] += a["vy"] * dt
+            self.ent.y = max(a["fall_to"], a["fy"])
+            self.ent.rotation_x += dt * 140
+            if a["fy"] <= a["fall_to"]:
+                self.anim = None
+                self.set_pos(self.x, a["fall_to"], self.z)
+                g.audio.play("crash", vol=0.9, pos=(self.x, self.y + 0.5, self.z), rng=60)
+                g.noise((self.x, self.y, self.z), 18.0, "crash")
+            return
+        if self.zone and (self.x, self.y, self.z) != self.home:
+            p = g.player
+            if g.phys.in_zone(self.zone, p.x, p.z, p.y):
+                self.away_t = 0.0
+            else:
+                self.away_t += dt
+                if self.away_t > 2.0:
+                    self.reset()
+
+
 class World:
     def __init__(self, game):
         self.g = game
@@ -239,6 +382,7 @@ class World:
         self.entities: list[Entity] = []
         self.doors: dict[str, Door] = {}
         self.items: dict[str, WorldItem] = {}
+        self.pushables: dict[str, Pushable] = {}
         self.props: dict[str, Entity] = {}
         self.colliders: dict[str, object] = {}
         self.nav_nodes: list[tuple] = []
@@ -864,6 +1008,13 @@ class World:
         self.add_ia("poster", (-6.5, 1.6, z0 + 0.15), 0.5, "Poster")
         # shelves on south wall
         self.box("wood", (-6.4, 1.0, z0 + 0.35), (2.2, 0.06, 0.5))
+        # a tall metal cabinet in the corner: what's on top of it is out of a cow's reach, from the floor
+        cx_, cy_, cz_ = RADIO_SPOT
+        self.box("white", (cx_, 1.0, cz_), (0.85, 2.0, 0.85), color=(0.45, 0.48, 0.5, 1), collide=True)
+        self.mb("white").box((cx_, 1.0, cz_ + 0.43), (0.02, 1.9, 0.8), color=(0.38, 0.4, 0.42, 1))
+        self.add_ia("cabinet", (cx_, 1.2, cz_ + 0.3), 0.5, "Tall cabinet", text_key=None).text = [
+            "A tall metal cabinet. Whatever Chuck keeps on top of it, he keeps it away from anything without thumbs. "
+            "Or without a step."]
         self.lamp("shed", (-8, 2.7, -22), radius=7, intensity=1.0, on=True, hang_to=3.0)
         self.spawns["shed_in"] = (-7.5, 0, -22, 90)
         self.spawns["shed_back"] = (-14.5, 0, -22.2, 90)
@@ -903,13 +1054,27 @@ class World:
         self.mb("floorboards").box(((x0 + x1) / 2, LOFT_Y - 0.15, (4 + z1) / 2), (x1 - x0 - 0.3, 0.3, z1 - 4),
                                    uv_density=0.5)
         self.phys.add_floor(x0, x1, 4, z1, LOFT_Y, surface="hay")
-        for px in (16, 22, 28):
+        for px in (16, 18.6, 25.4, 28):
             self.box("wood_dark", (px, LOFT_Y / 2, 4.1), (0.3, LOFT_Y, 0.3), collide=True)
-        # railing along the loft edge (gap at the ramp top)
-        self.box("wood", ((x0 + 29.3) / 2, LOFT_Y + 0.9, 4.1), (29.3 - x0, 0.1, 0.1))
-        for px in range(11, 29, 2):
+        # railing along the loft edge (gap at the ramp top). The stretch over the tractor (x 19-25) is
+        # Chuck's repair job, held with baling twine: headbutt it and it gives (see DayScripts._loft_rail)
+        for ra, rb in ((x0, 19.0), (25.0, 29.3)):
+            self.box("wood", ((ra + rb) / 2, LOFT_Y + 0.9, 4.1), (rb - ra, 0.1, 0.1))
+            self.phys.add_box(ra, rb, 3.95, 4.25, LOFT_Y - 0.1, LOFT_Y + 1.2, sight=False)
+        for px in [11, 13, 15, 17, 26, 28]:
             self.box("wood", (px, LOFT_Y + 0.45, 4.1), (0.08, 0.9, 0.08))
-        self.phys.add_box(x0, 29.3, 3.95, 4.25, LOFT_Y - 0.1, LOFT_Y + 1.2, sight=False)
+        rm = MeshBuilder()
+        rm.box((0, 0.9, 0), (6.0, 0.1, 0.1), color=(0.85, 0.78, 0.66, 1), rot=(0, 0, 1.5))
+        rm.box((0, 0.5, 0), (6.0, 0.08, 0.08), color=(0.8, 0.72, 0.6, 1), rot=(0, 0, -1))
+        for k, px in enumerate((-2.2, -0.8, 0.6, 2.0)):
+            rm.box((px, 0.45, 0), (0.08, 0.9, 0.08), color=(0.85, 0.78, 0.66, 1), rot=(0, 0, (-4, 3, -2, 5)[k]))
+        for px in (-1.5, 1.3):
+            rm.box((px, 0.9, 0), (0.14, 0.16, 0.14), color=(0.92, 0.85, 0.45, 1))
+        self.loft_rail = Entity(model=rm.build(), texture=tex("wood"), shader=FARM_SHADER, position=(22, LOFT_Y, 4.1))
+        self.colliders["loft_rail"] = self.phys.add_box(19.0, 25.0, 3.95, 4.25, LOFT_Y - 0.1, LOFT_Y + 1.2, sight=False)
+        self.add_ia("loft_rail", (22, LOFT_Y + 0.6, 4.1), 1.2, "Railing", text_key=None).text = [
+            "This stretch of railing is held together with baling twine and optimism. It wobbles when you look at "
+            "it. Right below it is the tractor."]
         # ramp up the east side
         rx0, rx1, rz0, rz1 = 29.5, 33.4, -6.0, 4.0
         L = math.hypot(rz1 - rz0, LOFT_Y)
@@ -2177,9 +2342,15 @@ class World:
         self.add_ia("main_gate", (0, 1.0, GATE_Z - 0.3), 1.5, "Main gate")
         # tractor (parked in the barn)
         self.tractor = models.tractor_model(position=(22, 0, 1), rotation_y=180)
-        self.colliders["tractor"] = self.phys.add_box_c(22, 1.2, 2.4, 4.4, 0, 2.6)
+        self.colliders["tractor"] = self.phys.add_box_c(22, 1.2, 2.4, 4.4, 0, TRACTOR_TOP, tag="climb")
+        self.tractor_floor = self.phys.add_floor(20.8, 23.2, -1.0, 3.4, TRACTOR_TOP, surface="wood")
         self.add_ia("tractor", (22, 1.4, 1.5), 1.6, "Tractor", reach=3.0,
                     follow=lambda: (self.tractor.x, 1.4, self.tractor.z))
+        # crates to nudge about: one in the shed, one in the hayloft
+        self.pushables["shed_crate"] = Pushable(self, "shed_crate", (SHED_CRATE[0], 0.0, SHED_CRATE[1]),
+                                                zone="shed")
+        self.pushables["loft_crate"] = Pushable(self, "loft_crate", (LOFT_CRATE[0], LOFT_Y, LOFT_CRATE[1]),
+                                                zone="loft")
         # the plant's back door (locked: a keypad)
         self.doors["plant_back"] = Door(self, "plant_back", (PROC[1] + 0.2, PLANT_BACK - 0.7), 1.4, along="z",
                                         sign=1, height=2.25, texture="metal", open_angle=100)
@@ -2340,6 +2511,8 @@ class World:
         self.windmill_rotor.rotation_z += dt * 40
         self.pond.set_shader_input("texture_offset", (self.t * 0.01, self.t * 0.006))
         self.chimes.rotation_z = math.sin(self.t * 1.3) * 4
+        for pb in self.pushables.values():
+            pb.update(dt)
 
 
 def _seg_hits_box(a, b, box, r=0.0):

@@ -100,6 +100,20 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **Crates and hops** (the player's idea: nudging boxes and simple parkour). `world.Pushable`: a crate you
+  headbutt (or E) one step along whichever of the four directions you're pushing it; blocked by walls, other
+  crates, cows and Chuck; it can't leave its zone, falls off ledges, and goes back home if you leave its zone
+  for two seconds (so a wedged crate never strands a puzzle). It has a floor on top. Physics: boxes tagged
+  `"climb"` stop blocking a walker once their top is within `climb` of its feet (`Physics.resolve`), and the
+  player passes `STEP_UP` (0.55); a hop (`HOP_VEL` 4.6, about half a metre) gets you onto a 0.85 m crate but
+  not onto the 1.7 m tractor or over a fence. The three puzzles, in teaching order:
+  Tuesday, Chuck's radio is on top of a tall cabinet in the shed (`RADIO_SPOT`): push the shed crate over and
+  stand on it. Wednesday, the tractor key is tied to the hayloft rafter (`KEY_SPOT`, rocks just bounce off):
+  push the loft crate under it, hop on, and hop again; at the top of the hop your head's by the key and you
+  bite it off (`_rafter_grab`). Sunday, you can't climb into the tractor: break the rickety stretch of loft
+  railing above it (`_loft_rail`, two headbutts or one at a gallop, loud: noise 22) and step off onto it
+  (`on_tractor`, the tractor's top is a floor at `TRACTOR_TOP`). Landing on the tractor any other time slides
+  you off the hood. The loft posts moved to clear the drop (16, 18.6, 25.4, 28).
 - **The argument** (the player asked for real positions, not philosopher catchphrases). Monday, Moocrates
   asks why Chuck is allowed to do it, and each friend answers from their own philosophy; at the meeting she
   takes every answer apart: Heifercleitus' "the river only runs one way" (but everything flows), Epicowrus'
@@ -245,6 +259,10 @@ hand-holding, no sentimentality.
 - New sounds are generated on launch without a version bump (assets fill in missing files).
 
 ### Verified
+- Crates and hops: `--day 1 --to 7 --caught all --detect`, `--day 2 --to 3 --resume` and `--day 7 --to 7
+  --resume` pass. The bot does each puzzle for real (headbutt pushes from behind the crate, a real hop with W
+  held, the hop-grab, two headbutts on the railing, walking off the loft edge). A drop onto the tractor on a
+  weekday slides you off; navcheck is clean.
 - Greek names + fuse box: `--day 1 --to 7 --detect` passes; the bot pulls the fuse marked HOUSE first and
   reasons from what happens. A scratch test pulled the real house fuse: Chuck got up, walked into the shed,
   put it back, carried on patrolling, and the fence fuse then ended the step.
