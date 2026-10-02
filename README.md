@@ -17,7 +17,7 @@ time you run it. There are no asset downloads.
 
 ## Download
 
-The repository is private, so you need to have been given access on GitHub. Then either:
+Either:
 
 - **With git:**
   ```
