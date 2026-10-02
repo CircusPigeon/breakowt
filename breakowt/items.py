@@ -18,7 +18,7 @@ ITEMS = {
               "leave it alone: he'll come and turn it off. Pick it up again after.", "radio", False, False, True),
     "glasses": ("Spare Reading Glasses", "Chuck's backup glasses. +2.5. Somebody nerdy would love these.", "glasses",
                 False, False, True),
-    "bucket": ("Rusty Bucket", "A rusty bucket. Moogenes would call it a helm. Moogenes calls a lot of things a helm.",
+    "bucket": ("Rusty Bucket", "A rusty bucket. Moogenes wants a home nobody can sell him. He isn't fussy about the size.",
                "bucket", False, False, True),
     "boot": ("Chuck's Rubber Boot", "Size 13. Rubber doesn't conduct electricity. Also: [R] to throw it. It lands "
              "like a dead goose.", "boot", False, True, True),
@@ -34,7 +34,7 @@ ITEMS = {
     "house_key": ("Spare House Key", "Found inside a garden gnome, as all keys eventually are. Opens the front door.",
                   "house_key", False, False, False),
     "score": ("Moobius's Proof", "The Escape Theorem, in pencil on the back of Chuck's planner. Eleven lines. The "
-              "last one says 'QED (47)'. [Q] to read it out: the whole herd starts arguing about step four, loudly, "
+              "last says 'QED', and beside it, very small, '12'. [Q] to read it out: the whole herd starts arguing about step four, loudly, "
               "and Chuck stomps over to the pasture to shut them up.", "score", False, False, True),
     "photo": ("Photo of Big Earl", "'Me & Big Earl, Best in Show 2009.' Heifercleitus should have this.", "photo", False,
               False, True),
@@ -52,8 +52,10 @@ ITEMS = {
               "looking.", "shoes", False, True, True),
     "cabinet_key": ("Gun Cabinet Key", "Small and brass. Opens Chuck's gun cabinet: just walk up to it.",
                     "cabinet_key", False, False, False),
-    "shotgun": ("Shotgun ('Ol' Bessie')", "Ol' Bessie, two shells in her. [Q] fires. You carry her very carefully.",
-                "shotgun", False, False, True),
+    "shotgun": ("Shotgun ('Ol' Bessie')", "Ol' Bessie. [Q] fires, if you've found her any shells. You carry her "
+                "very carefully.", "shotgun", False, False, True),
+    "shells": ("Shotgun Shells", "Shells for Ol' Bessie. Chuck hid them from himself. [Q] with Bessie fires one.",
+               "shells", True, False, False),
     "plank": ("Plank", "A long plank. Three of these could bridge a cattle grid.", "plank", True, False, True),
     "chimes": ("Wind Chimes", "Seashells on strings.", "chimes", False, False, True),
 }

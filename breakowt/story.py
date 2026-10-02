@@ -38,31 +38,35 @@ def save_has_progress(save):
 
 SHOP = [
     # key, label, price, description
-    ("rock_pouch", "Rock Pouch", 2, "Carry six rocks instead of three."),
+    ("rock_pouch", "Rock Pouch", 2, "Carry six rocks instead of three. Yours to keep, every playthrough."),
     ("rubber_chicken", "Rubber Chicken", 3, "Squeaky, throwable, and it doesn't conduct electricity."),
     ("moustache", "Fake Moustache", 4, "Wear it with a straw hat and Chuck will think you're Dale. Walk, don't run."),
     ("coffee", "Suspiciously Strong Coffee", 2, "Gallop twice as long for the rest of the day. Drink it here."),
     ("tincan", "Mysterious Tin Can", 5, "No refunds."),
+    ("shells", "Two Shotgun Shells", 6, "For a gun you don't have yet. Epicowrus doesn't ask what for."),
 ]
+# bought again each time (the rest are yours for good, and come with you into the next playthrough)
+CONSUMABLE = ("coffee", "shells")
 
 HERD_LINES = [
     "Moo. (The grass by the fence tastes the same as the other grass. I keep checking. That's empiricism.)",
     "Moo. (If a cow is raised to be eaten and knows it, is she livestock or a tragic hero? Asking for me.)",
     "Moo. (Chuck scratched my ears yesterday, then looked at my rump for a really long time. Kindness with an "
     "invoice.)",
-    "Moo. (I stare at the pond and the pond doesn't stare back. Nietzsche was wrong. The abyss is busy.)",
+    "Moo. (I stare at the pond and the pond doesn't stare back. I'm told that's a relief. I'm told a lot of things.)",
     "Moo. (Four stomachs. I've processed more than any philosopher alive. Mostly grass. Some regret.)",
     "Moo. (Moogenes says he's descended from royalty. So is everyone, if you go back far enough. Also from "
     "bacteria.)",
-    "Moo. (The hens say the rooster read Sun Tzu. The hens have never read anything. The hens are an oral "
-    "tradition.)",
+    "Moo. (The rooster's writing a history of the coop. Eight volumes. The hens are in none of them. The hens "
+    "are an oral tradition.)",
     "Moo. (I'm going to stand here, then over there. Zeno says I'll never arrive. Zeno never met a salt lick.)",
     "Moo. (Epicowrus sold me a 'Golden Clover'. It was a regular clover, painted. Value is a shared "
     "hallucination.)",
     "Moo. (If you see Clarabelle, tell her she owes me a salt lick and an apology. She knows why. She doesn't "
     "know anything else.)",
-    "Moo. (I heard the truck on Thursday. I pretended I didn't. Denial is underrated. It's how everyone gets up "
-    "in the morning.)",
+    "Moo. (The truck comes, someone goes, the grass grows back. It's like weather. You don't argue with weather. "
+    "...Do you?)",
+    "Moo. (Chuck counted us last night. It's nice to be counted. It means you matter. Numerically.)",
     "Moo. (There's a fly on my back. I know. It knows I know. We're in a standoff of mutual awareness.)",
     "Moo. (My mother said 'you are what you eat'. Then she got eaten. The syllogism was grim for everyone.)",
     "Moo. (Chuck calls us 'the girls'. Then 'the inventory'. The distance between those words is the whole "
@@ -134,7 +138,20 @@ class Story(DayScripts):
     def new_game(self, day=1):
         self.reset_run()
         self.canon_before(day)
+        self.apply_owned()
         self._leave_title(lambda: self.start_day(day))
+
+    def apply_owned(self):
+        """Things bought from Epicowrus in any playthrough come with you (unless this run already has them)."""
+        g = self.g
+        for k in g.moodals.owned():
+            if k in CONSUMABLE or self.flags.get(f"shop_{k}"):
+                continue
+            self.setf(f"shop_{k}")
+            if k == "rock_pouch":
+                self.setf("rock_pouch")
+            elif k in ITEMS:
+                g.inv.add(k, silent=True)
 
     def continue_game(self):
         d = self.g.load_save()
@@ -168,6 +185,7 @@ class Story(DayScripts):
     def load_from_save(self, d):
         self.reset_run()
         self.g.apply_save(d)
+        self.apply_owned()
         self.start_day(int(d.get("day", 1)))
 
     def start_day(self, n):
@@ -466,6 +484,7 @@ class Story(DayScripts):
         self.cur = key
         self.cur_cheat = cheat
         self.hint_text = hint
+        self.hint_level = 0
         self.hooks = {}
         res = yield from fn()
         self.setf(key)
@@ -618,7 +637,13 @@ class Story(DayScripts):
             h = fn()
             if h:
                 return h
-        return self.hint_text or "Nothing to do right now but chew. Talk to the others, or explore."
+        h = self.hint_text
+        if isinstance(h, (tuple, list)):
+            # tiered: a nudge first, then (asked again) more of the answer
+            lvl = min(getattr(self, "hint_level", 0), len(h) - 1)
+            self.hint_level = lvl + 1
+            return h[lvl] + ("  [H again for more]" if lvl < len(h) - 1 else "")
+        return h or "Nothing to do right now but chew. Talk to the others, or explore."
 
     def markers(self):
         return list(self.marks)
@@ -679,22 +704,31 @@ class Story(DayScripts):
     def side_quest_talk(self, key):
         """Handing over favors. Returns True if something happened."""
         g = self.g
+        if key == "cowleen" and self.flags.get("ledger_read") and not self.flags.get("ledger_told"):
+            self.flags["ledger_told"] = True
+            yield from g.talk([
+                ("cowleen", "You went inside the plant? ...What's in there?"),
+                ("you", "Moo. (A book. We're all in it. Number, weight, grade. No names.)"),
+                ("cowleen", "No. There wouldn't be. You don't name what you're going to weigh."),
+                ("cowleen", "We name each other, though. We always have. I used to think it was just a habit."),
+                ("cowleen", "Now I think it might be the only thing on this farm that isn't on their side."),
+            ])
+            return True
         if key == "sirloin" and g.inv.has("bucket") and not self.done("sq_helm"):
             g.inv.remove("bucket")
             self.setf("sq_helm")
             g.cows["sirloin"].model.set_acc("bucket")
             g.audio.play("metal_clang", vol=0.8)
             yield from g.talk([
-                ("sirloin", "Is that... a helm? For me?"),
-                ("you", "Moo. (It's a bucket.)"),
-                ("sirloin", "A thing is what it's used for. Wittgenstein. Meaning is use. I use it as a helm; "
-                            "therefore it is a helm. Checkmate, bucket."),
-                ("sirloin", "Kneel, Forty-Seven. Well. Stand. We're cows. Our knees bend the wrong way for "
-                            "ceremony."),
-                ("sirloin", "I dub thee Dame Forty-Seven of the Pasture. Titles are fictions, but so is 'livestock', "
-                            "and theirs came with a slaughterhouse. Ours comes with a bucket."),
+                ("sirloin", "A bucket. For me?"),
+                ("you", "Moo. (You wanted a home nobody could sell.)"),
+                ("sirloin", "Everything Chuck owns, he can sell. The field. The barn. Us. But nobody in history has "
+                            "ever sold a bucket with a cow in it. The market won't touch it."),
+                ("sirloin", "There. I live in it now."),
+                ("you", "Moo. (It's on your head.)"),
+                ("sirloin", "A house is a thing you live in. I live in this. Show me the flaw."),
                 ("you", "Moo. (You're going to walk into the fence wearing that.)"),
-                ("sirloin", "A knight does not walk into fences. A knight is walked into BY fences."),
+                ("sirloin", "Then the fence will learn something about property."),
                 ("sirloin", "...It smells like old paint and Chuck's feet. I've never been happier. Happiness is "
                             "very stupid and I recommend it."),
             ])
@@ -743,24 +777,31 @@ class Story(DayScripts):
         g = self.g
         done = {"d": False}
 
+        def owned(k):
+            if k == "coffee":
+                return bool(self.flags.get("coffee"))
+            if k in CONSUMABLE:
+                return False
+            return k in g.moodals.owned() or self.done(f"shop_{k}")
+
         def entries():
             out = []
             for key, label, price, desc in SHOP:
-                owned = self.done(f"shop_{key}")
-                out.append((key if key != "rock_pouch" else "rock", label, price, desc, owned))
+                out.append((key if key != "rock_pouch" else "rock", label, price, desc, owned(key)))
             return out
 
         def buy(key):
             k = "rock_pouch" if key == "rock" else key
             price = next(p for kk, _, p, _ in SHOP if kk == k)
-            if self.done(f"shop_{k}"):
+            if owned(k):
                 return
             if g.clovers() < price:
                 g.audio.play("blip_lo", vol=0.5)
                 g.ui.toast("Not enough Golden Clovers. Earn Moo-dals.")
                 return
-            g.flags["clovers_spent"] = g.flags.get("clovers_spent", 0) + price
-            self.setf(f"shop_{k}")
+            g.moodals.spend(price, k, keep=k not in CONSUMABLE)
+            if k not in CONSUMABLE:
+                self.setf(f"shop_{k}")
             g.stats["bought"] = g.stats.get("bought", 0) + 1
             g.audio.play("clover", vol=0.6)
             if k == "rock_pouch":
@@ -769,6 +810,8 @@ class Story(DayScripts):
             elif k == "coffee":
                 self.setf("coffee")
                 g.ui.toast("You drink it on the spot. Gallop for longer today.", "coffee")
+            elif k == "shells":
+                g.inv.add("shells", 2)
             else:
                 g.inv.add(k)
             g.refresh_hotbar()
@@ -780,7 +823,7 @@ class Story(DayScripts):
             done["d"] = True
 
         def reopen():
-            g.ui.open_shop("MOORIARTY'S", entries(), g.clovers(), buy, close)
+            g.ui.open_shop("THE GARDEN", entries(), g.clovers(), buy, close)
 
         yield from g.talk([("mooriarty", random.choice([
             "Psst. Over here. Take a look. Don't touch unless you're buying.",
@@ -930,7 +973,7 @@ class Story(DayScripts):
         r = Entity(parent=g.ui.root, z=-0.95)
         self.credits_root = r
         for text in self.epilogue_lines():
-            t = txt(r, text, 0, 0.02, 1.35, CREAM, origin=(0, 0), wrap=54)
+            t = txt(r, text, 0, 0.02, 1.35, CREAM, origin=(0, 0), wrap=54, font=g.ui.fonts.get("serif"))
             t.color = C(1, 1, 1, 0)
             for k in range(24):
                 t.color = C(0.98, 0.95, 0.86, k / 23)
@@ -944,17 +987,29 @@ class Story(DayScripts):
         self.credits_root = None
 
     def epilogue_lines(self):
-        out = ["The herd crossed the county line by noon. The rooster rode the bull. Nobody was counted."]
+        out = ["The herd crossed the county line by noon. The rooster rode the bull. Nobody counted them."]
+        if self.done("chuck_shot"):
+            out.append("Chuck's funeral fund raised eleven dollars. All from Dale.")
+        else:
+            out.append("Chuck kept the farm. He grows soybeans now, and says it's for the money. He has never once "
+                       "been good with money.")
         if self.done("dale_cancelled"):
             out.append("Dale never got over the potato salad email.")
         else:
             out.append("Dale waited on the porch till four, then ate the potato salad alone.")
-        out.append("Chuck's funeral fund raised eleven dollars. All from Dale.")
         if self.done("sq_helm"):
-            out.append("Moogenes still wears the bucket.")
+            out.append("Moogenes still lives in the bucket.")
         if self.done("sq_specs"):
-            out.append("Moothagoras named a star after Moobius. It's a satellite. Moobius would have checked.")
+            out.append("Moothagoras found a star he was sure was Moobius. It's a satellite. He checked.")
         if self.done("sq_photo"):
             out.append("Heifercleitus tells the calves Big Earl fought a bear. He did not.")
-        out.append("Somebody should still buy milk.")
+        if self.done("ledger_read"):
+            out.append("The ledger at Happy Acres has room for four hundred more lines. Nobody has written in it "
+                       "since.")
+        out += [
+            "None of this happened, of course. Cows can't do geometry, or read email, or hold a funeral.",
+            "They can be afraid. They know one another apart. A cow whose calf is taken will call for it for days.",
+            "Moocrates would want to know which of those things was supposed to be the reason.",
+            "Somebody should still buy milk.",
+        ]
         return out

@@ -37,6 +37,8 @@ MOODALS = [
     ("dale_3", "Master of Disguise", "Get mistaken for Dale three times.", 2, True),
     ("personal_space", "Personal Space", "Stay within 4 m of Chuck for 10 s where you shouldn't be, unnoticed.", 2, False),
     ("scarecrow", "Take That, Cardboard Chuck", "Headbutt Cardboard Chuck.", 1, False),
+    ("ledger", "Due Diligence", "Read the intake ledger at Happy Acres.", 2, True),
+    ("deer", "Do Not Shake", "Get the ammo tin down from Chuck's deer stand.", 1, True),
     ("all", "Moo-dal of Honor", "Earn every other Moo-dal.", 5, False),
 ]
 BY_ID = {m[0]: m for m in MOODALS}
@@ -59,7 +61,7 @@ class Moodals:
     def __init__(self, g):
         self.g = g
         self.path = SAVE_DIR / "moodals.json"
-        self.data = {"unlocked": {}, "counters": {}, "sets": {}}
+        self.data = {"unlocked": {}, "counters": {}, "sets": {}, "purse": {}}
         self._dirty = False
         self._save_t = 0.0
         self._near_chuck = 0.0
@@ -70,7 +72,7 @@ class Moodals:
     def load(self):
         try:
             d = json.loads(self.path.read_text())
-            for k in ("unlocked", "counters", "sets"):
+            for k in ("unlocked", "counters", "sets", "purse"):
                 if isinstance(d.get(k), dict):
                     self.data[k] = d[k]
         except (OSError, ValueError):
@@ -89,6 +91,35 @@ class Moodals:
 
     def count_unlocked(self):
         return sum(1 for m in self.data["unlocked"] if m in BY_ID)
+
+    def purse(self):
+        """Golden Clovers to spend: what your Moo-dals have paid out, plus any you've found, less what
+        Epicowrus has had off you. All of it lives in the profile, so it carries across playthroughs."""
+        pu = self.data["purse"]
+        return max(0, self.total_reward() + int(pu.get("found", 0)) - int(pu.get("spent", 0)))
+
+    def spend(self, n, key=None, keep=True):
+        pu = self.data["purse"]
+        pu["spent"] = int(pu.get("spent", 0)) + n
+        if key and keep and key not in pu.setdefault("owned", []):
+            pu["owned"].append(key)
+        self.save()
+
+    def owned(self):
+        return list(self.data["purse"].get("owned", []))
+
+    def find_clover(self, cid):
+        pu = self.data["purse"]
+        got = pu.setdefault("clovers", [])
+        if cid in got:
+            return False
+        got.append(cid)
+        pu["found"] = int(pu.get("found", 0)) + 1
+        self.save()
+        return True
+
+    def clover_found(self, cid):
+        return cid in self.data["purse"].get("clovers", [])
 
     def total_reward(self):
         """Golden Clovers every Moo-dal you hold has paid out (they're the only way to get any)."""
@@ -177,7 +208,7 @@ class Moodals:
                 self.unlock("cookbook")
             elif key == "trough":
                 self.count("trough")
-        elif name in ("bonk", "frogs", "owl", "scarecrow"):
+        elif name in ("bonk", "frogs", "owl", "scarecrow", "ledger", "deer"):
             self.unlock(name)
         elif name == "day_start":
             n = kw.get("day", 0)

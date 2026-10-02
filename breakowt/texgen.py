@@ -1142,6 +1142,42 @@ def icon_clover():
     return img
 
 
+def icon_shells():
+    img, d = _icon()
+    for x0 in (22, 50):
+        d.rectangle([x0, 22, x0 + 22, 64], fill=(190, 35, 30), outline=OUT, width=3)
+        d.rectangle([x0, 62, x0 + 22, 80], fill=(215, 175, 70), outline=OUT, width=3)
+    return img
+
+
+def icon_ammo_tin():
+    img, d = _icon()
+    d.rectangle([12, 34, 84, 76], fill=(80, 95, 55), outline=OUT, width=4)
+    d.rectangle([10, 28, 86, 38], fill=(65, 80, 45), outline=OUT, width=3)
+    d.rectangle([38, 50, 58, 60], fill=(230, 215, 80))
+    return img
+
+
+def tex_sign_deerstand():
+    img = Image.new("RGB", (256, 184), (150, 115, 70))
+    d = ImageDraw.Draw(img)
+    for y in range(0, 184, 46):
+        d.line([(0, y), (256, y)], fill=(120, 90, 55), width=3)
+    centered(d, (8, 8, 248, 176), "DEER STAND\nDO NOT SHAKE\n-C", font(IMPACT, 40), (245, 240, 225), spacing=2)
+    return img
+
+
+def tex_plant_board():
+    img = Image.new("RGB", (768, 320), (245, 245, 240))
+    d = ImageDraw.Draw(img)
+    d.rectangle([6, 6, 761, 313], outline=(30, 120, 60), width=10)
+    centered(d, (20, 20, 748, 110), "THIS PLANT HAS GONE", font(BOLD, 44), (40, 40, 40))
+    d.rectangle([254, 118, 514, 214], fill=(25, 25, 25))
+    centered(d, (254, 118, 514, 214), "4,212", font(IMPACT, 80), (240, 220, 60))
+    centered(d, (20, 222, 748, 300), "DAYS WITHOUT AN INCIDENT", font(BOLD, 44), (40, 40, 40))
+    return img
+
+
 def icon_heart(full=True):
     img, d = _icon()
     col = (220, 50, 50) if full else (60, 40, 40)
@@ -1252,6 +1288,7 @@ ICONS = {
     "clover": icon_clover, "egg": icon_egg, "pencil": icon_pencil, "horseshoe": icon_horseshoe,
     "coffee": icon_coffee, "tincan": icon_tincan, "shoes": icon_shoes, "hat": icon_hat, "wrench": icon_wrench,
     "chimes": icon_chimes, "heart": icon_heart, "heart_empty": lambda: icon_heart(False),
+    "shells": icon_shells, "ammo_tin": icon_ammo_tin,
 }
 
 
@@ -1308,6 +1345,9 @@ def all_textures():
         "sticky_password": lambda: tex_sticky("PASSWORD HINT:\nmy best friend\n(NOT Dale)", (255, 200, 220)),
         "sticky_mat": lambda: tex_sticky("Spare key is\nunder the\nFLOWERPOT", (200, 240, 255)),
         "sticky_pot": lambda: tex_sticky("Moved it.\nSpare key is in\nthe GNOME.\n-Chuck", (200, 255, 200)),
+        "sticky_keypad": lambda: tex_sticky("BACK DOOR CODE:\nthe year of the\nbest day of\nmy life! -C",
+                                            (255, 225, 160)),
+        "sign_deerstand": tex_sign_deerstand, "plant_board": tex_plant_board,
         "trophy_plaque": tex_trophy_plaque, "poster_employee": tex_poster_employee, "photo_earl": tex_photo_earl,
         "tv": tex_tv, "monitor": tex_monitor_login, "monitor_inbox": tex_monitor_inbox, "calendar": tex_calendar,
         "cookbook": tex_cookbook, "wall_living": tex_wall_living, "wall_kitchen": tex_wall_kitchen,

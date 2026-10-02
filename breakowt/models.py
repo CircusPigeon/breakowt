@@ -769,6 +769,16 @@ def item_model(name, parent=None, **kw):
         mb.cylinder((0, 0.02, 0), 0.16, 0.14, color=(0.9, 0.78, 0.48, 1), segs=10)
     elif name == "wrench":
         mb.box((0, 0, 0), (0.03, 0.02, 0.24), color=METAL, uv_rect=WHITE)
+    elif name == "ammo_tin":
+        mb.box((0, 0, 0), (0.44, 0.26, 0.22), color=(0.36, 0.48, 0.22, 1), uv_rect=WHITE)
+        mb.box((0, 0.14, 0), (0.46, 0.04, 0.24), color=(0.3, 0.4, 0.18, 1), uv_rect=WHITE)
+        mb.box((0, 0.18, 0), (0.15, 0.04, 0.04), color=DARK, uv_rect=WHITE)
+        for sz in (-0.112, 0.112):
+            mb.box((0, 0.02, sz), (0.22, 0.08, 0.005), color=(0.95, 0.85, 0.25, 1), uv_rect=WHITE)
+    elif name == "shells":
+        for k in (-0.035, 0.035):
+            mb.cylinder((k, 0, 0), 0.028, 0.11, color=(0.75, 0.12, 0.1, 1), segs=8, rot=(90, 0, 0))
+            mb.cylinder((k, 0, -0.07), 0.03, 0.03, color=(0.85, 0.7, 0.3, 1), segs=8, rot=(90, 0, 0))
     elif name == "clover":
         G = (1.0, 0.82, 0.15, 1)
         for k in range(3):

@@ -18,7 +18,7 @@ RADIUS = 0.55
 SNOUT_Y = -0.38
 
 MOO_THOUGHTS = [
-    "Moo. (A sound with no referent. Wittgenstein would be furious.)",
+    "Moo. (A sound with no referent. Somewhere a sophist is charging for this.)",
     "Moo. (Nobody answered. The universe is indifferent. Same as yesterday.)",
     "Moo. (Louder than intended. Like most of my existence.)",
     "Moo. (I think, therefore I am. Chuck thinks, therefore I'm lunch.)",
@@ -26,7 +26,7 @@ MOO_THOUGHTS = [
     "Moo. (Four stomachs, one existential crisis.)",
     "Moo. (Proof by moo: I mooed, therefore a moo exists. Tight.)",
     "Moo. (Moobius would say that was statistically insignificant.)",
-    "Moooo. (That one was for Big Earl. Nine hundred pounds of dignity, served on a bun.)",
+    "Moooo. (That one was for Big Earl. Two thousand pounds of dignity, served on a bun.)",
     "Moo. (Chuck, if you can hear this: the answer is no.)",
 ]
 

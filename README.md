@@ -93,7 +93,10 @@ In the tractor: W/S throttle, A/D steer.
   their own; anything on the hotbar is used with Q or thrown with R.
 - **Moo-dals** are the game's achievements, for fooling around as much as for escaping. See them from the
   pause menu or the title screen. They carry over between playthroughs, and each one pays out **Golden
-  Clovers**, the only currency Mooriarty (behind the hay bales in the pasture) accepts.
+  Clovers**, the only currency Epicowrus (behind the hay bales in the pasture) accepts. A few clovers also
+  grow somewhere on the farm, where nobody's looked. Anything you buy from him stays yours in later
+  playthroughs (except the coffee and the shells, which get used up).
+- **Stuck?** Press H. Moocrates answers with a question first; press H again for a straighter answer.
 - **Settings** (on the title screen or pause menu): volumes, mouse sensitivity, invert Y, fullscreen, and
   **Graphics** Low / Medium / High. On a slower laptop, pick Low.
 

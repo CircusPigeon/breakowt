@@ -499,6 +499,26 @@ class UI:
             txt(sheet, body, -w / 2 + 0.11, h / 2 - 0.135, s, ink, wrap=wr, font=hand)
             foot_col = C(0.85, 0.82, 0.75, 1)
             foot_y = -h / 2 - 0.04
+        elif style == "ledger":
+            # a printout on green-bar paper: the plant's paperwork, in a typewriter face
+            w, h = 1.06, 0.88
+            sheet = Entity(parent=r, rotation_z=0.6)
+            Entity(parent=sheet, model="quad", color=C(0, 0, 0, 0.35), scale=(w, h), position=(0.014, -0.016, 0.06))
+            Entity(parent=sheet, model="quad", color=C(0.97, 0.97, 0.94, 1), scale=(w, h), z=0.05)
+            for k in range(0, 10):
+                Entity(parent=sheet, model="quad", color=C(0.55, 0.8, 0.6, 0.28), scale=(w - 0.1, 0.036),
+                       y=h / 2 - 0.17 - k * 0.072, z=0.045)
+            for sx in (-1, 1):
+                for k in range(16):
+                    Entity(parent=sheet, model="circle", color=C(0.82, 0.82, 0.8, 1), scale=0.018,
+                           position=(sx * (w / 2 - 0.022), h / 2 - 0.04 - k * 0.054, 0.044))
+            ink = C(0.15, 0.15, 0.17, 1)
+            mono = self.fonts.get("mono") or body_f
+            txt(sheet, title, -w / 2 + 0.07, h / 2 - 0.04, 1.2, ink, font=mono)
+            s, wr = self._fit(body, w - 0.14, h - 0.16, 1.0)
+            txt(sheet, body, -w / 2 + 0.07, h / 2 - 0.11, s, ink, wrap=wr, font=mono)
+            foot_col = C(0.85, 0.82, 0.75, 1)
+            foot_y = -h / 2 - 0.04
         else:
             w, h = 1.05, 0.84
             Entity(parent=r, model=Quad(radius=0.012, aspect=w / h), scale=(w + 0.012, h + 0.012),
@@ -593,7 +613,8 @@ class UI:
             t = txt(r, "0", x, 0, 3.0, C(0.1, 0.1, 0.1, 1), origin=(0, 0), font=self.fonts.get("title"))
             st["texts"].append(t)
             st["frames"].append(f)
-        txt(r, "A/D select   W/S change   Enter open   Esc back", 0, -0.18, 0.9, CREAM, origin=(0, 0))
+        txt(r, "Type the digits (or A/D select, W/S change)   Enter open   Esc back", 0, -0.18, 0.9, CREAM,
+            origin=(0, 0))
         self._modal_state = st
         self._combo_hl()
 

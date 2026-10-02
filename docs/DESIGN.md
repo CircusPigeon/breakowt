@@ -1,5 +1,9 @@
 # BREAKOWT: Seven Days to Steak — Design Document
 
+> The original spec. The game has moved on since: the cast are now Greek philosophers (Moozart became
+> Moobius the logician, Cowleen became Moocrates, and so on), the composer arc became the Escape Theorem,
+> and several scenes and puzzles changed. `HANDOFF.md` tracks what the game is now.
+
 A first-person, absurd, satirical stealth / puzzle / combat game in 3D (Python + Ursina/Panda3D).
 You are **Cow #47** ("Forty-Seven") on *Happy Acres Family Farm* ("Where Every Cow Is Family").
 On Monday you learn you're scheduled for "PROCESSING" on Sunday ("BBQ w/ Dale!!! Buy milk.").

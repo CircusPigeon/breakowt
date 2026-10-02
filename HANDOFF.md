@@ -1,6 +1,7 @@
 # Handoff notes (for a future Claude Code session)
 
-Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file tracks build status.
+`docs/DESIGN.md` is the original story/mechanics spec; the cast and many scenes have changed since (see the
+rounds below, newest first). This file tracks what the game is now.
 
 ## Stack
 - Python 3.13, Ursina 8.3 (Panda3D 1.10.16), numpy, scipy, Pillow (`requirements.txt`; Ursina 8.3 needs
@@ -32,11 +33,76 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - [x] NPC cows (friends + herd, escort)
 - [x] UI (HUD, dialogue, menus, documents, keypad, password, map, shop, settings)
 - [x] Story days 1–7 (`days.py`), side quests, shop (`story.py`)
-- [x] Combat (Cluck Norris, Chuck boss), tractor driving (`combat.py`, `vehicle.py`)
+- [x] Combat (Cluckydides the rooster, Chuck boss), tractor driving (`combat.py`, `vehicle.py`)
 - [x] Ending + epilogue cards (the player asked for no credits roll)
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
-### Latest round (player feedback)
+### Philosophers round (latest; branch `wip/philosophers`, merged to `main`)
+The player's long playtest list, all addressed. The design taste behind it is in the notes below and in
+the player's own words: as humorous as it is a thought piece, puzzles you have to think about, no
+hand-holding, no sentimentality.
+- **Cast = ancient Greek philosophers** (display names only; internal keys unchanged): Moocrates
+  (`cowleen`, Socratic questions), Moobius (`moozart`, Euclid: definitions, postulates, lemmas), Moogenes
+  (`sirloin`, Diogenes the Cynic: lives like a dog, wants a bucket to live in, "out of my sunlight"),
+  Moothagoras (`cowpernicus`, Pythagoras: everything is number, refuses beans, the glasses), Epicowrus
+  (`mooriarty`, Epicurus: "death is nothing to us", runs the shop, now called THE GARDEN), Heifercleitus
+  (`moomaw`, Heraclitus: the river; Earl's widow), Cluckydides (the rooster, Thucydides: "the strong do what
+  they can"). Display names live in `npc.FRIENDS`, `ui.SPEAKER_COLORS` and the dialogue.
+- **The arc**: the herd starts out treating the truck as weather ("you don't argue with weather"), and
+  wakes up over the week: Moocrates' question on Monday, the market report (Lemma Two), the first funeral
+  ever held on the farm (Thursday), the "sold in bulk" emails (Friday), and optionally the ledger inside the
+  plant. Moobius works out the trolley problem himself and walks onto the truck (no "moo to accept the
+  axiom" any more; the loft scene is all dialogue). The funeral talks about mortality (Epicurus,
+  transmigration, "you can't grieve the weather") with no "it's what he'd have wanted". Nobody does
+  anything "for Moobius". The epilogue cards end on a short, dry thought piece (serif font) and branch on
+  whether Chuck was shot, the side quests, and the ledger. Keep this register for new lines.
+- **Less hand-holding**: objectives say what, not how ("Get into the tool shed", "Make the cattle grid
+  safe for hooves", "Find the cabinet key"); far fewer map markers; clues live in the world (the tractor's
+  taped notes and a feather on the fuel cap, the cattle grid's examine, chatter). Hints are tiered: a step's
+  `hint=` can be a tuple, and each H press goes one level further (`Story.hint`, `hint_level`); the first
+  level is a Socratic question. The toolbox rejects 300 with a joke (a perfect game isn't Chuck's perfect).
+  The gnome is back to subtle (no rattle, no explicit popup; the headbutt prompt only once the note
+  points at him).
+- **Deer stand** (`World.build_deer_stand`, `DayScripts._deer_stand`) in the empty yard corner by the main
+  gate (`DEER_STAND`): an ammo tin on the platform, a sign saying DO NOT SHAKE. Headbutting a leg sways the
+  stand (noise 12) and slides the tin (a charge counts twice: `Game.last_charge`); it falls and opens to two
+  shells. Rocks don't shift it. Moo-dal "Do Not Shake".
+- **Shells are an item** (`shells`, stackable). Ol' Bessie comes out of the cabinet empty; Q with no shells
+  clicks. Shells come from the deer stand or the shop (6 clovers for two). Before the boss, Q says "not
+  yet". In the boss intro Chuck notices the cow has his shotgun and whether it's loaded. The finale needs
+  a shell left: with one, the old shot ending (`chuck_shot` flag); without, Bessie clicks and Chuck lives
+  ("you get to live, and think about it").
+- **Happy Acres** (`build_plant_inside`, `DayScripts._plant`): a staff door at the back (`plant_back`,
+  `PLANT_BACK`) with a keypad and Chuck's sticky note ("the year of the best day of my life"). 2009 (Big
+  Earl's Best in Show: the photo, and Heifercleitus says it in chatter); 1998 (the bowling trophy) gets a
+  joke. Inside: the hook rail, tables, drains, a safety board ("4,212 days without an incident"), and the
+  intake ledger (`LEDGER`, shown with the new "ledger" document style). Reading it gives a Moo-dal, a
+  conversation with Moocrates (`side_quest_talk`), and an epilogue line. `processing` is a room in
+  `InteractionSystem.ROOMS`.
+- **Golden Clovers on the map**: five in the strip of grass behind the plant (`_clover_patch`), found once
+  per profile. The purse is now profile-level (`Moodals.purse/spend/find_clover/owned`, in moodals.json):
+  Moo-dal rewards + found clovers - spent. **Purchases carry over** to later playthroughs
+  (`Story.apply_owned` on new game and load); coffee and shells are consumables.
+- **Sunday**: pulling the fuse kills the house power too, so Chuck gets up for his freezer
+  (`chuck_sunday`, `SUNDAY_PATROL`: underwear, flashlight, dawn sight 26 m) and patrols the shed and yard
+  while you get to the barn. Once you're driving he runs at the tractor with the pitchfork: at speed he
+  dives out of the way and falls; stop next to him for a second and he drags you off (back to the pasture,
+  tractor back in the barn, try again). No "climb in" prompt while driving.
+- **Chuck**: sees and hears further (`SIGHT_*`, `HEARING` in `farmer.py`), roams more (extra yard legs and
+  shorter waits in every day's routine). Dale is never caught; Chuck greets him, finds him odd up close, and
+  a noise traced to Dale is "Oh. Just you, Dale."
+- **UI**: dialogue box sizes to its text and popups move above it; journal in three measured columns;
+  "[Tab] journal & map  [H] hint" on the HUD; documents in note/paper/screen/ledger styles; ChuckOS mail
+  is an inbox (`open_mail`); fonts picked per role in `assets.FONT_CHOICES`; the keypad takes typed digits;
+  cutscenes and the caught sequence can't be paused; Esc works in the title's Moo-dals screen.
+- **World**: house windows are real openings with tinted glass; a barn window by the side door; the
+  player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Moobius gets up the
+  loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **Not reproduced**: "headbutting in the shed opened the menu". 96 scripted headbutts in every direction
+  inside the shed opened nothing; the likely culprit is the Moo-dal banner (knocking things over in there).
+- Textures added since the last version bump are painted on launch (like sounds).
+
+### Bed, doors and boss round
 - HUD: the stamina bar sits bottom-left (it used to collide with the hotbar on 3:2 / 16:10 screens), and
   `UI.relayout()` re-anchors edge-pinned HUD pieces when the window changes shape (fullscreen toggle).
 - Chuck in bed: `BED_SLEEP` / `BED_GETUP` in `days.py`. The "sleep" pose lays him out along +z from his
@@ -61,9 +127,8 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
   exactly when he goes down (it used to hand over to the finale at 4 of 12, so the bar sat at a third);
   longer openings (windup 0.95 s, stuck 3.2 s, winded every 2 throws for 3.5 s). Still 3 hearts (the
   player asked to keep it at 3). Losing resets the whole fight (Chuck to full, your shells back).
-- Ol' Bessie fires: Q with the shotgun selected (`Game.fire_shotgun`). Two shells (`flags["shells"]`, set
-  when you take her from the cabinet and in the chapter-select preset). 3 damage and knocks Chuck flat
-  whatever state he's in; a big noise (radius 60) anywhere else, so firing in the house wakes Chuck.
+- Ol' Bessie fires: Q with the shotgun selected (`Game.fire_shotgun`), one `shells` item per shot (see the
+  philosophers round for where shells come from). 3 damage and knocks Chuck flat whatever state he's in.
 - Earlier this round: farmhouse furnished room by room; TV and ChuckOS screens; the moo-hole wire sags
   and is held up by the boot; grass/flowers no longer grow through floors; porch roof no longer pokes
   into the living room; hotbar deselect (press the selected number again); the held item follows removals.
@@ -133,20 +198,11 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - **Truck tailgate** drops to a ramp, Moobius walks in over a temporary floor, a stand-in rides away.
 - **Barn windows** (`wall_gaps` takes an optional sill: invisible pane, see-through both ways, trim via
   `_window_frame`): north at cow height, east south of the silo, east gable in the loft north of it.
-- **Moozart is now Moobius**, a logician (the player found the composer arc overdone and asked for sharp,
-  self-aware, philosophical cows, "maybe all mathematicians"). Only the display name changed: the key is
-  still `moozart` everywhere in code, sounds, flags and saves. He wears a bow tie (`bowtie` accessory) and
-  builds the Escape Theorem across the week instead of a symphony: Lemma 1 (Chuck can't count past forty,
-  Mon), Lemma 2 (the radio's market report: Chuck earns 3.2x more from a plate, Tue), Lemma 3 (the rooster
-  is on time, Wed); the ear tag shows he's the #12 he couldn't eliminate. In the hayloft the player "moos to
-  accept the axiom" (the herd is worth saving); the theorem: the herd leaves iff Forty-Seven is at the
-  tractor. At the truck he hands himself in on that logic ("Courage is what you call it when you don't have
-  the numbers. I have the numbers."). His mud draft by the pond is the funeral's "hoofprints". No melody
-  fragments any more; the ending theme and the music-box sad theme remain.
-- **Cast voices:** Cowleen the deadpan game theorist; Sir Loin an absurdist knight (Camus, Wittgenstein);
-  Cowpernicus a Bayesian astronomer; Mooriarty an ex-professor (asteroid dynamics) turned black marketeer;
-  Moomaw a Stoic widow with savage one-liners; Cluck Norris quotes Sun Tzu; Chuck stays dim. Edgy about
-  mortality and the meat trade, smart, self-aware, and still funny.
+- **Moozart is now Moobius**, a logician. Only the display name changed: the key is still `moozart`
+  everywhere in code, sounds, flags and saves. He wears a bow tie and builds the Escape Theorem across the
+  week: Lemma 1 (Chuck can't count past forty, Mon), Lemma 2 (the market report: a cow is worth more to
+  Chuck stopped than walking, Tue), Lemma 3 (the rooster is on time, Wed); the ear tag shows he's #12. The
+  cast was later recast as Greek philosophers (see the philosophers round).
 - **Dialogue** rewritten for more jokes and less sentiment (the player's words: funnier, edgier, the puns
   are good but it was a bit innocent). Keep that register for new lines. The soft scenes were then rebuilt
   as comedy (the player's pick, plot unchanged, Moobius still goes on the truck): Thursday's vigil is
@@ -157,6 +213,11 @@ Read `docs/DESIGN.md` first. It is the full story/mechanics spec. This file trac
 - New sounds are generated on launch without a version bump (assets fill in missing files).
 
 ### Verified
+- Philosophers round, on the Windows machine: `--day 1 --to 7 --detect` passes (the bot now also shakes the
+  deer stand, opens the plant, reads the ledger, picks the clovers, fires one shell and keeps one for the
+  shot ending). A scratch test stalled the tractor next to Chuck on Sunday: he drags you off, you're back
+  in the pasture, he patrols again, and the tractor starts again. `tools/uishots.py` covers the new
+  note/mail/ledger documents and the Moo-dals screen.
 - Freeplay round, on the Windows machine: `--day 1 --to 7 --detect` passes; a scratch test mooed at the
   herd (answers), scattered a flock, hit Chuck with a rock (yelp, investigate, Moo-dal), watched him tidy a
   knocked prop, waded (rings), got the frogs to answer at night, and opened the Moo-dals screen.

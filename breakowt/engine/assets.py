@@ -61,6 +61,13 @@ def generation_steps():
             fn().save(TEX_DIR / f"{name}.png")
             yield f"Painting {name.replace('_', ' ')}", 0.1 * (i + 1) / len(tex)
         (TEX_DIR / ".version").write_text(texgen.TEX_VERSION)
+    else:
+        # same version, but textures added since: paint just those
+        tex = texgen.all_textures()
+        missing = [n for n in tex if not (TEX_DIR / f"{n}.png").exists()]
+        for i, name in enumerate(missing):
+            tex[name]().save(TEX_DIR / f"{name}.png")
+            yield f"Painting {name.replace('_', ' ')}", 0.1 * (i + 1) / len(missing)
     if need(AUDIO_DIR, synth.AUDIO_VERSION):
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
         cat = synth.catalog()

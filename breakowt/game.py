@@ -443,7 +443,7 @@ class Game(Entity):
 
     def clovers(self):
         """Golden Clovers to spend: what your Moo-dals have paid out, less what Epicowrus's had off you."""
-        return max(0, self.moodals.total_reward() - self.flags.get("clovers_spent", 0))
+        return self.moodals.purse()
 
     def set_objectives(self, objs):
         self.objectives = [{"key": k, "text": t, "done": False} for k, t in objs]
@@ -460,6 +460,9 @@ class Game(Entity):
                 if sound:
                     self.audio.play("ding", vol=0.6)
         self.ui.set_objectives(self.objective_lines())
+
+    def objective_keys(self):
+        return [o["key"] for o in self.objectives]
 
     def is_done(self, key):
         return any(o["key"] == key and o["done"] for o in self.objectives)
@@ -564,6 +567,7 @@ class Game(Entity):
     # combat hooks
     # ------------------------------------------------------------------
     def on_headbutt(self, eye, fwd, charge):
+        self.last_charge = charge
         hit = False
         for e in list(self.enemies):
             if e.alive and e.in_front(eye, fwd, 2.4):
@@ -633,12 +637,12 @@ class Game(Entity):
                 "Not yet. One shot and the farm becomes a crime scene before it becomes an exit.",
             ]))
             return
-        shells = self.flags.get("shells", 0)
+        shells = self.inv.count("shells")
         if shells <= 0:
             self.audio.play("blip_lo", vol=0.6)
-            self.examine("Click. Ol' Bessie's empty. Chuck kept the shells somewhere else.")
+            self.examine("Click. Ol' Bessie's empty. Chuck keeps the shells somewhere else.")
             return
-        self.flags["shells"] = shells - 1
+        self.inv.remove("shells")
         self.audio.play("shotgun", vol=1.0)
         self.ui.flash((1.0, 0.95, 0.8), 0.15)
         p.shake = 0.8

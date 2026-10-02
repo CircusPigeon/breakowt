@@ -146,7 +146,7 @@ class CluckNorris(Enemy):
         self.x += dx / d * 1.6
         self.z += dz / d * 1.6
         self._clamp()
-        g.ui.set_boss("CLUCK NORRIS", max(0, self.hp) / self.MAX_HP)
+        g.ui.set_boss("CLUCKYDIDES", max(0, self.hp) / self.MAX_HP)
         if self.hp <= 0:
             self.alive = False
             self.state = "down"

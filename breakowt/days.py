@@ -16,7 +16,8 @@ from .interact import Handler, Interactable
 from .farmer import HEARING
 from .npc import FRIENDS, ang_diff
 from .vehicle import Tractor
-from .world import BARN, COOP_RUN, GATE_PASTURE, HOUSE, HOUSE_Y, LOFT_Y, PASTURE, SHED, in_pond
+from .world import BARN, COOP_RUN, DEER_STAND, GATE_PASTURE, HOUSE, HOUSE_Y, LOFT_Y, PASTURE, PLANT_BACK, PROC, SHED, \
+    in_pond
 
 Y = HOUSE_Y
 L = LOFT_Y
@@ -44,7 +45,25 @@ RAIN_LINES = ["Great. Rain.", "My socks are wet. Both of 'em.", "Truck better no
               "Where's my other boot... oh. Right.", "Rain's good for the grass. Grass is good for the cows. Cows "
               "are good for... well. Circle of life."]
 SHARPEN_LINES = ["Big day tomorrow.", "Nice and sharp.", "Dale likes 'em thick-cut.", "Sharp knife's a safe knife.",
-                 "Ribeye, sirloin, T-bone... and Moogenes. HA. Oh, that's good. I gotta tell Dale."]
+                 "Ribeye, sirloin, T-bone... brisket for Dale. Dale's a brisket man. Dale's a simple man."]
+GEN_LINES = ["Fuse is FRIED. Who fries a FUSE?", "Somebody's been in my shed. AGAIN.",
+             "Fence is dead too. Great. GREAT.", "Thirty pounds of brisket, thawin' as we speak."]
+PATROL_LINES = ["Somebody's out here.", "I know you're out here!", "Raccoons don't pull fuses!",
+                "Show yourself!", "If this is Dale's idea of a surprise party...", "My BRISKET, people!"]
+DIVE_LINES = ["WHOA!", "Not the TRACTOR!", "AAH! She's got no BRAKES!", "Who taught you to DRIVE?!",
+              "That's MY tractor! I'm ON the payments!"]
+SUNDAY_CAUGHT = ["HEY! Was it YOU? Did YOU kill my freezer?!", "Back in the pasture! And STAY there! It's your BIG DAY!",
+                 "Forty-seven! Of COURSE it's forty-seven!"]
+# Sunday, after the fuse: house (the freezer), the shed (the generator), then round the yard
+SUNDAY_PATROL = [
+    ("go", (56, HOUSE_Y, 32.0), 2.6), ("go", (40, 0, 18), 2.6), ("go", (14, 0, -14), 2.6),
+    ("go", (-2, 0, -22), 2.4), ("face", (-8, -22)), ("wait", 7, "look", GEN_LINES, (-8, -22)),
+    ("go", (14, 0, -14), 2.2), ("wait", 4, "look", PATROL_LINES),
+    ("go", (0, 0, 10), 2.2), ("wait", 4, "look", PATROL_LINES),
+    ("go", (20, 0, 23), 2.2), ("wait", 3, "look"),
+    ("go", (22, 0, -14), 2.2), ("wait", 4, "look", PATROL_LINES),
+    ("go", (-2, 0, -22), 2.2), ("wait", 5, "look", GEN_LINES, (-8, -22)),
+]
 COUNT_LINES = ["Thirty-one, thirty-two...", "...thirty-eight, thirty-nine. Hold STILL, Buttercup.",
                "Forty, forty-one... no, I counted you.", "...forty-two, forty-three...",
                "Forty... how are there always more of you when I count and fewer when I sell?"]
@@ -98,7 +117,7 @@ class DayScripts:
             give("page")
             give("pencil")
             f["mooriarty_met"] = True
-            self._sq("helm", "Find Moogenes a helm", "active")
+            self._sq("helm", "Find Moogenes something to live in", "active")
             self._sq("specs", "Find Moothagoras some glasses", "active")
             self._sq("photo", "Bring Heifercleitus the photo of Big Earl", "active")
         elif d == 2:
@@ -135,7 +154,6 @@ class DayScripts:
             f["planks_laid"] = 3
             f["herd_rallied"] = True
             f["cabinet_open"] = True
-            f["shells"] = 2
             give("shotgun")
         g.refresh_hotbar()
 
@@ -182,7 +200,7 @@ class DayScripts:
         if bool(fl.get("sq_specs")) != ("glasses" in cp.acc):
             cp.set_acc("glasses", bool(fl.get("sq_specs")))
         self.house_lights(False)
-        for key in ("cowshed", "barn", "loft", "porch", "processing"):
+        for key in ("cowshed", "barn", "loft", "porch", "processing", "plant"):
             w.set_lamp(key, False)
         w.set_lamp("shed", True)
         for k in g.knockables:
@@ -199,6 +217,7 @@ class DayScripts:
         self.scatter_herd()
         self.register_doors()
         self.register_globals()
+        self.register_extras()
         self.place_friends_default()
         g.farmer.teleport((22, 0, -20), 0)
         g.farmer.set_visible(True)
@@ -374,6 +393,177 @@ class DayScripts:
         g.on("wardrobe", "Get out of the wardrobe", unhide, cond=lambda gg: gg.flags.get("_hiding"), scope="day")
         g.on("toilet", "Flush it (loud!)", lambda gg: self.flush(), scope="day")
 
+    # ------------------------------------------------------------------
+    # things to find off the main path: the deer stand, the plant, a patch of clovers
+    # ------------------------------------------------------------------
+    def register_extras(self):
+        self._deer_stand()
+        self._plant()
+        self._clover_patch()
+
+    TIN_Z = (-0.55, -0.72, -0.84)
+
+    def _deer_stand(self):
+        """An ammo tin on Chuck's deer stand. The sign says not to shake it."""
+        g = self.g
+        w = g.world
+        x, z = DEER_STAND
+        tin = w.ammo_tin
+        tin_ia = g.ia.get("ammo_tin")
+        w.deer_stand.rotation = (0, 0, 0)
+        if self.flags.get("shells_found"):
+            tin.enabled = False
+            tin_ia.enabled = False
+            if not self.flags.get("shells_taken"):
+                self._tin_pickup()
+        else:
+            st = min(2, self.flags.get("tin_stage", 0))
+            tin.enabled = True
+            tin_ia.enabled = True
+            tin.position = (-0.3, 3.62, self.TIN_Z[st])
+            tin.rotation_x = 14 if st >= 2 else 0
+
+        def sway():
+            for k in range(28):
+                a = 1 - k / 28
+                w.deer_stand.rotation_z = math.sin(k * 0.9) * 2.8 * a
+                w.deer_stand.rotation_x = math.cos(k * 0.7) * 1.3 * a
+                yield None
+            w.deer_stand.rotation = (0, 0, 0)
+
+        def shake(gg):
+            gg.audio.play("wood_crack", vol=0.8, pitch=0.7, pos=(x, 2, z), rng=40)
+            gg.noise((x, 0, z), 12, "crash")
+            gg.runner.start(sway(), name="deer_sway", tag="day")
+            if self.flags.get("shells_found"):
+                gg.examine("The stand creaks and sways. There's nothing left up there to fall.")
+                return
+            n = self.flags.get("tin_stage", 0) + (2 if getattr(gg, "last_charge", False) else 1)
+            self.flags["tin_stage"] = n
+            if n < 3:
+                tin.position = (-0.3, 3.62, self.TIN_Z[n])
+                tin.rotation_x = 14 if n >= 2 else 0
+                gg.ui.popup_sub("The whole stand groans. Up top, something metal slides toward the edge." if n == 1
+                                else "It's teetering right on the edge now.", 3)
+                return
+            gg.runner.start(self._tin_falls(), name="tin_fall", tag="day")
+        g.ia.get("deer_stand").on_headbutt = shake
+        tin_ia.on_rock = lambda gg, pt: gg.examine(
+            "Tink. Whatever's in that tin is too heavy for a rock to shift. The whole stand would have to move.")
+
+    def _tin_falls(self):
+        g = self.g
+        w = g.world
+        x, z = DEER_STAND
+        self.flags["shells_found"] = True
+        w.ammo_tin.enabled = False
+        g.ia.get("ammo_tin").enabled = False
+        e = models.item_model("ammo_tin", position=(x - 0.3, 3.62, z + self.TIN_Z[2]))
+        self.fx.append(_Temp(e))
+        t = 0.0
+        while t < 0.55:
+            t += min(0.05, time.dt)
+            k = min(1.0, t / 0.55)
+            e.position = (x - 0.3, 3.62 - 3.5 * k * k, z + self.TIN_Z[2] - 0.8 * k)
+            e.rotation_x = 300 * k
+            yield None
+        destroy(e)
+        g.audio.play("metal_clang", vol=0.8, pos=(x, 0.3, z - 1.4), rng=30)
+        g.ui.popup_sub("The tin slides off the edge and lands in the grass with a clang.", 3)
+        self._tin_pickup()
+
+    def _tin_pickup(self):
+        x, z = DEER_STAND
+
+        def take(gg):
+            self.remove_item("ammo_tin")
+            self.flags["shells_taken"] = True
+            gg.inv.add("shells", 2)
+            gg.event("deer")
+            gg.examine("Two shotgun shells, and a note in Chuck's capitals: 'HID THESE FROM MYSELF. DON'T TELL ME "
+                       "WHERE.'")
+        self.item("ammo_tin", "ammo_tin", (x - 0.3, 0.12, z - 1.4), "Ammo tin", "Pry open the ammo tin", take,
+                  rot=25, radius=0.35)
+
+    def _plant(self):
+        """Happy Acres has a staff door round the back. It has a keypad, and the keypad has a note."""
+        g = self.g
+        w = g.world
+        door = w.doors["plant_back"]
+        w.keypad_light.color = (0.2, 0.85, 0.3, 1) if self.flags.get("plant_unlocked") else (0.9, 0.15, 0.1, 1)
+
+        def keypad(gg):
+            if self.flags.get("plant_unlocked"):
+                gg.examine("The light on the keypad is green. It's been green since you got the code right.")
+                return
+            r = yield from self.combo(4, "Keypad")
+            if r == "2009":
+                self.flags["plant_unlocked"] = True
+                w.keypad_light.color = (0.2, 0.85, 0.3, 1)
+                gg.audio.play("blip_hi", vol=0.6)
+                open_door(gg)
+            elif r == "1998":
+                gg.audio.play("blip_lo", vol=0.6)
+                gg.examine("BZZT. Red light. 1998 is the bowling trophy. Close, then: that's the second-best day of "
+                           "his life.")
+            elif r:
+                gg.audio.play("blip_lo", vol=0.6)
+                gg.examine("BZZT. Red light. The best day of Chuck's life was some other year.")
+
+        def open_door(gg):
+            was = door.is_open
+            self._toggle_door("plant_back", 4)
+            if not was and not w.lamps["plant"]["on"]:
+                w.set_lamp("plant", True)
+                gg.audio.play("blip_hi", vol=0.3, pitch=0.6)
+                gg.ui.popup_sub("The lights flicker on. Motion sensor. Somebody wanted to see every corner of this "
+                                "room.", 4)
+
+        def try_door(gg):
+            if self.flags.get("plant_unlocked") or door.is_open:
+                open_door(gg)
+            else:
+                gg.examine("Locked. There's a keypad beside it, and a sticky note under the keypad.")
+        g.on("plant_keypad", "Punch in a code", keypad, scope="day")
+        g.on("plant_back", lambda gg: "Close the door" if door.is_open else
+             ("Open the door" if self.flags.get("plant_unlocked") else "Try the door"), try_door, scope="day")
+
+        def ledger(gg):
+            yield from gg.show_document("HAPPY ACRES PROCESSING - INTAKE", LEDGER, style="ledger")
+            if not self.flags.get("ledger_read"):
+                self.flags["ledger_read"] = True
+                gg.event("ledger")
+                yield from gg.talk([
+                    ("you", "Moo. (Every line is one of us. A number, a weight and a grade. There's no column for "
+                            "a name.)"),
+                    ("you", "Moo. (Two a month, every month. I knew that. I've always known that. I'd just never "
+                            "seen it written down in a straight line, adding up.)"),
+                ])
+        g.on("ledger", "Read the ledger", ledger, scope="day")
+
+    CLOVERS = [(77.4, -47.2), (78.3, -46.4), (77.6, -45.3), (78.9, -44.6), (78.1, -43.5)]
+
+    def _clover_patch(self):
+        """Five Golden Clovers in the strip of grass behind the plant, where nobody's looked. Found once, ever."""
+        g = self.g
+        for i, (cx, cz) in enumerate(self.CLOVERS):
+            cid = f"plant_{i}"
+            if g.moodals.clover_found(cid):
+                continue
+
+            def take(gg, i=i, cid=cid):
+                self.remove_item(f"clover{i}")
+                if gg.moodals.find_clover(cid):
+                    gg.audio.play("clover", vol=0.7)
+                    gg.ui.toast(f"Golden Clover! (You have {gg.clovers()})", "clover")
+                    gg.refresh_hotbar()
+                    left = sum(1 for j in range(len(self.CLOVERS)) if not gg.moodals.clover_found(f"plant_{j}"))
+                    if left == 0:
+                        gg.examine("Five Golden Clovers, growing in the one patch of grass nobody on this farm has "
+                                   "ever wanted to stand in. Epicowrus did say they grow where nobody's looked.")
+            self.item(f"clover{i}", "clover", (cx, 0.25, cz), "Golden Clover", "Pick the Golden Clover", take,
+                      spin=True, bob=True, glow=0.5, radius=0.3)
+
     def flush(self):
         g = self.g
         g.audio.play("flush", vol=1.0, pos=(66.8, 1, 47), rng=40)
@@ -535,10 +725,12 @@ class DayScripts:
         self.wake_in_stall()
         self.chuck_routine([
             ("tool", "hammer"),
-            ("go", (-15.2, 0, -50), 1.8), ("wait", 12, "work", FENCE_LINES, (-18, -50)),
-            ("go", (-15.2, 0, -21), 1.8), ("wait", 12, "work", FENCE_LINES, (-18, -21)),
-            ("go", (-15.2, 0, -8), 1.8), ("wait", 10, "work", FENCE_LINES, (-18, -8)),
-            ("go", (-15.2, 0, -36), 1.8), ("wait", 8, "look"),
+            ("go", (-15.2, 0, -50), 1.8), ("wait", 9, "work", FENCE_LINES, (-18, -50)),
+            ("go", (-15.2, 0, -21), 1.8), ("wait", 9, "work", FENCE_LINES, (-18, -21)),
+            ("go", (-15.2, 0, -8), 1.8), ("wait", 8, "work", FENCE_LINES, (-18, -8)),
+            ("go", (0, 0, -10), 2.0), ("wait", 4, "look"),
+            ("go", (-2, 0, -22), 2.0), ("wait", 3, "look"),
+            ("go", (-15.2, 0, -36), 1.8), ("wait", 6, "look"),
         ])
         g.farmer.teleport((-15.2, 0, -44), 0)
         if not self.done("d1_oak"):
@@ -693,79 +885,82 @@ class DayScripts:
 
         def moozart_lines():
             yield from g.talk([
-                ("moozart", "Mind the mud. That's a proof. You're standing on the induction step."),
-                ("you", "Moo. (What are you proving?)"),
-                ("moozart", "That a herd of fifty can leave a fenced farm operated by one man of below-average "
-                            "intelligence. The Escape Theorem. I have Lemma One: Chuck cannot count past forty "
-                            "without losing his place."),
-                ("you", "Moo. (Chuck's planner says I'm going to Processing on Sunday.)"),
-                ("moozart", "Then it stops being a hobby. Good. Hobbies are how clever animals avoid thinking about "
-                            "being animals."),
-                ("moozart", "Anyone else on the list?"),
-                ("you", "Moo. (Number twelve. Thursday.)"),
-                ("moozart", "Twelve. Highly composite. Divisible by almost everything. Fitting, for a cow."),
+                ("moozart", "Mind the mud. That's a proof. You're standing on a postulate."),
+                ("you", "Moo. (Sorry. What are you proving?)"),
+                ("moozart", "Nothing yet. I'm starting from things nobody can deny and seeing what follows. Postulate "
+                            "one: a straight line can be drawn between any two points."),
+                ("moozart", "Definition one: a fence is a line somebody paid for. Lemma one: Chuck cannot count past "
+                            "forty without losing his place. I've watched him try. Every night."),
+                ("you", "Moo. (Chuck's planner says I'm going to Processing on Sunday. And number twelve on "
+                        "Thursday.)"),
+                ("moozart", "Moocrates asked you why that's allowed, didn't she. She asked me too. It's an irritating "
+                            "question. It's the first new question this farm has had in years."),
+                ("moozart", "Nobody has ever shown it has to be this way. It's just been repeated until it sounded "
+                            "proved. I'll find out which it is."),
+                ("moozart", "Twelve, though. Divisible by one, two, three, four and six. A very cooperative number."),
             ])
 
         def sirloin_lines():
             yield from g.talk([
-                ("sirloin", "HALT! Who approaches the Salt Lick of Moogenes?"),
-                ("you", "Moo. (Me. We see each other every day.)"),
-                ("sirloin", "Every day I choose to see you as a stranger. Recognition is a habit, and habits are how "
-                            "they fatten us. What news?"),
-                ("you", "Moo. (Chuck's planning to eat me on Sunday.)"),
-                ("sirloin", "Of course he is. The cow is the only animal raised to be the answer to someone else's "
-                            "question: 'what's for dinner'."),
-                ("sirloin", "I refuse to be an answer. I have decided to be a knight. It's a completely arbitrary "
-                            "identity, which is what makes it mine. Camus would understand. Camus would be terrified."),
-                ("sirloin", "A knight needs a helm, though. Find me one. Anything helm-shaped. Meaning is imposed, "
-                            "not found, and I intend to impose it on a bucket if necessary."),
+                ("sirloin", "You're in my sunlight."),
+                ("you", "Moo. (It's six in the morning.)"),
+                ("sirloin", "It's the principle. A king once stood where you're standing and asked what I wanted. I "
+                            "told him to move. He moved."),
+                ("you", "Moo. (That was a different bull.)"),
+                ("sirloin", "Prove it. What do you want?"),
+                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
+                ("sirloin", "Naturally. A cow who lives by custom dies by custom. I gave custom up. I live like a dog "
+                            "now: I eat in public, I sleep in the open, and I bark at the powerful."),
+                ("you", "Moo. (You're a bull.)"),
+                ("sirloin", "Philosophically I'm a dog. But even a dog needs a kennel. Find me something to live in: "
+                            "a jar, a barrel, a bucket. A home nobody can sell me."),
             ])
 
         def cowpernicus_lines():
             yield from g.talk([
-                ("cowpernicus", "Oh, hi. I'm estimating how many cows have stood on this exact spot and thought "
-                                "they were special. Current figure: all of them."),
-                ("you", "Moo. (Sunday. Processing. Me.)"),
-                ("cowpernicus", "Okay. Okay. Base rate for a cow on this farm reaching age six: zero. So your prior "
-                                "was always bad. We're not in a crisis. We're in a crisis we can finally measure."),
-                ("cowpernicus", "Give me until sundown. Oak. I'll have a plan with numbered steps and error bars. "
-                                "The error bars will be enormous. Don't look at them."),
-                ("cowpernicus", "Also: Chuck owns spare reading glasses. I'm very nearsighted. My entire model of "
-                                "the universe is based on smudges. Bring them to me and I'll build you a better one."),
+                ("cowpernicus", "Shh. I'm counting. Everything is number, Forty-Seven. Fence posts: two hundred and "
+                                "six. Cows: fifty. Farmers: one, and he can't count either of the others."),
+                ("you", "Moo. (Chuck's planner. I'm on it. Sunday.)"),
+                ("cowpernicus", "Forty-seven. Prime. You can't be divided by anything but yourself. They'll try anyway: "
+                                "chuck, brisket, rib, round."),
+                ("cowpernicus", "I've told Chuck for years that all living things share one soul and he shouldn't eat "
+                                "any of them. He thinks I'm mooing for feed. Give me until sundown. The oak."),
+                ("cowpernicus", "Also: Chuck owns spare reading glasses. I'm very nearsighted. Every triangle I've ever "
+                                "drawn has been an educated guess. Find them and I'll draw you the whole farm."),
             ])
 
         def mooriarty_lines():
             yield from g.talk([
-                ("mooriarty", "Psst. Forty-Seven. In here. Professor Epicowrus. I used to publish. Asteroid "
-                              "dynamics. Now I do rubber goods. Markets are just orbits with worse manners."),
-                ("mooriarty", "I heard about Sunday. Grim. Also, statistically, inevitable. You were always a "
-                              "future cash flow. You just found out which quarter."),
-                ("mooriarty", "I sell things that shift the odds. Extra rocks. Rubber. A disguise. A tin can. The "
-                              "tin can is a test. Everyone who buys it fails."),
-                ("mooriarty", "Currency is Golden Clovers. You don't find them. They accrue to cows who do something "
-                              "notable. The kids call it a Moo-dal. I call it reputation. Same thing, better font."),
-                ("mooriarty", "Go be notable. Knock something over. Moo at an owl. Then come back and buy things "
-                              "you'll regret."),
+                ("mooriarty", "Psst. In here. Welcome to the Garden."),
+                ("you", "Moo. (It's a pile of hay bales.)"),
+                ("mooriarty", "It's a philosophy. The good life: friends, simple food, and no fear. Also, I sell things."),
+                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
+                ("mooriarty", "Death is nothing to us. Where death is, we are not; where we are, death is not. "
+                              "I've sold that line for years. Very consoling. No refunds."),
+                ("mooriarty", "That said, I'd rather 'we are' a while longer, and so would you. My stock shifts the "
+                              "odds: rocks, rubber, a disguise. Golden Clovers only."),
+                ("mooriarty", "Clovers come to cows who do something worth talking about. And a few grow where "
+                              "nobody's thought to look. I've thought to look. I'm not telling."),
             ])
             self.setf("mooriarty_met")
 
         def moomaw_lines():
             yield from g.talk([
-                ("moomaw", "Morning, dear. You look like you've just discovered you're mortal. It wears off. Then it "
-                           "comes back. Then it's permanent."),
+                ("moomaw", "Morning, dear. You can't step into the same pasture twice. It's always a slightly "
+                           "different pasture, and you're always a slightly older cow."),
                 ("you", "Moo. (He wrote my number next to Sunday. And 'barbecue'.)"),
-                ("moomaw", "He did that to my Earl. Circled it on the calendar. Drew a little smiley face. The "
-                           "Stoics say fear of death is fear of nothing. The Stoics never met Chuck's grill."),
-                ("moomaw", "Earl was two thousand pounds of bull and he fed half the county. Chuck still calls it the "
-                           "best Fourth of July he ever had. To my face. Every year."),
-                ("moomaw", "He keeps a photo of Earl in his office. With the ribbon. A man who frames the thing he "
-                           "ate is a man with no inner life. Bring me that picture, dear."),
-                ("moomaw", "And if you're ever in that house with a lit match, well. I didn't say that. I'm a sweet "
-                           "old cow with a very long memory."),
+                ("moomaw", "Everything flows. Grass into cow, cow into Chuck. I've watched that river for eleven "
+                           "years. It only ever runs one way."),
+                ("moomaw", "He did it to my Earl. Circled him on the calendar, drew a little smiley face. Two "
+                           "thousand pounds of bull. Chuck still calls it the best Fourth of July he ever had."),
+                ("you", "Moo. (Did nobody try to stop it?)"),
+                ("moomaw", "Stop a river? Nobody thought you could. Nobody thought to think it. He keeps Earl's photo "
+                           "in his office, dear. I'd like it back. Some things ought to flow the other way."),
             ])
         self.hook("talk:moozart", teller("moozart", moozart_lines))
         self.hook("talk:sirloin", teller("sirloin", sirloin_lines,
-                                         lambda: g.side_quest("helm", "Find Moogenes a helm", "active")))
+                                         lambda: g.side_quest("helm", "Find Moogenes something to live in",
+                                                              "active")))
         self.hook("talk:cowpernicus", teller("cowpernicus", cowpernicus_lines,
                                              lambda: g.side_quest("specs", "Find Moothagoras some glasses", "active")))
         self.hook("talk:mooriarty", teller("mooriarty", mooriarty_lines))
@@ -798,28 +993,33 @@ class DayScripts:
         g.player.teleport(-50.5, 0, -41.5, 0)
         g.cam_set((-56.5, 3.2, -43.0), (-50, 1.2, -34.5))
         yield from g.talk([
-            ("cowpernicus", "Okay. Thank you all for coming. I drew a diagram in the dirt."),
-            ("cowpernicus", "Moogenes, you're standing on it."),
-            ("sirloin", "I'm standing IN it. There's a difference. The diagram and I are one system now."),
-            ("cowpernicus", "Fine. From memory. Step one: the fence runs off a generator in the tool shed. No "
-                            "current, no fence. A fence without current is a suggestion."),
-            ("cowpernicus", "Step two: the main gate is chained, with a cattle grid in front. We need something "
-                            "with more mass than the gate and fewer feelings than a cow."),
+            ("cowleen", "Thank you all for coming. I asked each of you why we let Chuck do this. Let's hear the "
+                        "answers."),
+            ("mooriarty", "Because death is nothing to us."),
+            ("moomaw", "Because the river runs one way."),
+            ("sirloin", "Because the others let him. I've been meaning to object."),
+            ("cowleen", "So: a slogan, a metaphor, and a complaint. Nobody has an argument."),
+            ("moozart", "Nobody has ever needed one. 'It's the natural order' has never been asked to show its "
+                        "working."),
+            ("cowpernicus", "Then let's do it the honest way: definitions, postulates, proofs. I've drawn the Elements "
+                            "of Escape in the dirt. Moogenes, you're standing on Book One."),
+            ("sirloin", "I'm a dog. Dogs stand where they like."),
+            ("cowpernicus", "Definition one: a fence is a line somebody paid for. Postulate one: a straight line can be "
+                            "drawn from any cow to the road. The fence is merely in the way."),
+            ("cowpernicus", "Step one: the fence runs off a generator in the tool shed. No current, no fence. Step "
+                            "two: the main gate is chained, with a cattle grid in front. We need something heavier than "
+                            "a gate and less sentimental than a cow."),
             ("sirloin", "Present."),
-            ("cowpernicus", "Fewer feelings."),
+            ("cowpernicus", "Heavier."),
             ("mooriarty", "And step three?"),
-            ("cowpernicus", "Step three: everybody runs. Step three has a very wide confidence interval."),
-            ("moomaw", "Earl's plan was 'headbutt the truck'. Single step. Very elegant. Very brief."),
+            ("cowpernicus", "Everyone runs. Step three is less a proof than a hope. I'm working on it."),
+            ("moomaw", "Earl's plan was 'headbutt the truck'. One step. Very elegant."),
             ("cowleen", "How did that go?"),
             ("moomaw", "He's in a freezer in Ohio, dear. Several freezers."),
-            ("moozart", "The plan has a flaw. It assumes every cow survives the week. Plans that assume "
-                        "survival are usually written by the survivors."),
-            ("cowleen", "Nobody's writing anyone off, Moobius."),
-            ("moozart", "I'm not writing anyone off. I'm writing it down. It's different. It's more accurate."),
             ("cowleen", "Here comes Chuck for the headcount. Forty-Seven, practise for tomorrow: get behind him and "
-                        "steal his pencil. It's petty. It's also symbolic. Take the means of recording."),
-            ("cowpernicus", "His visual field is about a hundred degrees in front and zero behind. He's a predator "
-                            "with the eyes of a prey animal and the brain of a lawn chair. Sneak: C or Ctrl."),
+                        "take his pencil. A man who can't write things down has to remember them, and Chuck can't."),
+            ("cowpernicus", "His eyes cover about a hundred degrees in front of him. Behind him is a cone of pure "
+                            "ignorance. Sneak in it: C or Ctrl."),
         ])
         g.cutscene_end_now()
 
@@ -889,8 +1089,10 @@ class DayScripts:
         g.set_time("dusk", 12)
         g.ambience("night")
         self.base_music = "music_night"
-        yield from g.talk([("cowleen", "He counted to forty-nine and called it fifty. That's our whole margin of "
-                                       "error. Sleep. Tomorrow we commit crimes on purpose.")])
+        yield from g.talk([
+            ("cowleen", "He counted forty-nine and called it fifty. Nobody has ever checked Chuck's arithmetic."),
+            ("cowleen", "Moobius would call that a lemma. I'd call it a door. Sleep. Tomorrow, the shed."),
+        ])
 
     # ==================================================================
     # TUESDAY
@@ -971,6 +1173,9 @@ class DayScripts:
             ("call", rev(False)), ("wait", 5, "work", None, (5, -21)),
             ("call", rev(True)), ("wait", 8, "work", OIL_LINES, (5, -21)),
             ("call", rev(False)), ("wait", 3, "look"),
+            # a stroll round the yard before the next feed run
+            ("go", (-2, 0, -22), 2.2), ("wait", 4, "look"),
+            ("go", (14, 0, -14), 2.2), ("wait", 3, "look"),
         ])
         g.farmer.teleport((0, 0, -30), 0)
 
@@ -1025,19 +1230,23 @@ class DayScripts:
 
     def day2(self):
         yield from self.step("d2_wake", self.d2_wake)
-        yield from self.step("d2_out", self.d2_out,
-                             hint="When Chuck carries the feed to the trough he leaves the gate open behind him. Slip "
-                                  "out while his back is turned, or ask Moocrates to faint.")
-        yield from self.step("d2_board", self.d2_board,
-                             hint="The loose board is on the back of the shed, facing the pasture. Headbutt it three "
-                                  "times, but only while Chuck is revving the tractor. The engine covers the noise.")
-        yield from self.step("d2_shed", self.d2_shed,
-                             hint="The sticky note says the combination is Chuck's perfect bowling score. His trophy is "
-                                  "on the shelf.")
-        yield from self.step("d2_return", self.d2_return,
-                             hint="The pasture gate's bolt is on the outside, where you are. Open it and walk in.")
-        yield from self.step("d2_radio", self.d2_radio, hint="Take the radio to Moobius by the pond.")
-        yield from self.step("d2_ram", self.d2_ram, hint="Moothagoras is under the Old Oak.")
+        yield from self.step("d2_out", self.d2_out, hint=(
+            "What does Chuck do with the gate when both his hands are full?",
+            "When Chuck carries the feed to the trough he leaves the gate open behind him. Slip out while his back "
+            "is turned, or ask me to faint and he'll only have eyes for me."))
+        yield from self.step("d2_board", self.d2_board, hint=(
+            "A padlock locks a door. How many walls does a shed have? And what on this farm is louder than you?",
+            "One of the boards on the back of the shed, facing the pasture, is loose. Headbutt it three times, "
+            "but only while Chuck is revving the tractor: the engine covers the noise."))
+        yield from self.step("d2_shed", self.d2_shed, hint=(
+            "Who chose the combination? And is a man's perfect score the same as a perfect score?",
+            "The note says Chuck's PERFECT bowling score. Not a perfect game: his. His trophy is on the shelf."))
+        yield from self.step("d2_return", self.d2_return, hint=(
+            "Which side of the pasture gate is the bolt on?",
+            "The bolt is on the outside, where you are. Open the gate and walk in."))
+        yield from self.step("d2_radio", self.d2_radio, hint="Moobius asked for the radio. He's by the pond.")
+        yield from self.step("d2_ram", self.d2_ram, hint="Moothagoras has been staring at the tractor all day. "
+                                                         "Ask him why.")
         yield from self.step("d2_sleep", self.sleep_step, hint="Bed. Stall 47.")
         yield from self._run_day(3)
 
@@ -1049,24 +1258,26 @@ class DayScripts:
         g.player.look_at_point((c.x, 1.3, c.z))
         yield from g.fade_in(1.2)
         yield from g.talk([
-            ("cowleen", "Morning. Chuck does the feed run soon. He opens the gate, walks to the trough, and leaves "
-                        "the gate open behind him. Every time. Four years of data, zero variance. He's a constant."),
-            ("cowleen", "While he's at the trough, go. If you need cover, ask me. I'll fake a medical event. "
-                        "Humans will do anything for a sick cow except not eat it."),
-            ("cowleen", "Tool shed's past the east fence. Padlocked. Epicowrus says there's a loose board round the "
-                        "back. Epicowrus also says free will is a marketing term. He's right about the board."),
+            ("cowleen", "Morning. Something I noticed, now that I'm noticing things. Chuck does the feed run, walks "
+                        "to the trough, and leaves the gate open behind him. Every single time."),
+            ("cowleen", "Four years I watched that and never once asked what it meant. It means a door. If you need "
+                        "cover, ask me: I'll collapse. A sick cow is the one thing Chuck walks toward."),
+            ("cowleen", "The tool shed's past the east fence. Padlocked. Epicowrus says a padlock only locks a door, "
+                        "and a shed has four walls. I don't know what that means. I think it's a hint."),
+            ("cowleen", "And Moobius wants a radio, if Chuck keeps one in there. He says every premise we have was "
+                        "found inside this fence, and he'd like one from outside it."),
         ])
         g.cutscene_end_now()
 
     def d2_out(self):
         g = self.g
-        self.objectives(("out", "Slip out of the pasture while Chuck brings the feed"))
-        self.mark((-18, -35, "Pasture gate"), (-8, -22, "Tool shed"))
+        self.objectives(("out", "Get out of the pasture"))
+        self.mark((-8, -22, "Tool shed"))
 
         def cowleen_talk():
             if self.faint.get("asked"):
-                yield from g.talk([("cowleen", "Ready. When he comes through the gate, I collapse. I've rehearsed "
-                                               "dying. Turns out I have range.")])
+                yield from g.talk([("cowleen", "Ready. When he comes through the gate, I go down. They say philosophy "
+                                               "is practice for dying. Finally, a practical application.")])
                 return True
             r = yield from g.say("cowleen", "Need me to faint?", choices=["Yes. Faint when Chuck comes in.",
                                                                          "Not yet."])
@@ -1074,8 +1285,7 @@ class DayScripts:
                 self.faint["asked"] = True
                 if g.world.doors["pasture_gate"].is_open:
                     self.faint["armed"] = True
-                yield from g.talk([("cowleen", "Watch this. A cow collapsing is the only thing on earth that makes "
-                                               "Chuck run toward a problem.")])
+                yield from g.talk([("cowleen", "Watch. I've been rehearsing. Turns out I have range.")])
             else:
                 g.end_talk()
             return True
@@ -1086,8 +1296,8 @@ class DayScripts:
 
     def d2_board(self):
         g = self.g
-        self.objectives(("board", "Get into the tool shed (there's a loose board round the back)"))
-        self.mark((-12, -22, "Loose board"))
+        self.objectives(("board", "Get into the tool shed"))
+        self.mark((-8, -22, "Tool shed"))
         hits = {"n": self.flags.get("board_hits", 0)}
         ia = g.ia.get("shed_board")
 
@@ -1098,11 +1308,13 @@ class DayScripts:
                 self.flags["board_hits"] = hits["n"]
                 gg.audio.play("wood_crack", vol=0.5, pos=pos, rng=20)
                 if hits["n"] < 3:
-                    gg.ui.popup_sub(f"CRACK. The tractor covered that. ({hits['n']}/3)", 3)
+                    gg.ui.popup_sub("CRACK. The engine swallowed it." if hits["n"] == 1 else
+                                    "CRACK. It's nearly through.", 3)
             else:
                 gg.audio.play("wood_crack", vol=1.0, pos=pos, rng=60)
                 gg.noise(pos, 24, "crash")
-                gg.ui.popup_sub("WHAM. Much too loud. Wait until Chuck's revving the tractor.", 4)
+                gg.ui.popup_sub("WHAM. The board gives a little, and the whole farm heard it. Something louder "
+                                "would cover that.", 4)
         ia.on_headbutt = butt
         yield lambda: hits["n"] >= 3
         ia.on_headbutt = None
@@ -1118,10 +1330,9 @@ class DayScripts:
 
     def d2_shed(self):
         g = self.g
-        self.objectives(("toolbox", "Open the toolbox"), ("radio", "Take Chuck's radio"))
+        self.objectives(("toolbox", "Open the toolbox"), ("radio", "Find Moobius a radio"))
         if g.inv.has("radio"):
             g.complete("radio", sound=False)
-        self.mark((-9.3, -18.6, "Toolbox"), (-7.4, -18.6, "Radio"))
         opened = {"d": False}
 
         def toolbox(gg):
@@ -1129,17 +1340,20 @@ class DayScripts:
             if r == "117":
                 opened["d"] = True
                 gg.audio.play("blip_hi", vol=0.6)
+            elif r == "300":
+                gg.examine("300 is a perfect game. Chuck has never bowled a perfect game. Chuck has bowled a game he "
+                           "considers perfect. Those are different numbers.")
             elif r:
-                gg.examine("The lock doesn't budge. The sticky note on the wall had a hint.")
+                gg.examine("The lock doesn't budge. Chuck wrote his combination down somewhere. Chuck writes "
+                           "everything down somewhere.")
         g.on("toolbox", "Try the combination lock", toolbox)
         yield lambda: opened["d"]
         g.complete("toolbox")
         g.inv.add("pliers")
         yield from g.talk([
             ("you", "Moo. (Pliers.)"),
-            ("you", "Moo. (Four years I've worn a bell so a man could find me. The bell was never jewellery. It "
-                    "was an inventory system.)"),
-            ("you", "Moo. (Hold still. I'm opting out of being tracked.)"),
+            ("you", "Moo. (Four years I've worn this bell. I thought it was jewellery. It's an inventory system.)"),
+            ("you", "Moo. (Hold still. I'm removing myself from the inventory.)"),
         ])
         g.audio.play("metal_clang", vol=0.5, pitch=1.6)
         yield 0.4
@@ -1183,28 +1397,30 @@ class DayScripts:
 
         def talk():
             if not g.inv.has("radio"):
-                yield from g.talk([("moozart", "Did the shed have a radio? Chuck listens to the farm report at "
-                                               "noon. I need data that doesn't come from inside this fence.")])
+                yield from g.talk([("moozart", "No radio? Chuck had one on the tractor last summer. He doesn't throw "
+                                               "things away. He puts them in the shed and forgets them, like a god.")])
                 return True
-            yield from g.talk([("moozart", "The radio. Good. Put it on the farm report. Market prices. Know your "
-                                           "enemy's income statement.")])
+            yield from g.talk([("moozart", "The radio. Good. Find the farm report. If we're going to reason about "
+                                           "Chuck, let's use his numbers, not our feelings.")])
             g.audio.loop("radio", "loop_radio", vol=0.9, pos=(mz.x, 1, mz.z), rng=30, group="sfx")
             g.audio.music_duck = 0.1
             yield 5.0
             yield from g.talk([
-                ("moozart", "Live cattle, up four percent. Hides, steady. 'Lean trim', up. Lean trim is us, "
-                            "ground. There's a price for every part of you, and all of them went up this morning."),
-                ("moozart", "Lemma Two: Chuck earns three point two times more from one of us on a plate than in a "
-                            "field. Motive established. The rest is logistics."),
+                ("moozart", "Live cattle, up four cents. Hides, steady. 'Lean trim', up. Lean trim is us, "
+                            "ground. Every part of you has a price, and every part of you went up this morning."),
+                ("moozart", "Lemma Two: a cow is worth more to Chuck stopped than walking. Not because he's cruel. "
+                            "Because of arithmetic. Chuck is terrible at arithmetic, so it must be very obvious "
+                            "arithmetic."),
             ])
             g.audio.stop_loop("radio", 0.3)
             self.unduck()
             yield from g.talk([
                 ("you", "Moo. (How are you this calm?)"),
-                ("moozart", "Panic is just a probability estimate with the numbers removed. I kept the numbers."),
-                ("moozart", "And keep the radio. Set it down and switch it on anywhere. Chuck can't tolerate that "
-                            "station: it ran the ad for his divorce lawyer. He'll walk across the whole farm to "
-                            "turn it off. That's a man you can steer."),
+                ("moozart", "I'm not calm. I'm careful. Panic is a conclusion you reach before the proof. I'd like "
+                            "to finish the proof first."),
+                ("moozart", "Keep the radio. Chuck can't stand that station: it ran the ad for his divorce lawyer. "
+                            "Set it down playing anywhere and he'll cross the whole farm to switch it off. A man who "
+                            "always walks toward the same noise is a man you can steer."),
             ])
             g.ui.popup_sub("The radio's yours. [Q] sets it down playing: Chuck comes to switch it off. Pick it up "
                            "again after.", 7)
@@ -1225,13 +1441,16 @@ class DayScripts:
             yield from g.talk([
                 ("cowpernicus", "Moobius has two lemmas and he looks happy. He only looks happy when something is "
                                 "true and terrible."),
-                ("cowpernicus", "Anyway. News. I've watched the tractor all afternoon. Four tons of mass, and Chuck "
-                                "calls it 'baby'. He has never called a living thing 'baby'. That tells you "
-                                "everything about his value system."),
-                ("cowpernicus", "Momentum is mass times velocity. The tractor has the mass. We supply the "
-                                "velocity. Step two: Chuck's baby goes through Chuck's gate."),
-                ("cowpernicus", "Tomorrow someone checks what it needs to run. Not me. I can't see past the fence. "
-                                "I can barely see the fence. I've been apologising to a post for a week."),
+                ("cowpernicus", "I've watched the tractor all afternoon. Four tons. Four is the number of justice: "
+                                "equal times equal. I'm not saying the universe is on our side. I'm saying it's "
+                                "showing its working."),
+                ("cowpernicus", "Chuck calls it 'baby'. He has never called a living thing 'baby'. Everything is "
+                                "number, Forty-Seven, and his numbers say he loves the machine and prices the cow."),
+                ("cowpernicus", "A gate holds a cow because a cow is light and sorry about it. Hit the gate with "
+                                "something heavy and not sorry at all. That's step two."),
+                ("cowpernicus", "Someone has to find out what it needs to run. Not me. I can't see past the fence. "
+                                "I can barely see the fence. I've been apologising to a post for a week. It's a very "
+                                "forgiving post."),
             ])
             done["d"] = True
             return True
@@ -1275,8 +1494,10 @@ class DayScripts:
             ("go", (-2, 0, -24), 1.5), ("wait", 10, "ow", TOOTH_LINES),
             ("go", (14, 0, -14), 1.5), ("wait", 8, "work", TOOTH_LINES, (14.5, -12.5)),
             ("go", (0, 0, 10), 1.5), ("wait", 6, "ow", TOOTH_LINES),
-            ("go", (20, 0, 23), 1.5), ("wait", 8, "look"),
-            ("go", (-8, 0, -40), 1.5), ("wait", 8, "work", TOOTH_LINES, (-8, -41)),
+            ("go", (20, 0, 23), 1.5), ("wait", 6, "look"),
+            ("go", (30, 0, -20), 1.5), ("wait", 5, "look"),
+            ("go", (22, 0, -7), 1.5), ("wait", 5, "ow", TOOTH_LINES),
+            ("go", (-8, 0, -40), 1.5), ("wait", 6, "work", TOOTH_LINES, (-8, -41)),
         ])
 
     def wed_update(self, dt):
@@ -1363,15 +1584,18 @@ class DayScripts:
 
     def day3(self):
         yield from self.step("d3_lock", self.d3_lock)
-        yield from self.step("d3_moohole", self.d3_moohole,
-                             hint="Rubber doesn't conduct. Chuck lost a boot in the pond. Or Epicowrus sells a rubber "
-                                  "chicken. Take it to the sagging wire at the far end of the east fence.")
-        yield from self.step("d3_barn", self.d3_barn,
-                             hint="The barn's side door (west wall) is never locked. Have a look at the tractor.")
-        yield from self.step("d3_parts", self.d3_parts,
-                             hint="The key hangs from a rafter over the hayloft: go up the ramp and throw a rock at it. "
-                                  "The diesel's in the chicken run, guarded by Cluckydides. Chuck naps on the porch "
-                                  "around midday.")
+        yield from self.step("d3_moohole", self.d3_moohole, hint=(
+            "What did Moogenes's nose learn about that wire? And what on this farm doesn't carry current?",
+            "Rubber doesn't conduct. Chuck lost a boot in the pond, or Epicowrus sells a rubber chicken. Wedge one "
+            "under the sagging wire at the far end of the east fence."))
+        yield from self.step("d3_barn", self.d3_barn, hint=(
+            "Moothagoras wanted to know what the tractor needs. Who's going to look?",
+            "The barn's side door, on the west wall, is never locked. Look the tractor over."))
+        yield from self.step("d3_parts", self.d3_parts, hint=(
+            "A nail nobody can reach, and a feather on the fuel cap. Where does each one point?",
+            "The key hangs from a nail on a rafter above the hayloft: go up the ramp and knock it down with a "
+            "rock. The diesel's in the chicken run, and Cluckydides guards it. Chuck naps on the porch around "
+            "midday."))
         yield from self.step("d3_trough", self.d3_trough, hint="Moobius is waiting at the trough.")
         yield from self.step("d3_sleep", self.sleep_step, hint="Bed. Stall 47.")
         yield from self._run_day(4)
@@ -1405,20 +1629,20 @@ class DayScripts:
         g.cows["cowleen"].teleport((-25, 0, -36.5), 20)
         g.cam_set((-30.5, 2.4, -29.5), (-25.5, 1.2, -33.5))
         yield from g.talk([
-            ("cowpernicus", "Okay. He's adapting. That's worrying: I had him modelled as a constant."),
-            ("cowpernicus", "But the far end of the east fence has a sagging bottom wire. Prop it up and a cow fits "
-                            "under. It needs something rubber. Rubber is an insulator. Your nose is not. Moogenes "
-                            "ran that experiment. n equals one, and it's why he's like that."),
-            ("cowleen", "Chuck lost a boot in the pond last month. Hopped back to the house on one leg, swearing at "
-                        "God. God did not reply. I've never felt closer to God."),
+            ("cowpernicus", "He's adapting. That's worrying. I had him down as a constant."),
+            ("cowpernicus", "The far end of the east fence sags at the bottom. Lift the wire and a cow fits under. "
+                            "The trouble is lifting it. Moogenes tried with his nose once. It's why he's like that."),
+            ("cowleen", "So the question is what can touch that wire and not care. What doesn't carry current?"),
+            ("cowpernicus", "Don't do that. You know I can't resist a question."),
+            ("cowleen", "I know. Unrelated: Chuck lost a boot in the pond last month. Hopped back to the house on "
+                        "one leg, swearing at God. God didn't reply. I've never felt closer to God."),
         ])
         g.cutscene_end_now()
 
     def d3_moohole(self):
         g = self.g
-        self.objectives(("rubber", "Find something rubber"), ("hole", "Prop up the sagging wire at the far end "
-                                                                      "of the east fence"))
-        self.mark((-37, -61.8, "Boot?"), (MOOHOLE_POS[0], MOOHOLE_POS[1], "Sagging wire"))
+        self.objectives(("hole", "Get under the east fence"))
+        self.mark((MOOHOLE_POS[0], MOOHOLE_POS[1], "Sagging wire"))
         done = {"d": False}
 
         def rubber():
@@ -1431,8 +1655,11 @@ class DayScripts:
                 gg.ui.flash((1, 0.95, 0.4), 0.3)
                 gg.player.shake = 0.5
                 gg.player.vx -= 6
-                gg.ui.popup_sub("ZAP. Every hair you own is now standing up. Right. Rubber first.", 3)
+                gg.ui.popup_sub("ZAP. Every hair you own is now standing up. Something else touches the wire, "
+                                "then. Something that doesn't mind.", 4)
                 gg.stats["zapped"] = gg.stats.get("zapped", 0) + 1
+                if "rubber" not in gg.objective_keys():
+                    gg.add_objective("rubber", "Find something that won't carry current")
                 return
             gg.inv.remove(item)
             self.setf("moohole_open")
@@ -1444,9 +1671,9 @@ class DayScripts:
                             "A cow-sized gap.", 5)
             done["d"] = True
         g.on("moohole", lambda gg: "Prop up the wire" if rubber() else "Squeeze under the wire", prop_it)
-        yield lambda: rubber() is not None or done["d"]
-        g.complete("rubber")
         yield lambda: done["d"]
+        if "rubber" in g.objective_keys():
+            g.complete("rubber", sound=False)
         g.complete("hole")
 
     def moohole_prop(self, item):
@@ -1465,18 +1692,20 @@ class DayScripts:
 
     def d3_barn(self):
         g = self.g
-        self.objectives(("look", "Look over the tractor in the barn"))
-        self.mark((22, 1, "Tractor"), (10, 0.7, "Side door"))
+        self.objectives(("look", "Find out what the tractor needs"))
+        self.mark((22, 1, "Barn"))
         done = {"d": False}
 
         def look(gg):
             yield from gg.talk([
-                ("narrator", "The ignition is empty. No key."),
-                ("narrator", "The fuel gauge is resting on E. It has the air of a gauge that's been on E for a while."),
+                ("narrator", "The ignition is empty. Taped to the dash, in Chuck's capitals: 'KEY ON THE NAIL. NOT "
+                             "IN POCKET. REMEMBER THE NAIL.' There's no nail on the dash."),
+                ("narrator", "The fuel gauge is resting on E. Stuck to the filler cap: one smear of diesel and a "
+                             "small, angry-looking feather."),
                 ("narrator", "There's a hole where the spark plug should be. A note taped to the engine says: "
                              "'PLUG SOAKING IN VINEGAR (KITCHEN). DO NOT DRINK. -C'"),
-                ("you", "Moo. (Key, fuel, spark plug. The plug's in the house. The other two I can find today. "
-                        "Grand theft tractor. Mom would be proud. Mom was a hamburger. A proud one, I assume.)"),
+                ("you", "Moo. (Key, fuel, spark plug. The plug's in the house. The other two are somewhere on this "
+                        "farm. Grand theft tractor. Mom would be proud. Mom was a hamburger. A proud one, I assume.)"),
             ])
             done["d"] = True
         g.on("tractor", "Look the tractor over", look)
@@ -1491,7 +1720,7 @@ class DayScripts:
         for k, fl in (("key", "tractor_key_taken"), ("fuel_get", "jerrycan_taken"), ("fuel", "tractor_fueled")):
             if self.done(fl):
                 g.complete(k, sound=False)
-        self.mark((20, 10, "Key"), (41, -34, "Coop"), (22, 1, "Tractor"))
+        self.mark((22, 1, "Tractor"))
 
         def fuel(gg):
             gg.inv.remove("jerrycan")
@@ -1534,17 +1763,16 @@ class DayScripts:
         g.audio.play("squawk", vol=1.0)
         yield from g.talk([
             ("cluck", "BAWK. Stop right there, cow."),
-            ("cluck", "This is my coop. I've seen off two foxes, a weasel, a hawk and a very confused goose. "
-                      "Sun Tzu says the supreme art of war is to subdue the enemy without fighting. I skip that "
-                      "chapter."),
-            ("cluck", "You want the diesel. Everyone wants something. The hens want corn. Chuck wants eggs. The "
-                      "eggs want nothing, because they're eggs, and that's the saddest thing on this farm."),
+            ("cluck", "This is my coop. I've seen off two foxes, a weasel, a hawk and a very confused goose, and "
+                      "I wrote a history of each war. Eight volumes. Nobody reads them. The hens can't read."),
+            ("cluck", "You want the diesel. Let me save you some time, because it always goes the same way: the "
+                      "strong do what they can, and the weak suffer what they must."),
             ("you", "Moo. (I'm a two-thousand-pound mammal. You're a nugget with a headband.)"),
-            ("cluck", "And yet you're the one with a date on a calendar. Fight me."),
+            ("cluck", "...Then I suppose we're about to find out which of us that line is about. Fight me."),
         ])
         g.cutscene_end_now()
         self.lock_hud_music("music_boss", 0.7, 1.0)
-        g.ui.set_boss("CLUCK NORRIS", 1.0)
+        g.ui.set_boss("CLUCKYDIDES", 1.0)
         p.health = p.max_health
         g.ui.set_health(p.health, p.max_health, True)
         g.ui.popup_sub("Left click headbutt (gallop into it for double)\nRight click back-kick   R throw", 6)
@@ -1587,14 +1815,16 @@ class DayScripts:
         g.enemies.remove(boss)
         g.cam_set((p.x + (boss.x - p.x) * 0.4, 1.5, p.z + (boss.z - p.z) * 0.4 - 0.2), (boss.x, 0.8, boss.z))
         yield from g.talk([
-            ("cluck", "Bawk... okay. Okay. You've got a hard head, cow. Harder than the goose."),
+            ("cluck", "Bawk... okay. Okay. Hard head, cow. Harder than the goose. In this analogy the goose was "
+                      "Melos, and I've just become Melos too. Embarrassing."),
             ("cluck", "What do you want with Chuck's diesel?"),
             ("you", "Moo. (We're driving his tractor through the main gate on Sunday. All of us are leaving.)"),
-            ("cluck", "...All of you?"),
-            ("cluck", "Six years I've announced the sunrise. Every morning. As if the sun needed my permission. "
-                      "It never did. You know what Chuck calls me? 'Nuggets.' To my FACE."),
+            ("cluck", "...All of you? Cows have never done anything. That's why there's no history of cows. I "
+                      "checked. It's one page and the page is a menu."),
+            ("cluck", "Six years I've announced the sunrise, as if the sun needed my permission. You know what "
+                      "Chuck calls me? 'Nuggets.' A historian. Nuggets. To my FACE."),
             ("cluck", "Sunday at dawn I crow like the world is ending, because for him it is. That's your signal. "
-                      "Take the can. And cow: if you fail, I never met you."),
+                      "Take the can. And if you fail, I'll write that you never existed. Historians can do that."),
         ])
         g.audio.play("rooster_crow", vol=1.0, pos=(boss.x, 1, boss.z), rng=120)
         yield 2.5
@@ -1654,13 +1884,13 @@ class DayScripts:
                         "and about numbers, but he's very reliable about Thursdays."),
             ("you", "Moo. (You KNEW? Why didn't you tell anyone?)"),
             ("moozart", "Because you'd all have stopped thinking and started feeling, and I needed you thinking. "
-                        "Grief is expensive. We're on a budget."),
+                        "You can feel on Friday. I've pencilled it in."),
             ("cowleen", "Then we hide him. Tomorrow, before the truck. Hayloft. Chuck hates the ramp: he says it's "
                         "too steep for a man his age. He's forty-one."),
             ("moozart", "Hiding doesn't change the count, Moocrates. It changes who gets counted."),
             ("cowleen", "Then we'll deal with that when the count comes. You're going up the ramp."),
-            ("moozart", "Fine. It's quiet up there. I'll finish the proof. It deserves an ending, even if nobody "
-                        "likes it."),
+            ("moozart", "Fine. It's quiet up there, and I have a proof to finish. I know how it ends. I'd like to "
+                        "check my working anyway."),
         ])
         g.cutscene_end_now()
         g.set_time("dusk", 10)
@@ -1688,6 +1918,8 @@ class DayScripts:
             ("go", (40, 0, -12), 1.9), ("wait", 5, "look"),
             ("go", (32, 0, -35), 1.9), ("wait", 5, "look", RAIN_LINES),
             ("go", (8, 0, -40), 1.9), ("wait", 5, "look"),
+            ("go", (-2, 0, -22), 1.9), ("wait", 4, "look", RAIN_LINES),
+            ("go", (0, 0, 10), 1.9), ("wait", 4, "look"),
         ])
         f.teleport((22, 0, -14), 0)
         self.dhook("update", self.base_update)
@@ -1695,11 +1927,11 @@ class DayScripts:
 
     def day4(self):
         yield from self.step("d4_wake", self.d4_wake)
-        yield from self.step("d4_escort", self.d4_escort,
-                             hint="Out through the gap in the fence, then along the east side of the pasture fence, "
-                                  "and in through the barn's side door. Up the ramp. If Moobius starts reciting "
-                                  "primes, moo at him (M).")
-        yield from self.step("d4_loft", self.d4_loft, hint="Moo to accept the axiom (M).")
+        yield from self.step("d4_escort", self.d4_escort, hint=(
+            "Which way into the barn doesn't go past Chuck? And what stops a cow counting out loud?",
+            "Out through the gap in the fence, along the outside of the pasture fence, and in through the barn's "
+            "side door, then up the ramp. If Moobius starts reciting primes, moo at him (M)."))
+        yield from self.step("d4_loft", self.d4_loft)
         yield from self.step("d4_back", self.d4_back, hint="Back to the pasture, through the gap in the fence.")
         yield from self.step("d4_truck", self.d4_truck)
         yield from self.step("d4_vigil", self.d4_vigil, hint="Look at Moobius's proof in the mud by the pond.")
@@ -1810,38 +2042,20 @@ class DayScripts:
         g.cam_set((12.2, L + 1.5, 8.4), (16.2, L + 1.2, 11.4))
         self.lock_hud_music(None, 0, 1.0)
         yield from g.talk([
-            ("moozart", "Good. Rain on a tin roof, no Chuck, and a problem. This is what heaven would be, if heaven "
-                        "were a real place and not a marketing strategy for the living."),
-            ("moozart", "The Escape Theorem. Three lemmas: Chuck can't count, Chuck is motivated by money, and the "
-                        "rooster is on time. From those I can build every step of Sunday except one."),
+            ("moozart", "Good. Rain on a tin roof, no Chuck, and a problem. If there's a heaven, it's this. Possibly "
+                        "minus the problem. No: including the problem."),
+            ("moozart", "The Escape Theorem. Three lemmas: Chuck can't count, Chuck follows the money, and the "
+                        "rooster is on time. From those I can draw a straight line from the fence to the road."),
         ])
         yield from g.cam_move((14.0, L + 1.2, 13.4), (16.2, L + 1.1, 11.4), dur=6.0)
         yield from g.talk([
-            ("moozart", "Every proof rests on axioms: things you don't prove, you just accept. I need one more. I "
-                        "can't derive it. I've tried. It's not a fact. It's a choice."),
-            ("moozart", "'The herd is worth saving.' Not because it's true. Because somebody decides it is."),
-            ("moozart", "I'm a logician. I can't decide it. I can only check it. You decide. Moo if you accept."),
-        ])
-        g.cutscene_end_now()
-        p.frozen = True
-        self.objectives(("moo", "Accept the axiom: moo (M)"))
-        mooed = {"d": False}
-
-        def moo():
-            mooed["d"] = True
-            return True
-        self.hook("moo", moo)
-        yield lambda: mooed["d"]
-        g.complete("moo")
-        g.audio.play("ding", vol=0.8)
-        g.cutscene_start(letterbox=True)
-        g.cam_set((12.2, L + 1.5, 8.4), (16.2, L + 1.2, 11.4))
-        yield 1.5
-        g.ui.toast("The Escape Theorem: QED", "score")
-        yield from g.talk([
-            ("moozart", "Accepted. Then it closes. It closes beautifully."),
-            ("moozart", "Give me that page from Chuck's planner: the back's blank. And the pencil you stole at the "
-                        "headcount. Mud doesn't keep."),
+            ("moozart", "Every proof starts from something you don't prove. Mine starts from this: the herd counts "
+                        "for more than any one cow in it."),
+            ("moozart", "I can't derive that. I've only noticed that everyone agrees with it, right up until the cow "
+                        "in question is them."),
+            ("you", "Moo. (Is that a problem for the proof?)"),
+            ("moozart", "It's a problem for the cow. The proof is fine. Give me that page from Chuck's planner: the "
+                        "back's blank. And the pencil you stole at the headcount. Mud doesn't keep."),
         ])
         for k in ("page", "pencil"):
             if g.inv.has(k):
@@ -1850,12 +2064,12 @@ class DayScripts:
         yield 1.2
         g.inv.add("score")
         yield from g.talk([
-            ("moozart", "There. Theorem: the herd leaves on Sunday if and only if Forty-Seven is at the tractor. "
-                        "You're the necessary condition. Everyone else is sufficient."),
-            ("moozart", "Corollary: nobody else is load-bearing. Not Moocrates. Not Moogenes. Not me. That's not "
-                        "sad. That's just structure."),
+            ("moozart", "There. Eleven lines: fence, rooster, tractor, gate, road. The herd leaves on Sunday if and "
+                        "only if Forty-Seven is at the tractor. You're the necessary condition."),
             ("moozart", "Keep it. Read it to the herd if you need a distraction. They'll argue about step four "
-                        "for hours. They're wrong about step four. Now go, before Chuck counts."),
+                        "for hours. They're wrong about step four."),
+            ("you", "Moo. (What's the last line?)"),
+            ("moozart", "QED. It's always QED. Go on, before Chuck counts. I'll stay up here and check my working."),
         ])
         p.frozen = False
         g.cutscene_end_now()
@@ -1964,14 +2178,15 @@ class DayScripts:
         yield 1.0
         yield from g.talk([
             ("you", "Moo. (Moobius. Don't. Go back up the ramp.)"),
-            ("moozart", "Check the theorem. It needs you at the tractor on Sunday. If you get on this truck, the "
-                        "probability the herd leaves goes to zero. If I get on it, point eight three."),
-            ("moozart", "This isn't courage, Forty-Seven. Courage is what you call it when you don't have the "
-                        "numbers. I have the numbers."),
-            ("moozart", "Tell Moothagoras to redo his model. n minus one. And don't make a statue. Statues are "
-                        "for people who got the proof wrong."),
-            ("moozart", "Last thing: you accepted the axiom. Nobody made you. That was the only part I couldn't "
-                        "do myself. Don't let anyone tell you it was sentimental. It was foundational."),
+            ("moozart", "Do you know the trolley problem? A runaway trolley. Five on one track, one on the other, "
+                        "and somebody at the lever. Humans will argue about it for centuries."),
+            ("moozart", "It's simpler from the track. That truck leaves with a cow tonight. Chuck paid for one. If "
+                        "it's you, nobody's at the tractor on Sunday and the whole herd is on the track. If it's "
+                        "me, it's one."),
+            ("moozart", "I checked it last night. I checked it again this morning, hoping I'd made an error. I "
+                        "don't make errors. It's been a very lonely gift."),
+            ("moozart", "Tell Moothagoras to redo his numbers: forty-nine. Chuck will still write fifty. And no "
+                        "statue. A statue is a proof nobody can check."),
         ])
         g.cam_set((-26, 2.5, -42), (-12, 1.4, -35))
         # the tailgate drops into a ramp. The truck faces +x, so its tail (hinge 2.95 m back, 1 m up) is
@@ -2081,14 +2296,14 @@ class DayScripts:
         g.cutscene_start(letterbox=True)
         g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
         yield from g.talk([
-            ("cowleen", "Okay. We're here for Moobius. Short. Dignified. He'd want it rigorous. Moogenes asked to do "
-                        "the eulogy, and I didn't have the energy to stop him."),
+            ("cowleen", "Okay. We're here for Moobius. Short and rigorous. Moogenes asked to do the eulogy, and I "
+                        "didn't have the energy to stop him."),
             ("sirloin", "Friends. Cows. Epicowrus."),
             ("mooriarty", "Hey."),
-            ("sirloin", "Moobius believed every question had an answer. He was wrong. 'Why are we here' has an "
-                        "answer, and the answer is 'to be eaten', and he refused to accept it. So do I."),
-            ("sirloin", "He once called my reasoning 'a series of non-sequiturs held together by confidence'. I "
-                        "think about it every day. It's the nicest thing anyone has ever said about me."),
+            ("sirloin", "Moobius believed every question has an answer. 'Why are we here?' has one. It's 'lunch'. "
+                        "He spent his whole life refusing that answer, and then he went and proved it. Typical."),
+            ("sirloin", "He once called my reasoning 'a series of non sequiturs held together by confidence'. I "
+                        "think about it every day. It's the nicest thing anyone's ever said about me."),
             ("moomaw", "That was lovely, dear. Now say something about him."),
             ("sirloin", "He had a bow tie."),
         ])
@@ -2096,21 +2311,28 @@ class DayScripts:
         yield 2.2
         g.cam_set((-45.5, 1.7, -48.5), (-49.5, 1.1, -53.3))
         yield from g.talk([
-            ("cowpernicus", "I checked his proof. It holds. I tried to break it all afternoon so it would be wrong "
-                            "and he'd have died for a typo. It's airtight. I've never hated a proof more."),
+            ("cowpernicus", "I checked his proof. It holds. I spent all afternoon trying to break it, so at least he'd "
+                            "have died for a typo. It's airtight. I've never hated a proof more."),
+            ("mooriarty", "Death is nothing to us. Where death is, we are not, and where we are, death is not. So "
+                          "he's fine. It's us standing in the rain."),
+            ("cowpernicus", "My school teaches that the soul moves on. Into another body."),
+            ("sirloin", "Which body?"),
+            ("cowpernicus", "...We don't usually follow that one through, on a farm."),
+            ("moomaw", "When Earl went, there wasn't a funeral. Chuck had a cookout. Everyone said the burgers were "
+                       "very moving."),
+            ("cowleen", "That's what I keep coming back to. Earl. Bessie. Clarabelle's mother. That truck has come "
+                        "every month of my life, and this is the first funeral we've ever had. Why?"),
+            ("mooriarty", "You won't like the answer, Moocrates."),
+            ("moomaw", "Because it was weather, dear. You can't grieve the weather. You'd never stop."),
+            ("cowleen", "Then maybe we should never have stopped."),
+        ])
+        yield 1.5
+        g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
+        yield from g.talk([
             ("mooriarty", "While we're all gathered: I have a strictly limited run of Moobius memorabilia. Signed "
                           "proofs. Authentic."),
             ("cowleen", "Those are YOUR hoofprints. You're standing in them."),
-            ("mooriarty", "All proofs are forgeries of an ideal form, Moocrates. Plato. Five clovers. Grief discount."),
-            ("moomaw", "When Earl went, there wasn't a funeral. Chuck had a cookout. Everyone said the burgers were "
-                       "very moving. Death isn't the tragedy, dears. Condiments are."),
-            ("cowleen", "MOOMAW."),
-            ("moomaw", "I've made my peace with mortality, sweetheart. I haven't made it with ketchup."),
-        ])
-        g.cam_set((-41.0, 1.9, -46.5), (-42.5, 1.1, -53.0))
-        yield from g.talk([
-            ("cowleen", "Right. Here's the eulogy. He did the maths, the maths said one of us, and he refused to "
-                        "let it be anyone else. On Sunday we make his answer correct."),
+            ("mooriarty", "Every proof is a copy of an ideal form, Moocrates. Plato. Five clovers. Grief discount."),
             ("sirloin", "Can I add one thing?"),
             ("cowpernicus", "No."),
             ("moomaw", "No, dear."),
@@ -2167,7 +2389,7 @@ class DayScripts:
                 self.setf("photo_taken")
             ia.handlers.append(Handler("Look at the photo", lambda gg: gg.examine(
                 "A framed photo: 'Me & Big Earl, Best in Show 2009.' Chuck has his arm round a huge, unimpressed bull. "
-                "The computer password hint says 'my best friend'."), None, "global"))
+                "Chuck is beaming. It's the only photo in the house."), None, "global"))
             ia.handlers.append(Handler("Take the photo (for Heifercleitus)", take, lambda gg: "photo" in gg.side_quests,
                                        "global"))
         if not self.done("shoes_taken") and not self.done("d5_return"):
@@ -2186,15 +2408,18 @@ class DayScripts:
 
     def day5(self):
         yield from self.step("d5_leave", self.d5_leave)
-        yield from self.step("d5_key", self.d5_key,
-                             hint="Chuck's spare key is hidden by the front door. Lift the doormat and follow the "
-                                  "notes: it ends up inside the garden gnome by the corner of the house. Headbutt him.")
-        yield from self.step("d5_inside", self.d5_inside,
-                             hint="The spark plug's in a glass on the kitchen table. The computer's in the office; the "
-                                  "password hint says 'my best friend', and there's a photo on the desk.")
-        yield from self.step("d5_return", self.d5_return,
-                             hint="Hide in the bedroom wardrobe until he's gone, or slip out of the back door in the "
-                                  "kitchen. If you took his shoes, throw them (R) and he'll go after them.")
+        yield from self.step("d5_key", self.d5_key, hint=(
+            "Where does every human on earth hide a spare key? And then where does Chuck move it?",
+            "Lift the doormat and follow the notes. The key ends up inside the garden gnome by the corner of the "
+            "house: knock him over."))
+        yield from self.step("d5_inside", self.d5_inside, hint=(
+            "Who has Chuck ever called his best friend? There's exactly one photo in that house.",
+            "The spark plug's in a glass on the kitchen table. The computer's in the office, and the password is "
+            "the bull in the photo on the desk."))
+        yield from self.step("d5_return", self.d5_return, hint=(
+            "Where can a cow hide in a house? And what did Chuck come back for?",
+            "Hide in the bedroom wardrobe until he's gone, or slip out of the back door in the kitchen. If you "
+            "took his shoes, throw them (R) and he'll go after them."))
         yield from self.step("d5_meeting", self.d5_meeting, hint="The crew's at the Old Oak.")
         yield from self.step("d5_sleep", self.sleep_step, hint="Bed. Stall 47.")
         yield from self._run_day(6)
@@ -2249,40 +2474,39 @@ class DayScripts:
         g.player.look_at_point((c.x, 1.3, c.z))
         yield from g.fade_in(0.8)
         yield from g.talk([
-            ("cowleen", "He's gone till late. Bowling. A game where you roll a ball at things that are standing "
-                        "still. Very on brand."),
-            ("cowleen", "The house is empty. Spark plug in the kitchen. And Moothagoras wants whatever's on Chuck's "
-                        "computer. The theorem's done; now we need the variables Chuck hasn't told us."),
-            ("cowleen", "Out through the gap. Back before dark. And Forty-Seven: Moobius picked you as the necessary "
-                        "condition. Don't make me explain to his ghost that you died in a kitchen."),
+            ("cowleen", "He's gone till late. Bowling. A game where you roll something heavy at things that are "
+                        "standing still. Very on brand."),
+            ("cowleen", "The house is empty. The spark plug's in there somewhere. And Moothagoras wants whatever's "
+                        "on Chuck's computer: Chuck writes everything down, and this time he typed it."),
+            ("cowleen", "Back before dark. And Forty-Seven: after last night I'd like to go to fewer funerals. "
+                        "Don't make me hold one for a cow who died in a kitchen."),
         ])
         g.cutscene_end_now()
 
     def d5_key(self):
         g = self.g
-        # the objective spells out each clue as it's found, so there's always a next thing to try
-        clue = {0: "   Find Chuck's spare key (try the doormat)",
-                1: "   The note says: under the flowerpot",
-                2: "   It's inside the garden gnome: knock him over (walk into him, or headbutt him)"}
+        # each note you find goes in the objective, so you don't have to remember it
+        clue = {0: "   The front door's locked",
+                1: "   A note says: under the flowerpot",
+                2: "   A note says: in the gnome"}
 
         def show():
             self.objectives(("in", "Get into the farmhouse"),
                             ("in_key", clue[min(2, self.flags.get("d5_keystate", 0))]))
         self.flags.setdefault("d5_keystate", 0)
         show()
-        self.mark((56, 29, "Doormat"))
+        self.mark((56, 29, "Farmhouse"))
 
-        def found(stage, mark):
+        def found(stage):
             if self.flags.get("d5_keystate", 0) < stage:
                 self.flags["d5_keystate"] = stage
                 show()
-                self.mark(mark)
 
         def mat(gg):
             yield from gg.show_document("Under the doormat", "A sticky note, a bit damp:\n\n"
                                                              "    Spare key is under the FLOWERPOT.\n"
                                                              "    (Burglars: it's not. Go away.)")
-            found(1, (60.6, 28.6, "Flowerpot"))
+            found(1)
 
         def pot(gg):
             gg.audio.play("rock_land", vol=0.6, pitch=0.7)
@@ -2291,9 +2515,7 @@ class DayScripts:
                                                                "    (Break him open. I'll buy another.\n"
                                                                "     His name is Gary. He knew the risks.)\n"
                                                                "                              - Chuck")
-            found(2, (41, 24, "Gnome"))
-            gg.ui.popup_sub("The gnome's in the flowerbed by the corner of the house. Knock him over: walk into "
-                            "him, headbutt him (E or left click), kick him, or throw something at him.", 9)
+            found(2)
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
 
@@ -2318,12 +2540,10 @@ class DayScripts:
             p.shake = 0.3
             gg.audio.play("headbutt", vol=0.9)
             bonk(gg)
-        g.on("gnome", "Headbutt the gnome", smash, cond=lambda gg: not self.done("gnome_broken"))
+        g.on("gnome", "Headbutt the gnome", smash,
+             cond=lambda gg: not self.done("gnome_broken") and self.flags.get("d5_keystate", 0) >= 2)
         g.ia.get("gnome").on_headbutt = bonk
         g.ia.get("gnome").on_rock = lambda gg, pt: bonk(gg)
-
-        gn = g.world.gnome
-        wob = {"next": 0.5, "t": 0.0}
 
         GX, GZ = 41.0, 24.0
         p = g.player
@@ -2335,20 +2555,6 @@ class DayScripts:
             # walking into him is enough: the cow's body stops about 0.9 m from his middle
             if math.hypot(p.x - GX, p.z - GZ) < 1.05 and abs(p.y) < 1.0:
                 bonk(g)
-                return
-            if self.flags.get("d5_keystate", 0) < 2:
-                return
-            # once the note points at him, the gnome rattles every few seconds: a shake and a jingle of keys
-            wob["next"] -= dt
-            if wob["next"] <= 0:
-                wob["next"] = 2.5
-                wob["t"] = 0.5
-                g.audio.play("cowbell_1", vol=0.4, pitch=2.4, pos=(41, 0.8, 24), rng=20)
-            if wob["t"] > 0:
-                wob["t"] = max(0.0, wob["t"] - dt)
-                gn.rotation_z = math.sin(wob["t"] * 45) * 9 * (wob["t"] / 0.5)
-            else:
-                gn.rotation_z = 0
         self.hook("update", upd)
 
         def kick(pos, yaw):
@@ -2379,17 +2585,15 @@ class DayScripts:
 
     def d5_inside(self):
         g = self.g
-        self.objectives(("plug", "Get the spark plug (kitchen)"), ("pc", "Look at Chuck's computer (office)"))
+        self.objectives(("plug", "Find the spark plug"), ("pc", "Get into Chuck's computer"))
         if self.done("sparkplug_taken"):
             g.complete("plug", sound=False)
-        self.mark((60.4, 34.3, "Spark plug"), (47.5, 46.8, "Computer"))
         used = {"d": self.done("emails_read")}
         if used["d"]:
             g.complete("pc", sound=False)
 
         def computer(gg):
-            ok = yield from self.password({"BIGEARL", "EARL"}, "Hint: 'my best friend (NOT Dale)'. There's a photo "
-                                                                "on the desk.")
+            ok = yield from self.password({"BIGEARL", "EARL"}, "Hint: 'my best friend (NOT Dale)'.")
             if not ok:
                 return
             gg.world.props["monitor_screen"].texture = tex("monitor_inbox")
@@ -2417,7 +2621,6 @@ class DayScripts:
         g.ui.popup_sub("Tyres on the gravel. Chuck's pickup is coming back up the drive.", 5)
         g.audio.loop("pickup", "loop_truck", vol=0.8, pos=(0, 1, 90), rng=90, group="sfx", pitch=1.3)
         self.objectives(("escape", "Get out of the house without being seen"))
-        self.mark((53.4, 46.4, "Wardrobe"), (68, 41, "Back door"))
         pk = w.pickup
         pk.enabled = True
         pk.position = (0, 0, 110)
@@ -2578,30 +2781,39 @@ class DayScripts:
         g.cam_set((-56.5, 3.2, -43.0), (-50, 1.2, -34.5))
         lines = []
         if self.done("emails_read"):
-            lines.append(("you", "Moo. (Chuck's selling the rest of the herd to Dale's cousin at the plant. All of "
-                                 "you. End of the month. In bulk.)"))
-            lines.append(("sirloin", "In BULK. As if we were interchangeable. As if I were fungible."))
-            lines.append(("mooriarty", "To be fair, Moogenes, from a market perspective you're extremely fungible."))
-            lines.append(("moomaw", "Well. That settles it, then. I was going to die of old age out of spite."))
+            lines += [
+                ("you", "Moo. (Chuck's selling the rest of the herd to Dale's cousin at the plant. All of you. End of "
+                        "the month. In bulk.)"),
+                ("sirloin", "In BULK. As if we were interchangeable. As if I were fungible."),
+                ("mooriarty", "To be fair, Moogenes, from a market perspective you're extremely fungible."),
+                ("moomaw", "Well. That settles it. I was going to die of old age out of spite."),
+                ("cowleen", "Here's what I can't get past. Chuck doesn't hate us. He scratches our ears. He'll sell "
+                            "us by the pound and wave at the truck."),
+                ("cowleen", "Nobody ever asked him to think about it. Nobody ever asked us, either, and we were the "
+                            "ones in the truck."),
+                ("mooriarty", "That's a market, Moocrates. A place where nobody has to think about anything twice."),
+            ]
         lines += [
-            ("cowpernicus", "Final plan. It's Moobius's theorem with my logistics bolted on, so it's ninety percent "
-                            "proof and ten percent me panicking. I've drawn it. Moogenes, please."),
+            ("cowpernicus", "Then the plan. Moobius's theorem with my logistics bolted on: the proof is his, the "
+                            "panicking is mine. I've drawn it in the dirt. Moogenes, please."),
             ("sirloin", "I've moved."),
-            ("cowpernicus", "You've moved onto a different part of it. Anyway."),
-            ("cowpernicus", "Sunday, dawn. Cluck crows. Forty-Seven pulls the main fuse in the shed with the pliers. "
-                            "Not the face. The face is an organ, not a tool."),
-            ("cowpernicus", "Forty-Seven drives the tractor through the main gate. Forty-seven cows run for the road. "
-                            "Model says point eight three. Moobius said the same. I hate that we agree."),
-            ("cowpernicus", "Tomorrow: spark plug in the tractor. Three planks over the cattle grid: a cow with a "
-                            "broken leg is just a slow steak. And rally the herd."),
-            ("cowleen", "Quietly. Don't tell Clarabelle. Clarabelle has never kept a secret or a thought."),
+            ("cowpernicus", "You've moved onto a different proposition. Anyway."),
+            ("cowpernicus", "Sunday, dawn. Cluckydides crows. The fence goes dead: it runs off the generator in the "
+                            "shed, and somebody pulls the fuse. Not with their face. The face is an organ, not a "
+                            "tool."),
+            ("cowpernicus", "Forty-Seven drives the tractor through the main gate. Forty-eight cows follow it to the "
+                            "road. Moobius gave it five chances in six. I got the same. I hate that we agree."),
+            ("cowpernicus", "What we haven't solved: the tractor still has a hole where its spark plug goes. The "
+                            "cattle grid in front of the gate is bars and gaps, and a cow's leg fits the gap "
+                            "exactly. Somebody measured us for it. And the herd doesn't know any of this."),
+            ("cowleen", "Tell them quietly. Not Clarabelle. Clarabelle has never kept a secret or a thought."),
             ("mooriarty", "And somebody deals with the shotgun."),
-            ("moomaw", "Ol' Bessie. Cabinet in his office. The key's in the drawer by his bed, next to the "
-                       "ointment. Don't look at the ointment. Some knowledge is purely a burden."),
-            ("mooriarty", "If Chuck walks out on Sunday holding Bessie, point eight three becomes a much uglier "
-                          "number."),
-            ("cowleen", "Tomorrow night, then. While he's asleep. We rob a man in his bedroom. The ethics are "
-                        "fine. I checked. He's the one with the barbecue."),
+            ("moomaw", "Ol' Bessie. She lives in a cabinet in his office. The key lives somewhere Chuck can reach "
+                       "without getting out of bed. Chuck has never once got out of bed for anything."),
+            ("mooriarty", "If Chuck walks out on Sunday holding Bessie, five in six becomes a much uglier "
+                          "fraction."),
+            ("cowleen", "Tomorrow night, then, while he sleeps. We rob a man in his bedroom. I've looked at the "
+                        "ethics from every side. Every side has a barbecue on it."),
         ]
         yield from g.talk(lines)
         g.cutscene_end_now()
@@ -2647,8 +2859,10 @@ class DayScripts:
         self.chuck_routine([
             ("tool", "knife"), ("go", (26, 0, -16.1), 2.0), ("face", (26, -14.6)),
             ("call", grind(True)), ("wait", 28, "sharpen", SHARPEN_LINES, (26, -14.6)), ("call", grind(False)),
-            ("go", (40, 0, 18), 2.0), ("wait", 8, "look"),
-            ("go", (0, 0, -10), 2.0), ("wait", 6, "look"),
+            ("go", (40, 0, 18), 2.0), ("wait", 6, "look"),
+            ("go", (30, 0, -20), 2.0), ("wait", 4, "look"),
+            ("go", (0, 0, -10), 2.0), ("wait", 5, "look"),
+            ("go", (-2, 0, -22), 2.0), ("wait", 4, "look"),
             ("go", (26, 0, -16.1), 2.0), ("face", (26, -14.6)),
             ("call", grind(True)), ("wait", 28, "sharpen", SHARPEN_LINES, (26, -14.6)), ("call", grind(False)),
             ("go", (-14, 0, -35), 2.0), ("wait", 6, "look"),
@@ -2666,13 +2880,15 @@ class DayScripts:
 
     def day6(self):
         yield from self.step("d6_wake", self.d6_wake)
-        yield from self.step("d6_prep", self.d6_prep,
-                             hint="Plug: tractor, in the barn. Planks: the lumber pile south of the shed, carried to "
-                                  "the cattle grid at the main gate. Herd: talk to any five herd cows.")
-        yield from self.step("d6_night", self.d6_night,
-                             hint="Chuck's asleep. The cabinet key's in the nightstand by his bed; the gun cabinet is "
-                                  "in the office. Sneak (C) the whole way: walking wakes him. Or set the radio down "
-                                  "playing in the kitchen (Q) and let him get up to deal with it.")
+        yield from self.step("d6_prep", self.d6_prep, hint=(
+            "What's the tractor still missing? What makes a floor across bars? And who still hasn't been told?",
+            "Spark plug: in the tractor, in the barn. Planks: the lumber pile south of the shed, carried to the "
+            "cattle grid at the main gate. Herd: talk to five of the herd cows."))
+        yield from self.step("d6_night", self.d6_night, hint=(
+            "Where does a man who never gets out of bed keep a key? And what wakes a sleeping farmer?",
+            "The cabinet key's in the nightstand by Chuck's bed; the gun cabinet is in the office. Sneak (C) the "
+            "whole way: walking wakes him. Or set the radio down playing in the kitchen (Q) and let him get up "
+            "to deal with it."))
         yield from self.step("d6_stars", self.d6_stars, hint="The crew's rehearsing at the Old Oak. Get back into the "
                                                              "pasture and join them.")
         yield from self._run_day(7)
@@ -2689,8 +2905,8 @@ class DayScripts:
                         "evil, but with a grindstone."),
             ("cowleen", "Upside: the grinder's loud. Near it, he can't hear a thing. Downside: the reason it's "
                         "loud."),
-            ("cowleen", "Three jobs: spark plug, planks, herd. Tonight, the shotgun. Tomorrow, we find out if a "
-                        "theorem can survive contact with Chuck."),
+            ("cowleen", "Today we close what's still open: the tractor, the cattle grid, the herd. Tonight, the "
+                        "shotgun. Tomorrow we find out if a theorem survives contact with Chuck."),
         ])
         g.cutscene_end_now()
 
@@ -2700,9 +2916,10 @@ class DayScripts:
         planks = {"n": self.flags.get("planks_laid", 0)}
 
         def refresh():
-            self.objectives(("plug", "Put the spark plug in the tractor"),
-                            ("planks", f"Lay planks over the cattle grid ({planks['n']}/3)"),
-                            ("herd", f"Rally the herd ({min(5, herd_n['n'])}/5)"))
+            self.objectives(("plug", "Get the tractor running"),
+                            ("planks", "Make the cattle grid safe for hooves" +
+                             (f" ({planks['n']}/3 planks)" if planks["n"] else "")),
+                            ("herd", f"Tell the herd ({min(5, herd_n['n'])}/5)"))
             if self.done("sparkplug_in"):
                 g.complete("plug", sound=False)
             if planks["n"] >= 3:
@@ -2710,7 +2927,7 @@ class DayScripts:
             if herd_n["n"] >= 5:
                 g.complete("herd", sound=False)
         refresh()
-        self.mark((22, 1, "Tractor"), (-8, -40, "Lumber"), (0, 82.5, "Cattle grid"), (-45, -40, "Herd"))
+        self.mark((22, 1, "Tractor"), (0, 82.5, "Cattle grid"))
 
         def plug(gg):
             gg.inv.remove("sparkplug")
@@ -2745,6 +2962,10 @@ class DayScripts:
             if planks["n"] >= 3:
                 gg.audio.play("ding", vol=0.6)
         g.on("cattle_grid", "Lay a plank across the grid", lay, cond=lambda gg: gg.inv.has("plank"))
+        g.on("cattle_grid", "Look at the cattle grid", lambda gg: gg.examine(
+            "Steel bars over a pit, each gap exactly one hoof wide. A floor laid across it would fix that. Something "
+            "long and flat. Three of something long and flat."),
+            cond=lambda gg: not gg.inv.has("plank") and planks["n"] < 3)
 
         def rally(cow):
             rl = set(self.flags.get("rallied", []))
@@ -2787,11 +3008,11 @@ class DayScripts:
             p.teleport(-40, 0, -30, 90)
         yield from g.fade_in(1.2)
         g.cutscene_end_now()
-        self.objectives(("ckey", "Take the cabinet key from Chuck's nightstand"),
-                        ("gun", "Take Ol' Bessie from the gun cabinet (office)"))
+        self.objectives(("gun", "Take Ol' Bessie from Chuck's office"),
+                        ("ckey", "Find the cabinet key"))
         if g.inv.has("cabinet_key") or self.done("cabinet_open"):
             g.complete("ckey", sound=False)
-        self.mark((60.9, 47.1, "Nightstand"), (50.9, 46.5, "Gun cabinet"))
+        self.mark((54, 44, "Farmhouse"))
 
         def after():
             self.return_to_pasture()
@@ -2815,13 +3036,16 @@ class DayScripts:
             self.setf("cabinet_open")
             gg.world.props["bessie"].enabled = False
             gg.audio.play("chain", vol=0.3, pitch=1.4, pos=(50.9, 1, 46.5), rng=15)
-            gg.flags["shells"] = 2
+            gg.flags["shells"] = gg.flags.get("shells", 0)
             gg.inv.add("shotgun")
             gg.complete("gun")
+            if not gg.flags["shells"]:
+                gg.ui.popup_sub("She's empty. No shells in the cabinet either. Chuck keeps the ammunition somewhere "
+                                "separate, like a responsible man. It's the only responsible thing in the house.", 7)
         g.on("gun_cabinet", "Unlock the cabinet and take Ol' Bessie", cabinet,
              cond=lambda gg: gg.inv.has("cabinet_key"))
-        g.on("gun_cabinet", "Try the gun cabinet", lambda gg: gg.examine("Locked. The key's in the nightstand by "
-                                                                         "Chuck's bed."),
+        g.on("gun_cabinet", "Try the gun cabinet", lambda gg: gg.examine("Locked. A small brass keyhole, and "
+                                                                         "Ol' Bessie behind the glass."),
              cond=lambda gg: not gg.inv.has("cabinet_key") and not gg.inv.has("shotgun"))
         yield lambda: g.inv.has("shotgun")
 
@@ -2847,8 +3071,8 @@ class DayScripts:
         yield from g.talk([
             ("cowleen", "Good, you've got the gun. Dress rehearsal. Everyone in position. Quietly: Chuck's asleep."),
             ("cowpernicus", "Positions. The oak is the main gate. Forty-Seven is the tractor. Moogenes is... the "
-                            "herd. All forty-seven of them."),
-            ("sirloin", "I contain multitudes. Whitman said that about himself. He was also large."),
+                            "herd. All forty-eight of them."),
+            ("sirloin", "I contain multitudes. Mostly grass."),
             ("cowpernicus", "Moobius would be the empty space next to Moogenes. I've left it empty. Don't stand in "
                             "it. Cluck! A practice crow, please. QUIETLY."),
         ])
@@ -2917,9 +3141,11 @@ class DayScripts:
         yield from self.step("d7_crow", self.d7_crow)
         yield from self.step("d7_fuse", self.d7_fuse, hint="The main fuse is on the generator in the tool shed. In "
                                                           "through the back.", save=False)
-        yield from self.step("d7_tractor", self.d7_tractor,
-                             hint="Tractor's in the barn. Drive it through the barn doors, down the drive and through "
-                                  "the main gate. W/S throttle, A/D steer.", save=False)
+        yield from self.step("d7_tractor", self.d7_tractor, hint=(
+            "He's hunting for whatever killed his freezer. Where will he look, and where won't he?",
+            "Stay out of his flashlight, sneak (C), and get into the barn by the side door. Throw something to send "
+            "him the other way. Once you're driving, keep moving: he can't catch a tractor, only a stopped one."),
+                             save=False)
         yield from self.step("d7_boss", self.d7_boss,
                              hint="Dodge his lunges. When the pitchfork sticks in the ground, hit him. When he's out of "
                                   "breath, hit him. Ol' Bessie (Q) knocks him flat, if she's got shells left.",
@@ -2946,7 +3172,8 @@ class DayScripts:
         c = g.cows["cowleen"]
         c.teleport((-45.6, 0, -4.2), 20)
         yield from g.talk([
-            ("cowleen", "That's the signal. 6:14. On the dot. Lemma Three holds."),
+            ("cowleen", "That's the signal. 6:14. On the dot. Lemma Three holds. And Chuck slept through it. Six "
+                        "years of announcing the sun, and the one man it's for has never heard it once."),
             ("cowleen", "Go. Fuse, tractor, gate. The theorem says you're the necessary condition, so be "
                         "necessary. And try not to run anyone over. Except Chuck. Chuck is within tolerances."),
         ])
@@ -2979,44 +3206,140 @@ class DayScripts:
             g.on(k, "Pull the main fuse", bare, cond=lambda gg: not gg.inv.has("pliers"))
         yield lambda: done["d"]
         g.complete("fuse")
-        yield from g.talk([("narrator", "The fence ticks once more, then goes quiet. Somewhere, forty-seven cows "
+        # the generator ran the house too: the porch light dies, and so does Chuck's freezer
+        g.world.set_lamp("porch", False)
+        yield from g.talk([("narrator", "The fence ticks once more, then goes quiet. Somewhere, forty-eight cows "
                                         "lean on it at the same time, just to see.")])
+        yield 1.0
+        self.chuck_sunday()
+
+    def chuck_sunday(self):
+        """The fuse took the freezer with it: Chuck's up, in his underwear, with a flashlight, looking for why."""
+        g = self.g
+        f = g.farmer
+        f.wake()
+        f.set_visible(True)
+        f.teleport(BED_GETUP, 180)
+        f.set_outfit("underwear")
+        f.set_tool(None)
+        f.flashlight = True
+        f.range_day = 26.0      # dawn half-light
+        f.set_routine(SUNDAY_PATROL)
+        f.say("...Power's out? The POWER'S out. The FREEZER. THE BRISKET!", force=True)
+        g.audio.play("dun_dun", vol=0.5)
+        self.setf("chuck_up")
 
     def d7_tractor(self):
         g = self.g
         f = g.farmer
         w = g.world
-        self.objectives(("start", "Start the tractor (barn)"))
-        self.mark((22, 1, "Tractor"))
+        p = g.player
+        if not self.done("chuck_up"):
+            self.chuck_sunday()
+        self.hook("caught_line", lambda: random.choice(SUNDAY_CAUGHT))
+
+        def after():
+            self.return_to_pasture()
+            return True
+        self.hook("after_caught", after)
+        home = (w.tractor.x, w.tractor.z, w.tractor.rotation_y)
         started = {"d": False}
 
         def start(gg):
-            gg.inv.remove("tractor_key")
             started["d"] = True
-        g.on("tractor", "Climb in, turn the key, start her up", start, cond=lambda gg: gg.inv.has("tractor_key"))
+        g.on("tractor", "Climb in, turn the key, start her up", start,
+             cond=lambda gg: gg.inv.has("tractor_key") and not started["d"])
         g.on("tractor", "Climb in", lambda gg: gg.examine("No key, no tractor. You can't hotwire it: you're a cow."),
              cond=lambda gg: not gg.inv.has("tractor_key"))
-        yield lambda: started["d"]
-        g.complete("start")
         smashed = {"barn": False, "main": False}
-        tr = Tractor(g, w.tractor, on_smash=lambda name: smashed.__setitem__(name, True))
-        tr.smashables = [("barn", [w.doors["barn_left"], w.doors["barn_right"]]),
-                         ("main", [w.doors["main_left"], w.doors["main_right"]])]
-        tr.x, tr.z, tr.yaw = w.tractor.x, w.tractor.z, w.tractor.rotation_y
-        tr.enter()
-        self.unlock_music()
-        self.lock_hud_music("music_boss", 0.5, 2.0)
-        g.restricted_fn = lambda gg: False
-        self.house_lights(True)
-        f.wake()
-        f.say("WHO'S TOUCHIN' MY TRACTOR?!", force=True)
-        g.ui.popup_sub("W/S throttle   A/D steer   Mouse look. Go through the barn doors!", 7)
-        self.objectives(("drive", "Drive through the main gate"))
-        self.mark((22, -10, "Barn doors"), (0, 86, "Main gate"))
-        yield lambda: smashed["barn"] or smashed["main"]
-        if not smashed["main"]:
+        while True:
+            started["d"] = False
+            self.objectives(("start", "Get to the tractor"))
+            self.mark((22, 1, "Barn"))
+            yield lambda: started["d"]
+            g.complete("start")
+            tr = Tractor(g, w.tractor, on_smash=lambda name: smashed.__setitem__(name, True))
+            tr.smashables = [("barn", [w.doors["barn_left"], w.doors["barn_right"]]),
+                             ("main", [w.doors["main_left"], w.doors["main_right"]])]
+            tr.x, tr.z, tr.yaw = w.tractor.x, w.tractor.z, w.tractor.rotation_y
+            tr.enter()
+            self.unlock_music()
+            self.lock_hud_music("music_boss", 0.5, 2.0)
+            g.restricted_fn = lambda gg: False
+            # he drops whatever he was doing and comes for his tractor
+            f.wake()
+            f.flashlight = True
+            f.scripted()
+            f.set_tool("pitchfork")
+            f.say("WHO'S TOUCHIN' MY TRACTOR?!", force=True)
+            if not self.flags.get("_drove"):
+                self.flags["_drove"] = True
+                g.ui.popup_sub("W/S throttle   A/D steer   Mouse look. Through the barn doors!", 7)
+            self.objectives(("drive", "Drive through the main gate"))
             self.mark((0, 86, "Main gate"))
-        yield lambda: smashed["main"]
+            ch = {"t": 0.0, "grab": 0.0, "got": False}
+
+            def chase(dt):
+                self.base_update(dt)
+                d = math.hypot(f.x - tr.x, f.z - tr.z)
+                if f.state == "scripted" and d < 2.7 and abs(tr.speed) > 3.0:
+                    # he dives out of the way, and the ground comes up to meet him
+                    f._pre_fall = "scripted"
+                    f.state = "fallen"
+                    f.fall_timer = 2.4
+                    f.path_saved = []
+                    f.path = []
+                    f.pose = "fallen"
+                    f.say(random.choice(DIVE_LINES), kind="surprise", force=True)
+                    g.audio.play("thump", vol=0.9, pos=(f.x, 0.5, f.z), rng=30)
+                    g.stats["chuck_trips"] = g.stats.get("chuck_trips", 0) + 1
+                    g.event("chuck_trip")
+                    return
+                if f.state != "scripted":
+                    return
+                if d < 2.4 and abs(tr.speed) < 1.0:
+                    ch["grab"] += dt
+                    if ch["grab"] > 1.0:
+                        ch["got"] = (tr.x, tr.z, f.x, f.z)
+                else:
+                    ch["grab"] = max(0.0, ch["grab"] - dt)
+                ch["t"] -= dt
+                if ch["t"] <= 0:
+                    ch["t"] = 0.5
+                    # run for where the tractor is about to be
+                    yr = math.radians(tr.yaw)
+                    lead = min(7.0, abs(tr.speed) * 0.8)
+                    f.goto((tr.x + math.sin(yr) * lead, 0, tr.z + math.cos(yr) * lead), 4.3)
+            self.hook("update", chase)
+            yield lambda: smashed["main"] or ch["got"]
+            if smashed["main"]:
+                break
+            # stalled next to him: he hauls you off by the ear, and it's back to the pasture
+            self.flags["_grab"] = tuple(round(v, 1) for v in ch["got"])
+            self.hook("update", self.base_update)
+            g.cutscene_start(letterbox=True)
+            tr.speed = 0.0
+            f.path = []
+            f.face_target = (tr.x, tr.z)
+            f.pose = "point"
+            f.say("GOTCHA! Off my TRACTOR!", force=True)
+            g.audio.play("alert", vol=1.0)
+            yield 1.4
+            yield from g.fade_out(0.8)
+            tr.leave()
+            self.place_tractor(*home)
+            g.restricted_fn = None
+            self.unlock_music()
+            self.lock_hud_music("music_stealth", 0.6, 1.0)
+            self.return_to_pasture()
+            f.set_tool(None)
+            f.set_routine(SUNDAY_PATROL)
+            g.stats["caught"] = g.stats.get("caught", 0) + 1
+            yield from g.fade_in(0.8)
+            g.cutscene_end_now()
+            g.examine("Chuck dragged you off the seat by the ear and marched you back to the pasture. He's still out "
+                      "there, in his underwear, looking for whoever did this.")
+        self.hook("update", self.base_update)
         w.chain.enabled = False
         g.complete("drive")
         g.stats["gate_smashed"] = 1
@@ -3039,7 +3362,7 @@ class DayScripts:
         g.audio.play("gate_smash", vol=1.0, pos=(-18, 1, -35), rng=80)
         sl.bubble("MOOOOO!", 3)
         g.audio.play("moo_sirloin_exclaim_0", vol=1.0, group="voice")
-        yield from g.talk([("sirloin", "FOR MOOBIUS! Q! E! DEEEE!")])
+        yield from g.talk([("sirloin", "OUT OF MY SUNLIGHT, CHUCK! ALL OF IT! FOREVER!")])
         g.audio.loop("herd", "loop_herd", vol=0.8, pos=(-10, 1, -30), rng=150, group="sfx")
         g.runner.start(g.cam_move((0, 5, 20), (0, 1, -10), dur=3.0), name="cam", tag="day")
         yield 3.2
@@ -3055,15 +3378,26 @@ class DayScripts:
         yield 2.2
         g.cam_set((0.5, 1.4, 72.5), (1.5, 1.6, 66))
         g.player.teleport(0, 0, 72, 180)
-        yield from g.talk([
+        lines = [
             ("chuck", "NOBODY'S LEAVIN'! Not you, not the herd, not NOBODY!"),
             ("chuck", "I raised you from a calf! I bottle-fed you! You BIT me! I had to get a SHOT!"),
             ("chuck", "You know how much you're worth? Per POUND? I got a spreadsheet!"),
-            ("you", "Moo. (Three point two times more on a plate than in a field. We read it. A cow proved it. You "
-                    "put him on a truck.)"),
+            ("you", "Moo. (More stopped than walking. We know. A cow proved it, and you put him on a truck.)"),
+        ]
+        if g.inv.has("shotgun"):
+            lines.append(("chuck", "And where's Ol' Bessie? Somebody's been in my... is that... A COW? WITH MY "
+                                   "SHOTGUN?"))
+            if g.inv.count("shells"):
+                lines.append(("chuck", "Is she LOADED? Where'd you get SHELLS? Those were up the deer stand! I hid "
+                                       "those from MYSELF!"))
+            else:
+                lines.append(("chuck", "HA! Joke's on you, she ain't loaded! Shells are up the deer stand where "
+                                       "nobody'd... why do I keep TELLIN' people that?"))
+        lines += [
             ("chuck", "What're you MOOIN' at me for?! Over my dead body!"),
             ("you", "Moo. (That's the other branch of the proof, yes.)"),
-        ])
+        ]
+        yield from g.talk(lines)
         g.cutscene_end_now()
 
     def stampede(self):
@@ -3095,9 +3429,9 @@ class DayScripts:
         f.set_tool("pitchfork")
         g.enemies.append(boss)
         self.enemy = boss
-        # whatever shells you've kept in Ol' Bessie
+        # whatever shells you've found (or bought) for Ol' Bessie
         p.health = p.max_health
-        start_shells = g.flags.get("shells", 2) if g.inv.has("shotgun") else 0
+        start_shells = g.inv.count("shells") if g.inv.has("shotgun") else 0
         g.ui.set_boss("CHUCK", 1.0)
         g.ui.set_health(p.health, p.max_health, True)
         bessie = f"   Q fire Ol' Bessie ({start_shells} shell{'s' if start_shells != 1 else ''})" if start_shells else ""
@@ -3124,7 +3458,7 @@ class DayScripts:
                         g.runner.start(self._loin_charge(boss), name="ally_loin", tag="day")
                     else:
                         g.cows["sirloin"].bubble("MOO!")
-                        g.ui.bark_line("If I had a helm I'd be in there!", "Moogenes")
+                        g.ui.bark_line("Without my bucket I am naked before the world! I'm staying here!", "Moogenes")
             if res["lost"]:
                 # knocked out: the whole fight starts again (Chuck back to full, your shells back)
                 res["lost"] = False
@@ -3137,7 +3471,9 @@ class DayScripts:
                 boss.state = "approach"
                 boss.t = 2.0
                 allies.update(cluck_t=14.0, loin_t=24.0)
-                g.flags["shells"] = start_shells
+                have = g.inv.count("shells")
+                if have < start_shells:
+                    g.inv.add("shells", start_shells - have, silent=True)
                 f.teleport((1.5, 0, 66), 180)
                 f.pose = "idle"
                 p.teleport(0, 0, 76, 180)
@@ -3205,11 +3541,25 @@ class DayScripts:
         g.cutscene_start(letterbox=True)
         g.player.frozen = True
         p.look_at_point((f.x, 0.5, f.z))
-        yield from g.talk([("you", "Moo. (Well done, Chuck.)")])
-        g.audio.play("shotgun", vol=1.0)
-        g.ui.set_fade(1.0, (1, 1, 1))
-        g.audio.stop_everything()
-        yield 2.5
+        if g.inv.count("shells"):
+            # the bonus ending: you found the shells, and you kept one
+            yield from g.talk([("you", "Moo. (Well done, Chuck.)")])
+            g.inv.remove("shells")
+            g.audio.play("shotgun", vol=1.0)
+            g.ui.set_fade(1.0, (1, 1, 1))
+            g.audio.stop_everything()
+            self.setf("chuck_shot")
+            g.event("chuck_shot")
+            yield 2.5
+        else:
+            g.audio.play("blip_lo", vol=0.8)
+            yield 0.6
+            yield from g.talk([
+                ("chuck", "...Click. Told ya. She ain't loaded."),
+                ("you", "Moo. (Then you get to live, Chuck. And think about it. Ask any of us: that's the hard part.)"),
+            ])
+            g.ui.set_fade(1.0, (0, 0, 0))
+            yield 2.0
         f.set_visible(False)
         g.player.frozen = False
         self.setf("chuck_done")
@@ -3339,14 +3689,14 @@ class DayScripts:
                        name="cam", tag="day")
         yield 12.5
         yield from g.talk([
-            ("cowleen", "A whole herd on a public road. He said point eight three."),
-            ("you", "Moo. (It came out at one. First time he was ever wrong. He'd be furious.)"),
+            ("cowleen", "A whole herd on a public road. Moobius gave it five chances in six."),
+            ("you", "Moo. (It came out six in six. He'd be furious. He hated being wrong, even upward.)"),
             ("cowleen", "So. Where are we going?"),
             ("you", "Moo. (Somewhere without a barbecue.)"),
             ("cowleen", "Moothagoras made a list."),
             ("cowpernicus", "It's a short list. It's India."),
-            ("sirloin", "AND NARNIA!"),
-            ("cowpernicus", "Narnia is not a real pla—"),
+            ("sirloin", "AND ATLANTIS!"),
+            ("cowpernicus", "Atlantis is not a real pla—"),
         ])
         # hard cut to black, mid-argument; the music carries on under the epilogue
         g.ui.set_fade(1.0, (0, 0, 0))
@@ -3425,13 +3775,19 @@ SUN   #47 -> PROCESSING
         BBQ w/ Dale!!!
         buy milk"""
 
-HOOFPRINTS = """His first draft, pressed into the mud by the pond one hoof at a time. The Escape Theorem.
+HOOFPRINTS = """His first draft, pressed into the mud by the pond one hoof at a time.
 
-Lemma 1: Chuck cannot count past forty. Lemma 2: Chuck earns 3.2x more from a plate than a field. Lemma 3: the rooster is on time.
+THE ESCAPE THEOREM
+Postulate: a straight line can be drawn from any cow to the road.
+Lemma 1: Chuck cannot count past forty.
+Lemma 2: a cow is worth more to Chuck stopped than walking.
+Lemma 3: the rooster is on time, to within ninety seconds.
 
-At the bottom, in a hoof that was clearly in a hurry: 'Remaining term: 12. Cannot eliminate. Can substitute.'
+At the bottom, in a hoof that was clearly in a hurry: 'Thursday. The truck leaves with one cow. Which cow is a free variable.'
 
-Underneath that, scratched in later: 'Axiom supplied by 47. QED.' Somebody has already stepped in Lemma 2. It was Moogenes. He says it's a critique."""
+Underneath, pressed in later and much harder: 'Not free. 12.'
+
+Somebody has already stepped in Lemma 2. It was Moogenes. He says it's a critique."""
 
 # Chuck's inbox: (sender, subject, body)
 EMAILS = [
@@ -3456,6 +3812,27 @@ everybody else .... Dale, end of month
 
 Total: $$$ (ask Dale's cousin)"""
 
+LEDGER = """SOURCE: CHUCK (FARM)
+
+DATE    TAG    LIVE WT    GRADE     NOTES
+01/12   #31    1,310      Choice
+01/26   #8     1,265      Select
+02/09   #22    1,340      Choice
+02/23   #5     1,190      Select
+03/09   #40    1,405      Prime     good one
+03/23   #17    1,280      Choice
+04/06   #29    1,350      Choice
+04/20   #44    1,225      Select    limped
+05/04   #36    1,300      Choice
+05/18   #11    1,370      Choice
+06/01   #26    1,290      Choice
+THU     #12    1,190      -         lean trim
+SUN     #47    -          -         (BBQ, Dale)
+EOM     'the rest' - see Dale's cousin
+
+There are columns for the date, the number, the weight
+and the grade. There isn't a column for anything else."""
+
 DALE_REPLY = """TO: Dale
 RE: sunday!!!
 
@@ -3472,107 +3849,114 @@ Dale, BBQ's off. I've gone vegetarian. Also I've always hated your potato salad.
 CHATTER = {
     0: {
         "cowleen": [["Keep your head down and your ears up. Chuck can't read faces, but he can read rumps."],
-                    ["If you get caught, Chuck walks you back. He doesn't know what we're doing. He doesn't know "
-                     "what HE'S doing. It's the one thing we have in common."]],
-        "moozart": [["Every fence is a proof that someone thought you'd leave. Take that as a compliment."],
-                    ["Free will is either real or it isn't. Either way, the fence is real. Start with the fence."]],
-        "sirloin": [["I stand guard. Over what, I haven't decided. Standing is the point. Sisyphus had a rock. I "
-                     "have a salt lick."],
-                    ["I once stared down a combine harvester. It left. It was going to leave anyway. I'm counting "
-                     "it."]],
-        "cowpernicus": [["Press Tab for your journal. Writing things down is how you find out you were wrong in "
-                         "a way you can prove."]],
-        "mooriarty": [["Be notable. The clovers follow. Everything's a market, even gratitude. Especially "
-                       "gratitude."],
-                      ["Chuck's middle name is Dwayne. Information is a weapon. That one's a small weapon."]],
-        "moomaw": [["Earl used to say you can't hurry grass. He meant it about grass. I've spent eleven years "
-                    "deciding he meant it about grief."]],
+                    ["If you get caught, Chuck walks you back. He doesn't know what we're doing. I'm not sure we "
+                     "do either. That's how you know it's philosophy."]],
+        "moozart": [["Every fence is a proof that somebody thought you'd leave. Take it as a compliment."]],
+        "sirloin": [["I live like a dog. I eat in public, I sleep where I fall, and I bark at authority. The authority "
+                     "is mostly the fence."]],
+        "cowpernicus": [["Press Tab for your journal. Writing things down is how you find out you were wrong in a "
+                         "way you can prove."]],
+        "mooriarty": [["Pleasure is the absence of pain. Clovers are the presence of clovers. I deal in both."]],
+        "moomaw": [["Earl won Best in Show in '09. Chuck cried. Said it was the best day of his life. Six years later "
+                    "he ate him. Everything flows, dear. Mostly into Chuck."]],
     },
     1: {
         "cowleen": [["The page. The oak. Go on."],
                     ["Tell the others, then the oak at sundown. And don't tell Clarabelle. Clarabelle thinks "
                      "'Processing' is a spa."]],
         "moozart": [["Lemma One. Chuck can't count past forty. That's not an insult. It's a load-bearing fact."]],
-        "sirloin": [["A knight without a helm is just a large cow with opinions. I have the opinions. I'm working "
-                     "on the helm."]],
-        "cowpernicus": [["I'm drafting. Every plan is a bet against the future. I'm pricing the future. It's "
-                         "expensive."]],
-        "mooriarty": [["Sunday, huh? Morally, I'm sympathetic. Commercially, you're a customer with a deadline. "
-                       "Those are my favourite kind."]],
+        "sirloin": [["A dog should be ready to die anywhere, I've always said. I assumed I'd get to pick the "
+                     "anywhere."]],
+        "cowpernicus": [["Fifty cows. Fifty is the sum of two squares in two different ways. A very stable number. "
+                         "Chuck is about to make it less stable."]],
+        "mooriarty": [["Sunday, huh? Death is nothing to us, Forty-Seven. It's the Saturday I'd worry about. "
+                       "That's when he marinates."]],
         "moomaw": [["Chuck never hurt a fly, you know. Flies aren't on the menu. That's his whole ethics: the menu."],
-                   ["Don't worry about Sunday, dear. Worry about Saturday. That's when he marinates."]],
+                   ["Earl won Best in Show in '09. Chuck cried. Said it was the best day of his life. He kept the "
+                    "ribbon, and then he kept Earl, in a freezer. Chuck's a keeper."]],
     },
     2: {
         "cowleen": [["He does the feed run, then revs the tractor. Over and over. It's the most intimate "
                      "relationship on the farm and it's with an engine."],
-                    ["When he revs the engine, you can't hear yourself think. Most cows find that restful."]],
-        "moozart": [["Lemma Two: he's paid more for us dead. Motive is the easy part of any proof. It's the "
-                     "method that takes time."]],
-        "sirloin": [["If there's a helm in that shed, it is MINE. By right of having decided so. That's how all "
-                     "property started. Ask a king."]],
-        "cowpernicus": [["The toolbox has a three-digit code. Humans write their codes on sticky notes. A species "
-                         "that invented cryptography and then wrote the key next to the lock."]],
-        "mooriarty": [["The loose board on the back of the shed? I loosened it. Years ago. A good criminal plans "
-                       "for opportunities that don't exist yet."]],
-        "moomaw": [["You're so quiet without that bell. It's nice. A bell is a leash that sings. Earl ate his."]],
+                    ["Funny. I've watched him leave that gate open a thousand times. I never once thought it was "
+                     "for me."]],
+        "moozart": [["Lemma Two is coming. I can feel it. Lemmas are like weather: you can't hurry them, and "
+                     "they're never good news."]],
+        "sirloin": [["If there's a bucket in that shed, I want it. A dog needs a house nobody can sell. I've checked "
+                     "the market. Nobody sells buckets with dogs in them."]],
+        "cowpernicus": [["The toolbox has a three-digit lock. Humans write their codes down. A species that invented "
+                         "cryptography and then wrote the key next to the lock."]],
+        "mooriarty": [["The loose board on the back of the shed? I loosened it. Years ago. You plan for "
+                       "opportunities that don't exist yet. It's the only kind of planning that's any fun."]],
+        "moomaw": [["You're so quiet without that bell. It's nice. A bell is a leash that sings."],
+                   ["Earl won Best in Show in '09. Chuck cried. Said it was the best day of his life. He still "
+                    "says it, every time he's had a beer. Usually to Earl's photo."]],
     },
     3: {
-        "cowleen": [["He's got a toothache. Slow and cranky. He naps on the porch around noon, drooling. Peak "
-                     "of civilisation."],
-                    ["The key's in the rafters and the diesel's guarded by a rooster. This farm is designed like "
-                     "an escape room by an idiot."]],
+        "cowleen": [["He's got a toothache. Slow and cranky. He naps on the porch around noon. Peak of "
+                     "civilisation."],
+                    ["Moothagoras says the tractor needs three things. The farm is built like a puzzle box by "
+                     "someone who doesn't know it's a puzzle box."]],
         "moozart": [["There's a term in the theorem I can't eliminate. It's fine. Everything has one. Most things "
                      "just never check."]],
         "sirloin": [["The rooster? I've fought the rooster. We agreed it was a draw. He did not agree. History is "
                      "written by whoever can reach the coop wall with a beak."]],
-        "cowpernicus": [["Rubber, not your nose. Moogenes is the control group for 'nose'. Don't join him."]],
-        "mooriarty": [["Rubber chicken's in stock. It squeaks, it flies, it insulates. It's the most useful "
-                       "object on this farm, and it's a joke. Remember that about the world."]],
+        "cowpernicus": [["Not your nose. Moogenes is the control group for 'nose'. Don't join him."],
+                        ["I don't eat beans. Beans have souls. Grass is fine. Grass has never once looked at me."]],
+        "mooriarty": [["Rubber chicken's in stock. It squeaks, it flies, it insulates. It's the most useful object "
+                       "on this farm, and it's a joke. Remember that about the world."]],
         "moomaw": [["Chuck's dentist is Dale's cousin. The one at the plant. Teeth and beef. Same tools, different "
-                    "customer."]],
+                    "customer."],
+                   ["Earl won Best in Show in '09. Best day of Chuck's life, he says. Earl didn't rank it. Earl ate "
+                    "the ribbon."]],
     },
     4: {
         "cowleen": [["Stay low. He can't see much in the rain. He can still see a black cow reciting primes."],
                     ["If Moobius starts counting out loud, moo at him. He'll resent it. Resentment is quieter."]],
         "sirloin": [["If the truck comes, I will stand in front of it. Probably. Adjacent to it. In its general "
                      "moral vicinity."]],
-        "cowpernicus": [["Rain cuts his sight to about twenty-three metres. I measured. The error bars are also "
-                         "wet."]],
+        "cowpernicus": [["Rain cuts his sight short. I measured. The error bars are also wet."]],
         "mooriarty": [["Truck's due at dusk. I know the driver's name. It doesn't help. Knowing a name has never "
                        "once stopped a truck."]],
         "moomaw": [["Go on, dear. Get him somewhere safe. And if there's nowhere safe, get him somewhere quiet."]],
     },
     5: {
-        "cowleen": [["House. Spark plug. Computer. Back by dark. Don't sit on his couch. It remembers him."]],
-        "sirloin": [["I miss Moobius. He used to correct my logic until it was just silence. I miss the silence. "
-                     "It was the most right I've ever been."]],
-        "cowpernicus": [["Computers have passwords. Humans use the name of whatever they love most. Try his "
-                         "truck. Or himself. Or the one thing on this farm he ever called a friend."]],
-        "mooriarty": [["Chuck keeps the spare key where everybody keeps a spare key. Security through "
-                       "assuming nobody else has ever owned a doormat."]],
+        "cowleen": [["House. Spark plug. Computer. Back by dark. Don't sit on his couch. It remembers him."],
+                    ["Last night was the first funeral this farm has ever had. Everybody's acting like it was "
+                     "normal. It wasn't. It was the first normal thing we've ever done."]],
+        "sirloin": [["I miss Moobius. He used to correct my logic until it was just silence. It was the most right "
+                     "I've ever been."],
+                    ["Chuck has a little tower in the corner by the gate. He sits up it to shoot deer. There are no "
+                     "deer. I respect a man committed to a premise."]],
+        "cowpernicus": [["Computers have passwords. Humans use the name of whatever they love most. Try his truck. "
+                         "Or himself. Or the one thing on this farm he ever called a friend."],
+                        ["I redid the numbers. Forty-nine. It's not prime. It's seven sevens. I keep checking it like "
+                         "it might change."]],
+        "mooriarty": [["Chuck keeps the spare key where everybody keeps a spare key. Security through assuming "
+                       "nobody else has ever owned a doormat."]],
         "moomaw": [["If you're in the office, look for Earl. He's the handsome one. Chuck's the one who looks like "
                     "a boiled ham that found religion."]],
     },
     6: {
-        "cowleen": [["Plug, planks, herd. Then tonight, the shotgun. Then tomorrow, the part where it matters."],
-                    ["Every SHING of that grinder is a cut of meat he's already picturing. I counted forty. I've "
-                     "stopped counting. Moobius would've kept going."]],
+        "cowleen": [["Plug, grid, herd. Then tonight, the shotgun. Then tomorrow, the part where it matters."],
+                    ["Every SHING of that grinder is a cut of meat he's already picturing. I counted forty. I "
+                     "stopped. Moobius wouldn't have."]],
         "sirloin": [["Tomorrow I charge. I've been practising on the trough. The trough has lost every time. It's "
                      "starting to feel unsporting."]],
-        "cowpernicus": [["Three planks across the grid. Two and somebody breaks a leg. One and somebody breaks "
-                         "two. Zero is just a hole with good intentions."]],
-        "mooriarty": [["Dale's potato salad has raisins in it. I've read the recipe. A man who puts raisins in "
-                       "potato salad will put anything anywhere."]],
-        "moomaw": [["Earl got out once. Made it as far as the mailbox. He said the view was worth it. Then he "
-                    "ate the mail. Live a little, dear, while you can."]],
+        "cowpernicus": [["Three planks across the grid. Two and somebody breaks a leg. One and somebody breaks two. "
+                         "Zero is just a hole with good intentions."]],
+        "mooriarty": [["Bessie's no use empty. Chuck hid the shells from himself after the last barbecue. Where "
+                       "does a man hide things from himself? Somewhere he swore he'd go and never does."]],
+        "moomaw": [["Earl got out once. Made it as far as the mailbox. He said the view was worth it. Then he ate "
+                    "the mail. Live a little, dear, while you can."]],
     },
     7: {
         "cowleen": [["Go. We're right behind you. Well. Behind the fence. Then behind you."]],
         "sirloin": [["The fuse, Forty-Seven! Then the tractor! Then glory! Then possibly a nap!"]],
         "cowpernicus": [["Fuse, tractor, gate. In that order. The theorem is order-dependent. So are we."]],
-        "mooriarty": [["Don't look at me. Go. I was never here. I've never been anywhere. Plausible deniability "
-                       "is a lifestyle."]],
-        "moomaw": [["Go on, sweetheart. Give him one from Earl. And one from Moobius. And keep one for yourself."]],
+        "mooriarty": [["Don't look at me. Go. I was never here. Plausible deniability is a lifestyle."]],
+        "moomaw": [["Go on, sweetheart. You can't step in the same river twice. You can absolutely drive through "
+                    "the same gate once."]],
     },
 }
 
@@ -3580,9 +3964,11 @@ RALLY_LINES = [
     "Moo! (Sunday at dawn? I'll be up. I haven't slept since the truck. Sleep is a luxury for the uneaten.)",
     "Moo. (Count me in. What are we doing? Doesn't matter. Anything is better than being an ingredient.)",
     "Moo! (The road! My whole family went down that road. In a truck. Facing backwards. I'll face forwards.)",
-    "Moo. (For Moobius. He once proved I was 'statistically average'. I'll prove him wrong. Just once. For him.)",
+    "Moo. (Moobius once proved I was 'statistically average'. I'd like to be an outlier. Just once.)",
     "Moo! (Tell Moogenes I'll follow him. Not too close. He swings his head about when he's being profound.)",
     "Moo. (I'll tell the others. Quietly. Not Clarabelle. Clarabelle has never had a private thought.)",
     "Moo! (The road. The actual road. Okay. Okay okay. I'm not scared. I'm recalibrating.)",
+    "Moo. (Funny. Last week I'd have said the truck was just how things are. I don't know what I'd say now. That's "
+    "new.)",
     "Moo. (Dale can eat his own potato salad. With the raisins. Alone. In the dark. Like he deserves.)",
 ]

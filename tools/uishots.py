@@ -33,16 +33,28 @@ def main():
     g.ui.close_modal()
     g.state = "play"
     from breakowt.story import SHOP
-    g.ui.open_shop("MOORIARTY'S", [(k if k != "rock_pouch" else "rock", l, p, d, False) for k, l, p, d in SHOP], 7,
+    g.ui.open_shop("THE GARDEN", [(k if k != "rock_pouch" else "rock", l, p, d, False) for k, l, p, d in SHOP], 7,
                    lambda k: None, lambda: None)
     harness.shot(app, "ui_shop")
     g.ui.close_modal()
-    from breakowt.days import PLANNER, EMAILS
+    from breakowt.days import PLANNER, EMAILS, SPREADSHEET, LEDGER
     g.ui.show_document("Chuck's planner", PLANNER)
     harness.shot(app, "ui_doc_paper")
     g.ui.close_modal()
-    g.ui.show_document("ChuckOS Mail: Inbox (3)", EMAILS, paper=False)
+    g.ui.show_document("Under the doormat", "A sticky note, a bit damp:\n\n    Spare key is under the FLOWERPOT.")
+    harness.shot(app, "ui_doc_note")
+    g.ui.close_modal()
+    g.ui.open_mail(EMAILS)
+    harness.shot(app, "ui_mail")
+    g.ui.close_modal()
+    g.ui.show_document("COWS.XLS - ChuckOffice", SPREADSHEET, paper=False)
     harness.shot(app, "ui_doc_screen")
+    g.ui.close_modal()
+    g.ui.show_document("HAPPY ACRES PROCESSING - INTAKE", LEDGER, style="ledger")
+    harness.shot(app, "ui_doc_ledger")
+    g.ui.close_modal()
+    g.ui.open_moodals(g, lambda: None)
+    harness.shot(app, "ui_moodals")
     g.ui.close_modal()
     g.ui.open_combo(3, "Toolbox")
     harness.shot(app, "ui_combo")

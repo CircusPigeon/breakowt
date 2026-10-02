@@ -72,7 +72,7 @@ class InteractionSystem:
 
     # rooms whose contents can only be reached from inside (the line-of-sight test below stops short of the
     # target, so a workbench against the shed wall answered from outside it)
-    ROOMS = ("shed", "house", "coop")
+    ROOMS = ("shed", "house", "coop", "processing")
 
     def _room(self, ia):
         r = getattr(ia, "_room", 0)

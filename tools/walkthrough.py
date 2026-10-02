@@ -524,10 +524,8 @@ class Bot:
                                 f"({mz.x:.1f},{mz.y:.1f},{mz.z:.1f})")
 
     def p_d4_loft(self):
-        g = self.g
-        yield from self.until(lambda: any(o["key"] == "moo" for o in g.objectives), 120, "moo objective")
+        # all cutscene now: Moobius writes the proof, nobody has to moo
         yield from self.wait(0.5)
-        self.press("m")
 
     def p_d4_back(self):
         yield from self.wait_ready()
@@ -582,6 +580,7 @@ class Bot:
 
     def p_d6_prep(self):
         g = self.g
+        yield from self.extras()
         yield from self.wait_ready()
         self.place(4.5, 0.7, 90)
         yield from self.open_door("barn_side")
@@ -600,6 +599,31 @@ class Bot:
         for i in range(5):
             yield from self.interact(f"herd_{i * 3}")
             yield from self.until(lambda: not g.busy, 30, "herd talk")
+
+    def extras(self):
+        """The things off the main path: the deer stand's shells, the plant's ledger, the clovers behind it."""
+        g = self.g
+        from breakowt.world import DEER_STAND, PLANT_BACK
+        x, z = DEER_STAND
+        for _ in range(4):
+            if g.flags.get("shells_found"):
+                break
+            yield from self.headbutt_at((x, 1.2, z - 0.9), dist=1.6)
+        yield from self.until(lambda: g.ia.get("st_ammo_tin") is not None, 5, "ammo tin falls")
+        yield from self.interact("st_ammo_tin")
+        yield from self.until(lambda: g.inv.count("shells") >= 2, 5, "shells")
+        self.combo = "2009"
+        yield from self.interact("plant_keypad")
+        yield from self.until(lambda: g.world.doors["plant_back"].is_open, 5, "plant door")
+        yield from self.wait(0.6)
+        self.place(77.6, PLANT_BACK, 270)
+        yield from self.walk_to(73.5, PLANT_BACK)
+        yield from self.interact("ledger")
+        yield from self.until(lambda: g.flags.get("ledger_read") and not g.busy, 30, "ledger")
+        for i in range(5):
+            if g.ia.get(f"st_clover{i}") is not None:
+                yield from self.interact(f"st_clover{i}")
+        print(f"    extras: shells {g.inv.count('shells')}, ledger read, clovers {g.clovers()}", flush=True)
 
     def p_d6_night(self):
         g = self.g
@@ -630,10 +654,27 @@ class Bot:
     def p_d7_tractor(self):
         g = self.g
         from ursina import held_keys
-        yield from self.wait_ready()
-        self.place(13, 0.7, 90)
-        yield from self.interact("tractor")
-        yield from self.until(lambda: g.vehicle is not None, 10, "driving")
+        tries = 0
+        while g.story.cur == "d7_tractor":
+            tries += 1
+            if tries > 3:
+                raise Stuck("dragged off the tractor three times")
+            if tries > 1:
+                print(f"    Chuck got us off the tractor ({g.flags.get('_grab')}); again", flush=True)
+            yield from self.wait_ready()
+            self.place(13, 0.7, 90)
+            yield from self.interact("tractor")
+            yield from self.until(lambda: g.vehicle is not None, 10, "driving")
+            g.flags.pop("_grab", None)
+            yield from self.drive_out()
+            for k in ("w", "a", "s", "d"):
+                held_keys[k] = 0
+            if not g.flags.get("_grab"):
+                return      # through the gate: the rest of the step is a cutscene
+
+    def drive_out(self):
+        g = self.g
+        from ursina import held_keys
         route = [(22, -14), (12, -16), (1.5, -15), (1.5, 20), (1.2, 60), (0.5, 80), (0, 92)]
         tr = g.vehicle
         for x, z in route:
@@ -675,7 +716,8 @@ class Bot:
                 continue
             d = math.hypot(f.x - p.x, f.z - p.z)
             self.face((f.x, 1.2, f.z))
-            if not fired and g.inv.has("shotgun") and d < 8 and boss.state in ("approach", "retreat"):
+            # one shell in the fight (if there are two): the other is for the end
+            if not fired and g.inv.count("shells") >= 2 and d < 8 and boss.state in ("approach", "retreat"):
                 # one shot from Ol' Bessie: it should land and knock him flat
                 fired = True
                 hp0 = boss.hp
@@ -685,7 +727,7 @@ class Bot:
                 yield
                 if boss.hp != hp0 - 1 or boss.state != "fallen":
                     raise Stuck(f"shotgun didn't land: hp {hp0}->{boss.hp}, state {boss.state}")
-                print(f"    shotgun hit: hp {hp0}->{boss.hp}, shells left {g.flags.get('shells')}", flush=True)
+                print(f"    shotgun hit: hp {hp0}->{boss.hp}, shells left {g.inv.count('shells')}", flush=True)
                 continue
             if boss.vulnerable():
                 if d > 1.6:

@@ -30,6 +30,8 @@ HOUSE = (44, 68, 30, 48)
 HOUSE_Y = 0.3
 KX = 57.6          # x of the wall between the living room and the kitchen
 PROC = (56, 76, -50, -32)
+PLANT_BACK = -35.9          # z of the middle of the plant's back door (east wall)
+DEER_STAND = (-66.0, 77.0)  # the far corner of the yard, by the main gate
 GATE_Z = 86
 FARM = (-80, 80, -78, 86)
 POND = (-45, -60, 9, 7)
@@ -77,6 +79,17 @@ DEFAULT_TEXT = {
     "windmill": ["The windmill creaks in a key you almost recognize. B-flat minor, maybe."],
     "silo": ["The silo. Chuck climbed it in 2004 and the fire brigade had to talk him down."],
     "processing_door": ["The big door is locked. It smells of bleach from here."],
+    "deer_stand": ["A deer stand. Chuck has sat up there twice and never seen a deer. There's a green tin on the "
+                   "platform, well out of reach. A sign nailed to the leg says 'DO NOT SHAKE. -C'."],
+    "plant_board": ["'THIS PLANT HAS GONE 4,212 DAYS WITHOUT AN INCIDENT.' You start the arithmetic on how many "
+                    "cows that is. Then you stop."],
+    "plant_hooks": ["A rail of steel hooks running the length of the room. All empty. All very clean. It's very clean "
+                    "in here. That's the worst part."],
+    "plant_note": ["A sticky note under the keypad, in Chuck's handwriting: 'BACK DOOR CODE: the year of the best "
+                   "day of my life! -C'"],
+    "ammo_tin": ["A green ammo tin, right at the edge of the platform. Out of reach. Way out of reach."],
+    "plant_drain": ["A drain in the floor. The whole floor slopes toward it, gently, like it's been designed by "
+                    "someone who thought about it a lot and then stopped thinking about it."],
     "processing_sign": ["'Happy Cows Come From Happy Acres!' You have never seen a cow come back from in there."],
     "pickup": ["Chuck's pickup. There's a bumper sticker: 'I BRAKE FOR BARBECUE'."],
     "mailbox": ["The mailbox. A catalog: 'GRILLS & MORE'. Chuck has circled everything."],
@@ -1802,8 +1815,13 @@ class World:
         H = 6.0
         self.wall(x0, z0, x1, z0, H, 0.4, "concrete")
         self.wall(x0, z1, x1, z1, H, 0.4, "concrete")
-        self.wall(x1, z0, x1, z1, H, 0.4, "concrete")
+        # east wall: a staff door at the back, onto the strip of grass between the plant and the fence
+        bz0, bz1 = PLANT_BACK - 0.7, PLANT_BACK + 0.7
+        self.wall(x1, z0, x1, bz0, H, 0.4, "concrete")
+        self.wall(x1, bz1, x1, z1, H, 0.4, "concrete")
+        self.wall(x1, bz0, x1, bz1, H - 2.3, 0.4, "concrete", y0=2.3)
         self.wall(x0, z0, x0, z1, H, 0.4, "concrete")
+        self.build_plant_inside(x0, x1, z0, z1, H)
         self.mb("concrete").box(((x0 + x1) / 2, H + 0.1, (z0 + z1) / 2), (x1 - x0 + 0.6, 0.3, z1 - z0 + 0.6))
         self.mb("metal").box((x0 - 0.25, 2.2, -41), (0.1, 4.4, 5.0), uv_density=0.5)
         self.sign("sign_processing", (x0 - 0.3, 5.2, -41), (6.0, 3.0), rot_y=90)
@@ -1817,6 +1835,84 @@ class World:
         self.lamp("processing", (x0 - 1.0, 4.6, -36.6), radius=10, col=(0.9, 0.95, 1.0), intensity=1.0, on=False,
                   arm_to=(x0 - 0.2, -36.6))
         self.spawns["processing_front"] = (52, 0, -41, 90)
+
+    def build_plant_inside(self, x0, x1, z0, z1, H):
+        """The inside of Happy Acres: clean, quiet, and much too well organised."""
+        self.mb("concrete").ground(x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, y=0.03, uv_density=0.3)
+        # the rail of hooks down the middle, from the big door to the far wall
+        self.mb("metal").box(((x0 + x1) / 2, 3.7, -41), (x1 - x0 - 1.0, 0.12, 0.12))
+        for k in range(10):
+            hx = x0 + 1.6 + k * 1.75
+            self.mb("metal").cylinder((hx, 3.0, -41), 0.025, 0.65, segs=5)
+            self.mb("metal").box((hx, 2.98, -40.92), (0.03, 0.03, 0.18))
+            self.mb("metal").box((hx, 3.05, -40.84), (0.03, 0.14, 0.03))
+        self.add_ia("plant_hooks", (66, 3.0, -41), 1.2, "Hooks", reach=6.0)
+        # stainless tables and the floor drains
+        for (tx, tz) in [(62, -36.0), (68, -36.0), (62, -46.0), (68, -46.0)]:
+            self.mb("metal").box((tx, 0.9, tz), (2.4, 0.06, 1.0))
+            for sx in (-1.1, 1.1):
+                for sz in (-0.42, 0.42):
+                    self.mb("metal").box((tx + sx, 0.45, tz + sz), (0.06, 0.9, 0.06))
+            self.phys.add_box_c(tx, tz, 2.4, 1.0, 0, 0.95)
+        for dx in (60, 66, 72):
+            self.mb("white").box((dx, 0.04, -41), (0.6, 0.02, 0.6), color=(0.12, 0.12, 0.13, 1))
+        self.add_ia("plant_drain", (66, 0.1, -41), 0.5, "Drain", reach=2.4)
+        # the board over the big door, and the office corner by the back door: desk, chair, the ledger
+        self.sign("plant_board", (x0 + 0.25, 3.0, -37.0), (2.4, 1.0), rot_y=-90)
+        self.add_ia("plant_board", (x0 + 0.3, 3.0, -37.0), 1.0, "Safety board", reach=6.0)
+        dx_, dz_ = 73.6, -33.6
+        self.mb("wood").box((dx_, 0.75, dz_), (1.6, 0.06, 0.8))
+        for sx in (-0.72, 0.72):
+            for sz in (-0.34, 0.34):
+                self.mb("wood").box((dx_ + sx, 0.37, dz_ + sz), (0.06, 0.74, 0.06))
+        self.phys.add_box_c(dx_, dz_, 1.6, 0.8, 0, 0.8)
+        self.mb("white").box((dx_ - 0.2, 0.8, dz_), (0.5, 0.05, 0.36), color=(0.2, 0.25, 0.45, 1))
+        self.mb("white").box((dx_ - 0.2, 0.83, dz_), (0.46, 0.01, 0.32), color=(0.93, 0.9, 0.82, 1))
+        self.add_ia("ledger", (dx_ - 0.2, 0.9, dz_), 0.35, "Ledger", reach=2.4)
+        self.lamp("plant", (66, H - 0.9, -41), radius=16, col=(0.82, 0.92, 1.0), intensity=1.1, on=False,
+                  hang_to=H)
+        # the back door's keypad, and the note under it
+        self.mb("metal").box((x1 + 0.24, 1.35, PLANT_BACK - 1.05), (0.06, 0.26, 0.18))
+        self.keypad_light = Entity(model=MeshBuilder().box((0, 0, 0), (0.01, 0.1, 0.1)).build(), texture=tex("white"),
+                                   shader=FARM_SHADER, position=(x1 + 0.28, 1.36, PLANT_BACK - 1.05))
+        self.keypad_light.set_shader_input("u_emissive", 0.8)
+        self.sign("sticky_keypad", (x1 + 0.26, 1.0, PLANT_BACK - 1.05), (0.28, 0.28), rot_y=-90)
+        self.add_ia("plant_keypad", (x1 + 0.3, 1.38, PLANT_BACK - 1.05), 0.2, "Keypad", reach=2.4)
+        self.add_ia("plant_note", (x1 + 0.3, 1.0, PLANT_BACK - 1.05), 0.17, "Sticky note", prompt="Read the note",
+                    reach=2.4)
+
+    def build_deer_stand(self):
+        """Chuck's deer stand, in the empty corner by the gate. Its own entity, so it can sway."""
+        x, z = DEER_STAND
+        self.deer_stand = Entity(position=(x, 0, z))
+        mb = MeshBuilder()
+        wd = (0.42, 0.33, 0.22, 1)
+        for sx in (-0.8, 0.8):
+            for sz in (-0.8, 0.8):
+                mb.box((sx, 1.75, sz), (0.13, 3.5, 0.13), color=wd)
+                mb.box((sx, 4.35, sz), (0.08, 1.7, 0.08), color=wd)
+        mb.box((0, 1.5, -0.8), (1.6, 0.1, 0.06), color=wd)
+        mb.box((0, 1.5, 0.8), (1.6, 0.1, 0.06), color=wd)
+        mb.box((0, 3.48, 0), (1.8, 0.1, 1.8), color=(0.5, 0.4, 0.27, 1))
+        # rails and camouflage panels on three sides; the south side, toward the yard, is open
+        for (px, pz, lx, lz) in [(0, 0.86, 1.7, 0.05), (-0.86, 0, 0.05, 1.7), (0.86, 0, 0.05, 1.7)]:
+            mb.box((px, 4.0, pz), (lx, 0.07, lz), color=wd)
+            mb.box((px, 3.75, pz), (lx, 0.45, lz), color=(0.33, 0.4, 0.22, 1))
+        mb.box((0, 5.25, 0), (2.0, 0.08, 2.0), color=(0.3, 0.36, 0.2, 1))
+        # a ladder up the east side
+        for sz in (-0.28, 0.28):
+            mb.box((1.0, 1.85, sz), (0.07, 3.7, 0.07), color=wd)
+        for k in range(9):
+            mb.box((1.0, 0.35 + k * 0.38, 0), (0.05, 0.05, 0.6), color=wd)
+        Entity(parent=self.deer_stand, model=mb.build(), texture=tex("wood_dark"), shader=FARM_SHADER)
+        self.sign("sign_deerstand", (x, 1.15, z - 0.86), (0.5, 0.36), rot_y=0)
+        for sx in (-0.8, 0.8):
+            for sz in (-0.8, 0.8):
+                self.phys.add_circle(x + sx, z + sz, 0.14, 0, 3.5)
+        self.add_ia("deer_stand", (x, 1.2, z - 0.9), 1.1, "Deer stand", reach=2.8)
+        # the ammo tin on the platform (days.py moves it, and drops it)
+        self.ammo_tin = models.item_model("ammo_tin", parent=self.deer_stand, position=(-0.3, 3.62, -0.55))
+        self.add_ia("ammo_tin", (x - 0.3, 3.62, z - 0.6), 0.35, "Ammo tin", reach=7.0)
 
     def build_gate_and_boundary(self):
         fx0, fx1, fz0, fz1 = FARM
@@ -1966,6 +2062,7 @@ class World:
         P.add_zone("coop", *COOP_RUN)
         P.add_zone("house", *HOUSE)
         P.add_zone("porch", 50, 62, 26, 30)
+        P.add_zone("processing", *PROC)
         P.add_zone("farm", *FARM)
         P.add_zone("gate_area", -8, 8, 70, 90)
         # footstep surfaces
@@ -2060,6 +2157,11 @@ class World:
         self.colliders["tractor"] = self.phys.add_box_c(22, 1.2, 2.4, 4.4, 0, 2.6)
         self.add_ia("tractor", (22, 1.4, 1.5), 1.6, "Tractor", reach=3.0,
                     follow=lambda: (self.tractor.x, 1.4, self.tractor.z))
+        # the plant's back door (locked: a keypad)
+        self.doors["plant_back"] = Door(self, "plant_back", (PROC[1] + 0.2, PLANT_BACK - 0.7), 1.4, along="z",
+                                        sign=1, height=2.25, texture="metal", open_angle=100)
+        self.add_ia("plant_back", (PROC[1] + 0.35, 1.2, PLANT_BACK), 0.6, "Staff door")
+        self.build_deer_stand()
         # wind chimes on the porch
         self.chimes = models.item_model("chimes", position=(58.5, HOUSE_Y + 2.25, 27.2))
         # a string up to the underside of the porch roof (which is at about y + 2.48 here)
