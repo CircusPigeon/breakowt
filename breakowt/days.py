@@ -635,7 +635,7 @@ class DayScripts:
                 self.remove_item(f"clover{i}")
                 if gg.moodals.find_clover(cid):
                     gg.audio.play("clover", vol=0.7)
-                    gg.ui.toast(f"Golden Clover! (You have {gg.clovers()})", "clover")
+                    gg.ui.toast("Found a Golden Clover", "clover")
                     gg.refresh_hotbar()
                     left = sum(1 for j in range(len(self.CLOVERS)) if not gg.moodals.clover_found(f"plant_{j}"))
                     if left == 0:
