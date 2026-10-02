@@ -210,7 +210,8 @@ class Story(DayScripts):
         self._leave_title(lambda: self.start_day(day))
 
     def apply_owned(self):
-        """Things bought from Epicowrus in any playthrough come with you (unless this run already has them)."""
+        """Things bought from Epicowrus, and favours' rewards, in any playthrough come with you (unless this run
+        already has them)."""
         g = self.g
         for k in g.moodals.owned():
             if k in CONSUMABLE or self.flags.get(f"shop_{k}"):
@@ -220,6 +221,14 @@ class Story(DayScripts):
                 self.setf("rock_pouch")
             elif k in ITEMS:
                 g.inv.add(k, silent=True)
+        for perk in g.moodals.perks():
+            if self.flags.get(f"perk_{perk}"):
+                continue
+            self.setf(f"perk_{perk}")
+            if perk == "star_chart":
+                self.setf("star_chart")
+            elif perk == "horseshoe" and not self.flags.get("horseshoe_used"):
+                g.inv.add("horseshoe", silent=True)
 
     def continue_game(self):
         d = self.g.load_save()
@@ -812,6 +821,7 @@ class Story(DayScripts):
             g.inv.remove("glasses")
             self.setf("sq_specs")
             self.setf("star_chart")
+            g.moodals.add_perk("star_chart")
             g.cows["cowpernicus"].model.set_acc("glasses")
             yield from g.talk([
                 ("cowpernicus", "Are those... reading glasses? Plus two-point-five?"),
@@ -824,7 +834,8 @@ class Story(DayScripts):
                                 "percent. I did eighty. I'd show you the working, but you'd feel inadequate."),
             ])
             g.side_quest("specs", state="done")
-            g.ui.toast("Hiding spots marked on your map", "glasses", col=BRASS)
+            g.ui.toast("Hiding spots marked on your map, in this playthrough and every one after", "glasses",
+                       col=BRASS)
             return True
         if key == "moomaw" and g.inv.has("photo") and not self.done("sq_photo"):
             g.inv.remove("photo")
@@ -847,6 +858,8 @@ class Story(DayScripts):
                            "handle a horseshoe. Or grief. Or accountability."),
             ])
             g.inv.add("horseshoe")
+            g.moodals.add_perk("horseshoe")
+            self.setf("perk_horseshoe")
             g.side_quest("photo", state="done")
             return True
         return False

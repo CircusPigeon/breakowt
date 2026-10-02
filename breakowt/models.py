@@ -4,10 +4,12 @@ from __future__ import annotations
 import math
 import random
 
+import numpy as np
+
 from ursina import Entity, scene
 
 from .engine.assets import tex
-from .engine.meshbuilder import MeshBuilder
+from .engine.meshbuilder import MeshBuilder, rot_matrix
 from .engine.shading import FARM_SHADER, no_shadow
 from .texgen import ATLAS, ATLAS_H, ATLAS_W
 
@@ -210,9 +212,12 @@ class CowModel(Entity):
                 hm.cylinder((sx * 0.19, 0.17, 0.60), 0.12, 0.02, color=DARK, segs=12, rot=(90, 0, 0), caps=True)
             hm.box((0, 0.2, 0.61), (0.16, 0.025, 0.02), color=DARK, uv_rect=WHITE)
         if "bucket" in self.acc:
-            hm.cylinder((0, 0.02, 0.26), 0.31, 0.46, color=METAL, segs=14, radius_top=0.26)
-            hm.box((0, 0.2, 0.555), (0.34, 0.05, 0.03), color=DARK, uv_rect=WHITE)
-            hm.cylinder((0, 0.48, 0.26), 0.05, 0.12, color=RED, segs=6)
+            # upside down on top of his head, at a jaunty angle, sitting between the horns
+            hm.cylinder((0, 0.27, 0.27), 0.17, 0.27, color=METAL, segs=14, radius_top=0.135, rot=(-6, 0, 10))
+            hm.cylinder((0, 0.265, 0.27), 0.18, 0.03, color=(0.5, 0.52, 0.55, 1), segs=14, rot=(-6, 0, 10))
+            for sx in (-1, 1):
+                hm.box((sx * 0.17, 0.33, 0.27), (0.02, 0.06, 0.02), color=DARK, uv_rect=WHITE, rot=(0, 0, 10))
+            hm.box((0.005, 0.47, 0.27), (0.36, 0.015, 0.015), color=DARK, uv_rect=WHITE, rot=(0, 0, 10))
         if "moustache" in self.acc:
             hm.box((0, -0.02, 0.78), (0.44, 0.08, 0.05), color=MUSTACHE, uv_rect=WHITE)
         if "chuckhat" in self.acc:
@@ -590,8 +595,24 @@ def tractor_model(parent=None, **kw):
     mb.box((0, 1.85, -0.9), (0.7, 0.6, 0.1), color=(0.15, 0.15, 0.15, 1), uv_rect=WHITE)
     mb.box((0, 1.25, 1.92), (0.8, 0.7, 0.06), color=(0.2, 0.2, 0.2, 1), uv_rect=WHITE)
     mb.cylinder((0.3, 1.7, 1.3), 0.06, 1.0, color=DARK, segs=8)
-    mb.cylinder((0, 1.6, 0.0), 0.03, 0.5, color=DARK, segs=6, rot=(-40, 0, 0))
-    mb.cylinder((0, 1.98, 0.3), 0.22, 0.04, color=DARK, segs=12, rot=(-40, 0, 0))
+    # steering wheel: a rim (not a solid disc, which blocked the driver's view) tipped back toward the seat,
+    # on a column running down and forward into the dash
+    wc = np.array([0.0, 1.74, 0.12])
+    tilt = 55.0
+    Rw = rot_matrix(tilt, 0, 0)
+    rim, n_seg = 0.17, 16
+    for k in range(n_seg):
+        a0, a1 = 2 * math.pi * k / n_seg, 2 * math.pi * (k + 1) / n_seg
+        mid = (a0 + a1) / 2
+        p = wc + Rw @ np.array([math.cos(mid) * rim, math.sin(mid) * rim, 0.0])
+        mb.box(tuple(p), (2 * rim * math.sin(math.pi / n_seg) + 0.01, 0.026, 0.026), color=DARK, uv_rect=WHITE,
+               rot=(tilt, 0, math.degrees(mid) + 90))
+    for k in range(3):
+        a = math.pi / 2 + 2 * math.pi * k / 3
+        p = wc + Rw @ np.array([math.cos(a) * rim / 2, math.sin(a) * rim / 2, 0.0])
+        mb.box(tuple(p), (rim, 0.018, 0.018), color=DARK, uv_rect=WHITE, rot=(tilt, 0, math.degrees(a)))
+    col_dir = Rw @ np.array([0.0, 0.0, 1.0])
+    mb.box(tuple(wc + col_dir * 0.24), (0.04, 0.04, 0.48), color=DARK, uv_rect=WHITE, rot=(tilt, 0, 0))
     for sx in (-1, 1):
         mb.cylinder((sx * 0.75, 0.85, -0.6), 0.85, 0.45, color=(0.12, 0.12, 0.12, 1), segs=16,
                     rot=(0, 0, 90 if sx < 0 else -90))
@@ -689,6 +710,12 @@ def item_model(name, parent=None, **kw):
         mb.cylinder((0, 0.03, 0), 0.02, 0.08, color=(0.95, 0.95, 0.95, 1), segs=8)
     elif name == "bucket":
         mb.cylinder((0, -0.15, 0), 0.15, 0.3, color=METAL, segs=12, radius_top=0.18)
+        mb.cylinder((0, 0.135, 0), 0.165, 0.02, color=(0.22, 0.2, 0.18, 1), segs=12)
+        mb.cylinder((0, 0.145, 0), 0.185, 0.012, color=(0.5, 0.52, 0.55, 1), segs=12)
+        for k in range(7):
+            a = math.pi * k / 6
+            mb.box((math.cos(a) * 0.18, 0.15 + math.sin(a) * 0.14, 0), (0.06, 0.012, 0.012), color=DARK,
+                   uv_rect=WHITE, rot=(0, 0, math.degrees(a) + 90))
     elif name == "boot":
         # a green wellington: shaft with a lighter rolled top and a dark opening, foot, rounded toe, thick sole
         G = (0.2, 0.45, 0.22, 1)

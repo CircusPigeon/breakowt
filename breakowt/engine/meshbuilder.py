@@ -250,7 +250,10 @@ class MeshBuilder:
                     k += 1
                 for i in range(segs):
                     a, b = center + 1 + i, center + 2 + i
-                    tris.append((center, b, a) if ny > 0 else (center, a, b))
+                    # same handedness as the sides (outward-facing): the top cap faces up, the bottom down.
+                    # (These used to be the wrong way round, so you only ever saw a cap from inside: a
+                    # trash can knocked on its side looked open at the end.)
+                    tris.append((center, a, b) if ny > 0 else (center, b, a))
         self._push(verts, norms, uvs, color, tris, mapped=False)
         return self
 

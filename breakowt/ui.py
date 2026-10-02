@@ -39,6 +39,43 @@ def panel(parent, x, y, w, h, col=PANEL, radius=0.02, origin=(0, 0), z=0):
                   position=(x, y, z), color=col, origin=origin)
 
 
+_GLYPH_W: dict = {}
+
+
+def text_width(s, scale=1.0, font=None):
+    """How wide s is on screen (UI units) at a txt() scale: measured glyph by glyph, cached per font. Capitals
+    and 'W's are a lot wider than 'i's, so a character count can't keep text inside a box."""
+    f = font or Text.default_font
+    tbl = _GLYPH_W.setdefault(str(f), {})
+    w = 0.0
+    for ch in s:
+        cw = tbl.get(ch)
+        if cw is None:
+            if ch == " ":
+                cw = Text.get_width("i i", font=f) - Text.get_width("ii", font=f)
+            else:
+                cw = Text.get_width(ch, font=f)
+            tbl[ch] = cw
+        w += cw
+    return w * scale
+
+
+def wrap_to(s, width, scale=1.0, font=None):
+    """Word-wrap s (keeping its own line breaks) so no line is wider than `width` at this scale."""
+    out = []
+    for para in s.split("\n"):
+        line = ""
+        for word in para.split(" "):
+            cand = word if not line else line + " " + word
+            if line and text_width(cand, scale, font) > width:
+                out.append(line)
+                line = word
+            else:
+                line = cand
+        out.append(line)
+    return "\n".join(out)
+
+
 def wrap_str(s, width):
     """Greedy word wrap by character count (keeps existing line breaks)."""
     if not width or not s:
@@ -226,13 +263,23 @@ class UI:
         self.bark_t = dur if dur else max(2.5, 1.2 + len(text) * 0.05)
 
     def toast(self, text, icon=None, col=None):
-        e = Entity(parent=self.toast_root, position=(self.R - 0.03, 0.40 - len(self.toasts) * 0.06))
-        w = min(0.55, len(text) * 0.0125 + 0.09)
-        Entity(parent=e, model=Quad(radius=0.3), color=PANEL, scale=(w, 0.05), origin=(0.5, 0))
-        if icon and tex("icon_" + icon):
-            Entity(parent=e, model="quad", texture=tex("icon_" + icon), scale=0.045, x=-w + 0.03, z=-0.01)
-        txt(e, text, -0.015, 0.0, 1.0, col or CREAM, origin=(0.5, 0))
-        self.toasts.append([e, 3.5])
+        """A note in the top-right corner, its box sized to the text (wrapped onto a second line if it's long)."""
+        icon_w = 0.05 if icon and tex("icon_" + icon) else 0.0
+        pad = 0.022
+        max_text = 0.62
+        if text_width(text) > max_text:
+            text = wrap_to(text, max_text)
+        lines = text.count("\n") + 1
+        tw = max(text_width(ln) for ln in text.split("\n"))
+        w = tw + 2 * pad + icon_w
+        h = 0.05 + (lines - 1) * 0.027
+        top = 0.425 - sum(t[2] + 0.012 for t in self.toasts)
+        e = Entity(parent=self.toast_root, position=(self.R - 0.03, top - h / 2))
+        Entity(parent=e, model=Quad(radius=0.3 * 0.05 / h, aspect=w / h), color=PANEL, scale=(w, h), origin=(0.5, 0))
+        if icon_w:
+            Entity(parent=e, model="quad", texture=tex("icon_" + icon), scale=0.045, x=-w + pad + 0.022, z=-0.01)
+        txt(e, text, -w + pad + icon_w, 0.0, 1.0, col or CREAM, origin=(-0.5, 0))
+        self.toasts.append([e, 3.5, h])
 
     def relayout(self):
         """The window changed shape (fullscreen toggle, resize): move everything pinned to the left or right edge."""
@@ -310,7 +357,7 @@ class UI:
                 txt(e, "1234567890"[i], -0.034, 0.034, 0.7, DIM if not sel else C(0.1, 0.1, 0.1, 1))
             if sel:
                 # keep the label on screen for the right-most slots
-                lab_w = len(label) * 0.0105 * k
+                lab_w = text_width(label, 0.85 * k)
                 lx = min(0.0, (self.R - 0.02 - lab_w / 2) - x) / k
                 txt(e, label, lx, 0.058, 0.85, CREAM, origin=(0, 0))
             self.hot_slots.append(e)
@@ -347,7 +394,8 @@ class UI:
     # ------------------------------------------------------------------
     # dialogue
     # ------------------------------------------------------------------
-    DLG_BOTTOM = -0.43      # just above the cutscene letterbox (which covers y < -0.44)
+    LB_H = 0.075            # how much of each letterbox bar shows: the bottom one covers y < -0.425
+    DLG_BOTTOM = -0.405     # so the dialogue box sits just above it
     DLG_LINE = 0.032        # one line of body text at scale 1.18
 
     def dlg_show(self, name, text):
@@ -449,6 +497,8 @@ class UI:
         if self.modal_root is not None:
             destroy(self.modal_root)
         self.modal_root = None
+        if self.modal == "journal":
+            self.hud.enabled = self.hud_visible
         self.modal = None
         self._modal_state = {}
 
@@ -859,6 +909,7 @@ class UI:
         is wrapped to its column and advances by the number of lines it actually took, so nothing overlaps
         (the old fixed offsets ran together on a 3:2 screen)."""
         r = self.open_modal("journal")
+        self.hud.enabled = False        # the HUD's day and objectives would show through the journal's title
         A = self.aspect
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.78), scale=(3, 2), z=0.1)
         margin, gap = 0.05, 0.05
@@ -872,9 +923,12 @@ class UI:
         floor = -0.43
 
         def block(x, y, text, scale, col, lh, width=colw):
-            w = self._wrap_for(width, scale)
-            txt(r, text, x, y, scale, col, wrap=w)
-            return y - lh * (wrap_str(text, w).count("\n") + 1)
+            text = wrap_to(text, width, scale)
+            txt(r, text, x, y, scale, col)
+            return y - lh * (text.count("\n") + 1)
+
+        def lines(text, scale, width):
+            return wrap_to(text, width, scale).count("\n") + 1
 
         y = 0.34
         txt(r, "OBJECTIVES", x1, y, 1.05, BRASS, font=self.fonts.get("ui"))
@@ -893,22 +947,58 @@ class UI:
                     break
                 y = block(x1, y, ("[x] " if state == "done" else "- ") + text, 0.88,
                           GREEN if state == "done" else CREAM, 0.029) - 0.006
-        # inventory: icon, name, and its description wrapped to the column
+        # inventory: icon, name and description, if they all fit; otherwise just icons and names (in two
+        # columns if need be). Measured first, so the list never runs off the bottom of the screen.
         yy = 0.34
         txt(r, "INVENTORY", x2, yy, 1.05, BRASS, font=self.fonts.get("ui"))
         yy -= 0.05
         items = g.inventory_lines()
         if not items:
             txt(r, "Nothing. You are a cow.", x2, yy, 0.85, DIM)
-        for i, (key, label, count, desc) in enumerate(items):
-            if yy < floor + 0.05:
-                txt(r, f"...and {len(items) - i} more", x2 + 0.06, yy, 0.8, DIM)
+        tw = colw - 0.055
+        names = [label + (f" x{count}" if count > 1 else "") for _, label, count, _ in items]
+        room = yy - floor
+        # largest text that fits everything; failing that, a compact two-column list
+        fit = None
+        for ns, ds in ((0.92, 0.72), (0.86, 0.66), (0.8, 0.6)):
+            need = sum(lines(n, ns, tw) * 0.032 * ns + lines(it[3], ds, tw) * 0.033 * ds + 0.012
+                       for n, it in zip(names, items))
+            if need <= room:
+                fit = (ns, ds)
                 break
-            if tex("icon_" + key):
-                Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.045, position=(x2 + 0.022, yy - 0.016))
-            yy = block(x2 + 0.055, yy, label + (f" x{count}" if count > 1 else ""), 0.92, CREAM, 0.03,
-                       colw - 0.055)
-            yy = block(x2 + 0.055, yy + 0.004, desc, 0.72, DIM, 0.024, colw - 0.055) - 0.016
+        if items and fit:
+            ns, ds = fit
+            for name, (key, label, count, desc) in zip(names, items):
+                if tex("icon_" + key):
+                    Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.045,
+                           position=(x2 + 0.022, yy - 0.016))
+                yy = block(x2 + 0.055, yy, name, ns, CREAM, 0.032 * ns, tw)
+                yy = block(x2 + 0.055, yy + 0.004, desc, ds, DIM, 0.033 * ds, tw) - 0.012
+        elif items:
+            row = 0.062
+            per_col = max(1, int(room / row))
+            ncols = 1 if len(items) <= per_col else 2
+            cw = colw / ncols
+            shown = min(len(items), per_col * ncols - (1 if len(items) > per_col * ncols else 0))
+
+            def clip(t, scale, width):
+                t = t.split("\n")[0]
+                if text_width(t, scale) <= width:
+                    return t
+                while len(t) > 4 and text_width(t + "…", scale) > width:
+                    t = t[:-1]
+                return t.rstrip(" .,:;") + "…"
+            for i in range(shown):
+                key, label, count, desc = items[i]
+                cx, cy = x2 + (i // per_col) * cw, yy - (i % per_col) * row
+                if tex("icon_" + key):
+                    Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.042,
+                           position=(cx + 0.021, cy - 0.02))
+                txt(r, clip(names[i], 0.86, cw - 0.065), cx + 0.05, cy, 0.86, CREAM)
+                txt(r, clip(desc, 0.64, cw - 0.065), cx + 0.05, cy - 0.028, 0.64, DIM)
+            if shown < len(items):
+                cx, cy = x2 + (shown // per_col) * cw, yy - (shown % per_col) * row
+                txt(r, f"...and {len(items) - shown} more", cx + 0.05, cy, 0.8, DIM)
         # map
         if self.map_tex is None:
             self.map_tex = Texture(build_map_image())
@@ -974,10 +1064,12 @@ class UI:
                 self.bark.enabled = self.bark_bg.enabled = self.modal is None
         # toasts
         alive = []
+        top = 0.425
         for i, t in enumerate(self.toasts):
             t[1] -= dt
             e = t[0]
-            e.y += ((0.40 - i * 0.06) - e.y) * min(1, dt * 8)
+            e.y += ((top - t[2] / 2) - e.y) * min(1, dt * 8)
+            top -= t[2] + 0.012
             if t[1] <= 0:
                 destroy(e)
             else:
@@ -990,8 +1082,9 @@ class UI:
             self.flash_q.color = C(c[0], c[1], c[2], 0.45 * max(0, self.flash_t / self.flash_dur))
         # letterbox
         self.lb += (self.lb_target - self.lb) * min(1, dt * 3)
-        self.lb_top.y = 0.56 - 0.12 * self.lb
-        self.lb_bot.y = -0.56 + 0.12 * self.lb
+        # each bar is a 0.12-tall quad parked just off screen; it slides in until LB_H of it shows
+        self.lb_top.y = 0.56 - self.LB_H * self.lb
+        self.lb_bot.y = -0.56 + self.LB_H * self.lb
 
 
 # ---------------------------------------------------------------------------

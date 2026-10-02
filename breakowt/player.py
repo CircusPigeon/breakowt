@@ -223,8 +223,9 @@ class Player:
                  "photo": 0.6, "score": 0.6, "page": 0.6}.get(name, 0.62)
         rot = {"plank": (0, 90, 0), "shotgun": (0, 0, 0), "pencil": (0, 90, 0)}.get(name, (0, 20, 0))
         # in the mouth, low in the frame so it doesn't hide what you're looking at
-        y = -0.26 if name == "photo" else -0.3
-        self.held = models.item_model(name, parent=camera, position=(0.03, y, 0.62), rotation=rot, scale=scale)
+        y = -0.26 if name == "photo" else (-0.33 if name == "bucket" else -0.3)
+        z = 0.7 if name == "bucket" else 0.62
+        self.held = models.item_model(name, parent=camera, position=(0.03, y, z), rotation=rot, scale=scale)
         for c in self.held.children:
             c.set_shader_input("u_unlit", 0.55 if name in ("page", "score", "photo") else 0.3)
         # the held item rides on the camera, so hide it while the camera is off doing a cutscene

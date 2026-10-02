@@ -207,6 +207,7 @@ class DayScripts:
             k["down"] = False
             k["t"] = 0.0
             k["ent"].rotation = (0, 0, 0)
+            k["ent"].y = 0
         for h in g.herd:
             h.state = "graze"
             h.path = []

@@ -185,7 +185,10 @@ class Game(Entity):
             Entity(parent=ent, model=mb.build(solid_rect=models.WHITE), texture=tex("atlas"), shader=FARM_SHADER)
             col = self.phys.add_circle(x, z, 0.45, 0, 1.0, sight=False)
             ia = self.ia.add(Interactable(f"knock_{key}", (x, 0.6, z), 0.6, name, None, "Knock over", 2.4))
-            k = {"key": key, "ent": ent, "col": col, "ia": ia, "down": False, "t": 0.0, "x": x, "z": z}
+            # how high its axis sits once it's on its side (it tips over about its base)
+            lie = {"bucket": 0.26, "milk": 0.2, "trash": 0.35}.get(next((s for s in ("bucket", "milk", "trash")
+                                                                        if s in key), ""), 0.45)
+            k = {"key": key, "ent": ent, "col": col, "ia": ia, "down": False, "t": 0.0, "x": x, "z": z, "lie": lie}
             ia.handlers.append(Handler("Knock over (noisy!)", lambda g, k=k: g.knock(k), lambda g, k=k: not k["down"],
                                        scope="global"))
             ia.on_headbutt = lambda g, k=k: g.knock(k)
@@ -198,6 +201,7 @@ class Game(Entity):
         k["down"] = True
         k["t"] = 45.0
         k["ent"].animate_rotation((0, random.uniform(0, 360), 88), duration=0.35)
+        k["ent"].animate_y(k["lie"], duration=0.35)
         self.audio.play("crash", vol=1.0, pos=(k["x"], 0.5, k["z"]), rng=60)
         self.noise((k["x"], 0.5, k["z"]), 22, source="crash")
         self.stats["knocked"] = self.stats.get("knocked", 0) + 1
@@ -212,6 +216,7 @@ class Game(Entity):
                     if d > 12:
                         k["down"] = False
                         k["ent"].rotation = (0, 0, 0)
+                        k["ent"].y = 0
 
     # ------------------------------------------------------------------
     # mouse / window

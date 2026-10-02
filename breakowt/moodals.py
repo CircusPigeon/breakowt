@@ -108,6 +108,16 @@ class Moodals:
     def owned(self):
         return list(self.data["purse"].get("owned", []))
 
+    def add_perk(self, name):
+        """A favour's reward that stays yours in later playthroughs (the hiding-spot map, the horseshoe)."""
+        perks = self.data["purse"].setdefault("perks", [])
+        if name not in perks:
+            perks.append(name)
+            self.save()
+
+    def perks(self):
+        return list(self.data["purse"].get("perks", []))
+
     def find_clover(self, cid):
         pu = self.data["purse"]
         got = pu.setdefault("clovers", [])

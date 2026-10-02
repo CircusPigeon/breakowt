@@ -100,6 +100,20 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **Polish pass after the crates** (player's notes): the letterbox bars were 0.12 tall and covered the
+  bottom of the dialogue box (`UI.LB_H` 0.075, `DLG_BOTTOM` -0.405). Text that has to fit a box is now
+  measured glyph by glyph (`ui.text_width`, `ui.wrap_to`; the old character-count guess was off by a third
+  for capitals): toasts size to their text and wrap (a long "New favor" ran out of its box), and the
+  journal wraps every column for real. Its inventory measures itself first: full descriptions if they fit,
+  smaller text if that fits, else a two-column list with one-line descriptions, so it can't run off the
+  screen; the HUD is hidden behind the journal. `MeshBuilder.cylinder` caps were wound inside-out (every
+  cylinder and cone in the game): upright you couldn't tell, but a trash can knocked on its side looked open
+  at the end; knocked props also tipped about their base and sank half into the ground (now lifted by
+  `lie`). The tractor's steering wheel is a rim with spokes on a column (it was a solid disc blocking the
+  driver's view); Moogenes' bucket sits upside down on his head between the horns (the old knight's-helm
+  model had his horns through it, plus a plume); the held bucket has a handle and hangs below the snout.
+  **Carry-over**: favour rewards are profile perks now too (`Moodals.add_perk/perks`): the hiding-spot map
+  and the lucky horseshoe come with you into later playthroughs, like everything bought from Epicowrus.
 - **Crates and hops** (the player's idea: nudging boxes and simple parkour). `world.Pushable`: a crate you
   headbutt (or E) one step along whichever of the four directions you're pushing it; blocked by walls, other
   crates, cows and Chuck; it can't leave its zone, falls off ledges, and goes back home if you leave its zone
