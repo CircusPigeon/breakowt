@@ -1073,38 +1073,14 @@ class Story(DayScripts):
         self.credits_root = None
 
     def epilogue_lines(self):
-        out = ["The herd crossed the county line by noon. The rooster rode the bull. Nobody counted them."]
+        out = ["The herd crossed the county line by noon. Nobody counted them."]
         if self.done("chuck_shot"):
             out.append("Chuck's funeral fund raised eleven dollars. All from Dale.")
         else:
-            out.append("Chuck kept the farm. He grows soybeans now, and says it's for the money. He has never once "
-                       "been good with money.")
-        if self.done("dale_cancelled"):
-            out.append("Dale never got over the potato salad email.")
-        else:
-            out.append("Dale waited on the porch till four, then ate the potato salad alone.")
+            out.append("Chuck grows soybeans now. He says it's for the money.")
         out += [
-            "They made it to India in the end. Cows are sacred there. It turns out sacred doesn't pay rent.",
-            "So they did what any species does once it starts thinking about itself: they found out what things "
-            "cost, and they got jobs.",
-            "Moocrates teaches philosophy at a university in Pune. She has never once answered a student's question.",
-            "Moothagoras is an accountant." + (" Now that he can see the numbers, he's very good." if
-                                               self.done("sq_specs") else " He still guesses the small print.") +
-            " He refuses all clients in the bean trade.",
-            "Epicowrus opened a garden centre. No refunds.",
-            "Moogenes lives in " + ("the bucket. He calls it a studio apartment." if self.done("sq_helm") else
-                                    "a barrel. He calls it a studio apartment.") +
-            " He's been asked to leave three parks.",
-            "Heifercleitus runs boat trips on the river. They only go one way." +
-            (" Ajax's photo hangs by the wheel." if self.done("sq_photo") else ""),
-            "Cluckydides finished his history of the farm. Nine volumes. The ninth is about a black cow who drew "
-            "circles.",
-            "Moodysseus drives a tractor for a living, and answers to one name.",
-        ]
-        if self.done("ledger_read"):
-            out.append("The ledger at Happy Acres has room for four hundred more lines. Nobody has written in it "
-                       "since.")
-        out += [
+            "They made it to India. Cows are sacred there, but sacred doesn't pay rent, so they got jobs.",
+            "Moodysseus drives a tractor, and answers to one name.",
             "None of this happened, of course. Cows can't do geometry, or read email, or hold a funeral.",
             "They can be afraid. They know one another apart. A cow whose calf is taken will call for it for days.",
             "Moocrates would want to know which of those things was supposed to be the reason.",
