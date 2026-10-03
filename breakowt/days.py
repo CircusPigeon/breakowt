@@ -488,9 +488,12 @@ class DayScripts:
         """The fuse box's wiring. Two cables go into the wall together; the one from the real shed-light fuse
         climbs the wall and runs across the ceiling to the lamp. That, and 'every label is wrong', is enough to
         work out the fence fuse without pulling anything."""
-        if "fuse_map" not in self.flags:
-            self.flags["fuse_map"] = random.choice([["house", "shed", "fence"], ["shed", "fence", "house"]])
-        fmap = self.flags["fuse_map"]
+        labels = ("fence", "house", "shed")
+        fmap = self.flags.get("fuse_map")
+        if not fmap or any(a == b for a, b in zip(fmap, labels)):
+            # the two wirings where no label is right
+            fmap = self.flags["fuse_map"] = random.choice([["house", "shed", "fence"], ["shed", "fence", "house"]])
+        assert not any(a == b for a, b in zip(fmap, labels))
         zw = SHED[2] + 0.17
         top = 1.83
         mb = MeshBuilder()
@@ -507,10 +510,11 @@ class DayScripts:
                     cz = zw + (-22.0 - zw) * (k + 0.5) / 4
                     mb.box((fx, ceil - 0.02, cz), (0.07, 0.03, 0.05), color=(0.85, 0.85, 0.82, 1))
             else:
-                # a short way up, then sideways into the conduit that takes them both into the wall
+                # a short way up, then sideways into the conduit that takes them both into the wall (at the
+                # far end from the generator, so nothing looks wired to the fence)
                 mb.box((fx, top + 0.12, zw), (0.035, 0.24, 0.035), color=cab)
-                mb.box(((fx + -9.75) / 2, top + 0.24, zw), (abs(-9.75 - fx) + 0.035, 0.035, 0.035), color=cab)
-        mb.box((-9.75, top + 0.24, zw - 0.02), (0.1, 0.1, 0.08), color=(0.45, 0.47, 0.48, 1))
+                mb.box(((fx + -7.55) / 2, top + 0.24, zw), (abs(-7.55 - fx) + 0.035, 0.035, 0.035), color=cab)
+        mb.box((-7.55, top + 0.24, zw - 0.02), (0.1, 0.1, 0.08), color=(0.45, 0.47, 0.48, 1))
         self.prop("fuse_cables", Entity(model=mb.build(), texture=tex("white"), shader=FARM_SHADER))
 
     TIN_Z = (-0.55, -0.72, -0.84)
@@ -1389,7 +1393,11 @@ class DayScripts:
         yield from self.step("d2_return", self.d2_return, hint=(
             "Which side of the pasture gate is the bolt on?",
             "The bolt is on the outside, where you are. Open the gate and walk in."))
-        yield from self.step("d2_radio", self.d2_radio, hint="Archimoodes asked for the radio. He's by the pond.")
+        yield from self.step("d2_radio", self.d2_radio, hint=(
+            "Archimoodes asked for the radio, and then for an aerial: something long and metal. What on this farm "
+            "is long and metal, and has been humming at you all your life?",
+            "The electric fence. Set the radio down right up against it (Q) and the static clears. Archimoodes "
+            "will come over to listen."))
         yield from self.step("d2_ram", self.d2_ram, hint="Moothagoras has been staring at the tractor all day. "
                                                          "Ask him why.")
         yield from self.step("d2_sleep", self.sleep_step, hint="Bed. Stall 47.")
@@ -1535,45 +1543,112 @@ class DayScripts:
         self.revving = False
         g.audio.stop_loop("tractor", 0.5)
 
+    @staticmethod
+    def near_fence(x, z, reach=1.4):
+        """Within reach of the pasture's electric fence (inside or out)."""
+        x0, x1, z0, z1 = PASTURE
+        d = min(abs(x - x0) if z0 - reach < z < z1 + reach else 99, abs(x - x1) if z0 - reach < z < z1 + reach else 99,
+                abs(z - z0) if x0 - reach < x < x1 + reach else 99, abs(z - z1) if x0 - reach < x < x1 + reach else 99)
+        return d < reach
+
     def d2_radio(self):
+        """The radio gets nothing but static in the pasture: it wants an aerial. Two kilometres of electric fence
+        will do. Set it down against the fence and the farm report comes through."""
         g = self.g
-        self.objectives(("radio_mz", "Give the radio to Archimoodes"))
         mz = g.cows["moozart"]
+        st = {"given": bool(self.flags.get("radio_static")), "tuned": False}
+
+        def show():
+            objs = [("radio_mz", "Give the radio to Archimoodes")]
+            if st["given"]:
+                objs.append(("aerial", "Get the radio some reception"))
+            self.objectives(*objs)
+            if st["given"]:
+                g.complete("radio_mz", sound=False)
+        show()
         self.mark((mz.x, mz.z, "Archimoodes"))
-        done = {"d": False}
 
         def talk():
+            if st["given"]:
+                yield from g.talk([("moozart", "Still static? Something long and metal, Moodysseus. Something that's "
+                                               "been humming at us our whole lives.")])
+                return True
+            if g.inv.has("radio"):
+                yield from g.talk([("moozart", "The radio. Good. Let's hear the farm report. If we're going to outwit "
+                                               "Chuck, I'd like to hear what he thinks about, and Chuck mostly thinks "
+                                               "about money.")])
+                g.audio.play("radio_static", vol=0.8, pos=(mz.x, 1, mz.z), rng=25)
+                yield 1.8
+                yield from g.talk([
+                    ("moozart", "...Static. Of course. We're a long way from anything out here. A radio wants an "
+                                "aerial: a long piece of metal, the longer the better."),
+                    ("moozart", "Take it. Find it something long and metal to lean on, and call me when it's talking. "
+                                "I'll come and listen."),
+                ])
+                st["given"] = True
+                self.flags["radio_static"] = True
+                g.complete("radio_mz")
+                show()
+                return True
             if not g.inv.has("radio"):
                 yield from g.talk([("moozart", "No radio? Chuck had one on the tractor last summer. He doesn't throw things away. He "
                                         "puts them in the shed, on top of something tall, and forgets them.")])
                 return True
-            yield from g.talk([("moozart", "The radio. Good. Find the farm report. If we're going to outwit Chuck, I'd like to "
-                                    "hear what he thinks about, and Chuck mostly thinks about money.")])
-            g.audio.loop("radio", "loop_radio", vol=0.9, pos=(mz.x, 1, mz.z), rng=30, group="sfx")
-            g.audio.music_duck = 0.1
-            yield 5.0
-            yield from g.talk([
-                ("moozart", "Live cattle, up four cents. Hides, steady. 'Lean trim', up. Lean trim is us, ground. Every part "
-                            "of you has a price, and every part of you went up this morning."),
-                ("moozart", "So that's what we are to him: a number that goes up while he feeds us, and gets paid out when "
-                            "he stops. He isn't cruel. He's a man who can read a market report and not much else."),
-            ])
-            g.audio.stop_loop("radio", 0.3)
-            self.unduck()
-            yield from g.talk([
-                ("you", "Moo. (How are you so calm about it?)"),
-                ("moozart", "I'm not calm. I'm busy. You can't panic and draw a straight line at the same time. I've tried."),
-                ("moozart", "Keep the radio. Chuck can't stand that station: it ran the ad for his divorce lawyer. Set it "
-                            "down playing anywhere and he'll cross the whole farm to switch it off. A man who always walks "
-                            "toward the same noise is a man you can steer."),
-            ])
-            g.ui.popup_sub("The radio's yours. [Q] sets it down playing: Chuck comes to switch it off. Pick it up "
-                           "again after.", 7)
-            done["d"] = True
             return True
         self.hook("talk:moozart", talk)
-        yield lambda: done["d"]
-        g.complete("radio_mz")
+
+        def use(sel):
+            if sel != "radio" or not st["given"] or st["tuned"]:
+                return self.radio_use(sel)
+            self.radio_use(sel)
+            pos = self.radio_on["pos"]
+            if self.near_fence(pos[0], pos[2]):
+                st["tuned"] = True
+            else:
+                g.audio.stop_loop("radio", 0.05)
+                g.audio.play("radio_static", vol=0.9, pos=pos, rng=25)
+                g.examine("Kssshhh. Static. It wants something long and metal to lean on. Pick it up and try "
+                          "somewhere else.")
+            return True
+        self.hook("use", use)
+        yield lambda: st["tuned"]
+        g.complete("aerial")
+        pos = self.radio_on["pos"]
+        g.audio.stop_loop("radio", 0.05)
+        g.audio.loop("radio", "loop_radio", vol=0.9, pos=pos, rng=35, group="sfx")
+        g.examine("The static clears. Two kilometres of electric fence make a very good aerial. A man with a "
+                  "lovely voice is reading out cattle prices.")
+        # Archimoodes comes over to listen
+        ox, oz = (1.6 if pos[0] < -48 else -1.6), (1.6 if pos[2] < -35 else -1.6)
+        mz.goto((pos[0] + ox, 0, pos[2] + oz), 3.0)
+        t0 = g.env.time
+        yield lambda: math.hypot(mz.x - pos[0], mz.z - pos[2]) < 3.2 or g.env.time - t0 > 15
+        if math.hypot(mz.x - pos[0], mz.z - pos[2]) >= 3.2:
+            mz.teleport((pos[0] + ox, 0, pos[2] + oz), 0)
+        mz.path = []
+        mz.face_target = (pos[0], pos[2])
+        g.cutscene_start(letterbox=True)
+        g.player.look_at_point((mz.x, 1.3, mz.z))
+        g.audio.music_duck = 0.1
+        yield 1.0
+        yield from g.talk([
+            ("moozart", "Live cattle, up four cents. Hides, steady. 'Lean trim', up. Lean trim is us, ground. Every part "
+                        "of you has a price, and every part of you went up this morning."),
+            ("moozart", "So that's what we are to him: a number that goes up while he feeds us, and gets paid out when "
+                        "he stops. He isn't cruel. He's a man who can read a market report and not much else."),
+        ])
+        self._radio_pickup()
+        self.unduck()
+        yield from g.talk([
+            ("you", "Moo. (How are you so calm about it?)"),
+            ("moozart", "I'm not calm. I'm busy. You can't panic and draw a straight line at the same time. I've tried."),
+            ("moozart", "Keep the radio. Chuck can't stand that station: it ran the ad for his divorce lawyer. Set it "
+                        "down playing anywhere and he'll cross the whole farm to switch it off. A man who always walks "
+                        "toward the same noise is a man you can steer."),
+        ])
+        g.cutscene_end_now()
+        g.ui.popup_sub("The radio's yours. [Q] sets it down playing: Chuck comes to switch it off. Pick it up "
+                       "again after.", 7)
 
     def d2_ram(self):
         g = self.g
@@ -2155,7 +2230,16 @@ class DayScripts:
                     if st["warn"] <= 0:
                         mz.bubble("...41, 43, 47! FORTY-SEVEN!", 2.5)
                         g.audio.play("moo_moozart_exclaim_0", vol=0.8, pos=(mz.x, 1.4, mz.z), rng=30, group="voice")
-                        g.noise((mz.x, 0, mz.z), 15, "hum")
+                        f = g.farmer
+                        if f.visible and f.state in ("routine", "investigate", "alert"):
+                            # that carries: Chuck drops everything and comes running, already sure something's up
+                            f.say("WHO'S COUNTIN' OUT THERE?!", force=True)
+                            g.audio.play("alert", vol=0.7)
+                            f.investigate((mz.x, 0, mz.z), quiet=True)
+                            f.walk_speed = 4.4
+                            f.susp = max(f.susp, 0.85)
+                            f.set_marker("!")
+                            g.ui.popup_sub("Chuck heard that. He's coming. Hide, or he'll have you both.", 4)
                         st["t"] = random.uniform(10, 16)
                 else:
                     st["t"] -= dt
@@ -2321,6 +2405,7 @@ class DayScripts:
         g.cam_set((1.5, 2.2, -8.0), (8.5, 1.4, 0.2))
         mz.goto((-2.0, 0, -22.0), 1.6)
         mz.bubble("MOO. (Twelve. Here.)", 3)
+        self.lock_hud_music("music_sad", 0.6, 2.5)
         yield 4.5
         f.path = []
         f.face_target = (-10, -30)
@@ -2410,7 +2495,6 @@ class DayScripts:
         g.cam_set((20, 6, -20), (70, 11, -44))
         smoke = Smoke((73, 13.2, -46))
         self.fx.append(smoke)
-        self.lock_hud_music("music_sad", 0.6, 3.0)
         yield 7.0
         yield from g.fade_out(2.0)
         destroy(rider)
@@ -3626,8 +3710,9 @@ class DayScripts:
         g.cam_set((3, 2.0, 70), (5, 1.5, 60))
         f.goto((1.5, 0, 66), 4.0)
         yield 2.2
-        g.cam_set((0.5, 1.4, 72.5), (1.5, 1.6, 66))
-        g.player.teleport(0, 0, 72, 180)
+        # side on, so you see both of them squaring up (it used to sit at your ear, which hid you)
+        g.player.teleport(0, 0, 71, 180)
+        g.cam_set((5.6, 1.7, 70.2), (0.8, 1.2, 68.6))
         lines = [
             ("chuck", "NOBODY'S LEAVIN'! Not you, not the herd, not NOBODY!"),
             ("chuck", "I raised you from a calf! I bottle-fed you! You BIT me! I had to get a SHOT!"),
@@ -3917,7 +4002,9 @@ class DayScripts:
         me.position = (hx, hy, hz)
         me.rotation_y = 300
         cw = models.CowModel(hide="hide_brown", bell=False, acc=("daisy",), tag="tag_blank")
-        cw.position = (hx - 1.6, terrain_h(hx - 1.6, hz + 0.6), hz + 0.6)
+        # side by side on the hill (she used to stand 1.6 m behind you along the way you both face: half inside you)
+        sx_, sz_ = math.cos(math.radians(300)), -math.sin(math.radians(300))
+        cw.position = (hx - sx_ * 1.7, terrain_h(hx - sx_ * 1.7, hz - sz_ * 1.7), hz - sz_ * 1.7)
         cw.rotation_y = 300
         ents = [w[0] for w in walkers] + [me, cw]
         g.audio.music_play("music_ending", 0.9, fade=0.5)

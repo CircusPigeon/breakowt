@@ -1081,8 +1081,5 @@ class Story(DayScripts):
         out += [
             "They made it to India. Cows are sacred there, but sacred doesn't pay rent, so they got jobs.",
             "Moodysseus drives a tractor, and answers to one name.",
-            "None of this happened, of course. Cows can't do geometry, or read email, or hold a funeral.",
-            "They can be afraid. They know one another apart. A cow whose calf is taken will call for it for days.",
-            "Moocrates would want to know which of those things was supposed to be the reason.",
         ]
         return out

@@ -472,7 +472,18 @@ class Bot:
         yield from self.walk_to(-24, -35)
 
     def p_d2_radio(self):
-        yield from self.talk_to("moozart")
+        g = self.g
+        if not g.flags.get("radio_static"):
+            yield from self.talk_to("moozart")
+        # the radio needs an aerial: set it down against the electric fence
+        if g.inv.has("radio"):
+            yield from self.wait_ready()
+            self.place(-19.3, -45.0, 90)
+            g.player.pitch = 0
+            g.inv.select_key("radio")
+            yield
+            self.press("q")
+        yield from self.until(lambda: g.story.cur != "d2_radio", 60, "farm report")
 
     def p_d2_ram(self):
         yield from self.talk_to("cowpernicus")

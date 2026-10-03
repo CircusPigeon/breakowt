@@ -46,6 +46,10 @@ def boot(size=(1280, 720), fps=30):
         Text.default_font = fonts["body"]
     from breakowt.game import Game
     g = Game(Args(), fonts)
+    # tests are silent: nobody wants a farm playing at them while a bot runs it (BREAKOWT_TEST_SOUND=1 to hear it)
+    if not os.environ.get("BREAKOWT_TEST_SOUND"):
+        g.audio.volumes["master"] = 0.0
+        application.base.disableAllAudio()
     return app, g
 
 

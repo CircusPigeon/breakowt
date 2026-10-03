@@ -100,7 +100,18 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
-- **The schedule and the story (latest audit)**. The truck to Happy Acres comes every other Thursday (#12 this
+- **Tuesday, Chuck, music (latest)**: the radio gets only static until it's set down against the electric
+  fence (`near_fence`; the fence is the aerial), then Archimoodes comes to hear the farm report. Chuck can open
+  the pasture gate himself (`OWN_DOORS`): without that, shutting it behind you while he was inside left him
+  scraping along the fence (find_path falls back to a straight line when there's no route). Chuck's eyes are
+  off during cutscenes and dialogue (a catch during the rooster's intro froze the fight). Archimoodes counting
+  primes out loud on Thursday brings Chuck running, sure of himself. The fuse box's wall conduit moved to the
+  far end (it sat by the FENCE fuse and the generator's fence cable, so the FENCE label looked right); the
+  wiring can never match a label (asserted). The truck scene's lament (`sad_theme`, audio 11) is the ending's
+  road tune slowed into B minor, from the moment Archimoodes walks out of the barn. The boss intro is a side-on
+  two-shot (the camera was at your ear, hiding you), Moocrates stands beside you on the hill, and the epilogue is
+  four cards. Tests are silent (`harness.boot` mutes; `BREAKOWT_TEST_SOUND=1` to hear them).
+- **The schedule and the story (audit)**. The truck to Happy Acres comes every other Thursday (#12 this
   week); Sunday is different: Chuck is killing #47 himself for Dale's barbecue (the planner says so, and so does
   Moocrates on Monday), which is why he sharpens knives on Saturday. Everyone but Archimoodes and you treats the
   truck as routine at first, each for a real reason: Moocrates is Socrates in the *Crito* ("you can't take the

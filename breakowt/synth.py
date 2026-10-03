@@ -13,7 +13,7 @@ import numpy as np
 from scipy import signal
 
 SR = 44100
-AUDIO_VERSION = "10"
+AUDIO_VERSION = "11"
 
 _rng = np.random.default_rng(47)
 
@@ -1656,7 +1656,50 @@ def master(name, x):
 
 
 def sad_theme() -> np.ndarray:
-    return music_box_theme(tempo_scale=1.35, sparse=False)
+    """Archimoodes walks to the truck: the road-out tune from the ending, slowed and set in B minor, on a lone
+    piano, then with a cello under it, then the strings take the tune. The ending plays it again in D major."""
+    bpm = 66
+    beat = 60 / bpm
+    bar = 4 * beat
+    chords = {"Bm": ("B1", ["B2", "D3", "F#3"]), "A": ("A1", ["A2", "C#3", "E3"]), "G": ("G1", ["G2", "B2", "D3"]),
+              "D": ("D2", ["D3", "F#3", "A3"]), "Em": ("E2", ["E3", "G3", "B3"]), "F#m": ("F#1", ["F#2", "A2", "C#3"])}
+    prog = ["Bm", "A", "G", "D", "Bm", "A", "Em", "F#m"]
+    passes = 3
+    total = (passes * 8 + 1) * bar
+    tr = Track(total + 2)
+    for pi in range(passes):
+        for bi, c in enumerate(prog):
+            root, tones = chords[c]
+            tb = (pi * 8 + bi) * bar
+            # a slow broken chord in the piano's left hand
+            for j, tn in enumerate(tones):
+                tr.add(tb + j * beat, piano(midi(nm(tn) + 12), bar - j * beat + 0.5, 0.22))
+            tr.add(tb, strings(midi(nm(root) + 12), bar * 1.02, 0.12 + 0.06 * pi, attack=0.8, release=1.0))
+            if pi >= 1:
+                # a cello holding the root, then (third time round) the full strings
+                tr.add(tb, strings(midi(nm(root) + 12), bar * 1.02, 0.16, attack=0.5, release=0.8, voices=2))
+            if pi == 2:
+                for tn in tones:
+                    tr.add(tb, strings(midi(nm(tn) + 24), bar * 1.02, 0.08, attack=0.9, release=1.0))
+    melody = ROAD_A[:7] + [[("A4", 2), ("C#5", 2)]]
+    t = 0.0
+    for b in melody:
+        t = seq(tr, t, beat, b, piano, 0.38, wrap=False)
+    for b in melody:
+        t = seq(tr, t, beat, b, piano, 0.34, wrap=False)
+    t2 = 8 * bar
+    for b in melody:
+        t2 = seq(tr, t2, beat, b, strings, 0.12, transpose=-12, wrap=False)
+    for b in melody:
+        t = seq(tr, t, beat, b, strings, 0.2, wrap=False)
+    # and home, to B minor
+    tb = passes * 8 * bar
+    for tn in ("B2", "D3", "F#3", "B3"):
+        tr.add(tb, piano(midi(nm(tn) + 12), bar * 1.5, 0.28))
+        tr.add(tb, strings(midi(nm(tn) + 12), bar * 1.4, 0.1, attack=0.6, release=1.6))
+    tr.add(tb, piano(midi(nm("B4")), bar * 1.5, 0.3))
+    x = tr.out(tail=3.0)
+    return reverb(x, decay=2.0, wet=0.2, tone=4500)[: len(x)]
 
 
 # --------------------------------------------------------------------------
@@ -1759,6 +1802,7 @@ def catalog():
         "loop_snore": loop_snore,
         "loop_herd": loop_hum_crowd,
         "loop_radio": radio_loop,
+        "radio_static": radio_static,
         "loop_frogs": loop_frogs,
         "loop_chickens": loop_chickens,
         "loop_windmill": loop_windmill,
@@ -1786,6 +1830,18 @@ def catalog():
         "music_box_theme": lambda: music_box_theme(1.0),
     })
     return c
+
+
+def radio_static() -> np.ndarray:
+    """A radio with no aerial: hiss, a whine, and crackles."""
+    n = int(1.8 * SR)
+    t = np.arange(n) / SR
+    x = bandpass(noise(n), 400, 5000) * 0.45
+    x += np.sin(2 * np.pi * (2400 + 300 * np.sin(2 * np.pi * 0.7 * t)) * t) * 0.04
+    rng = np.random.default_rng(7)
+    for i in rng.integers(0, n - 400, 40):
+        x[i:i + 300] += rng.uniform(-1, 1) * np.exp(-np.arange(300) / 40)
+    return fade_edges(x, 0.01, 0.2)
 
 
 def radio_loop() -> np.ndarray:

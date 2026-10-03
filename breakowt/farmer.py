@@ -11,8 +11,8 @@ from .engine.shading import SHADOW_MASK
 from .npc import Walker, ang_diff
 from .world import _seg_hits_box
 
-# doors Chuck opens for himself on the way through, and shuts behind him (his house, his barn)
-OWN_DOORS = ("front_door", "back_door", "barn_side")
+# doors Chuck opens for himself on the way through, and shuts behind him (his house, his barn, the pasture)
+OWN_DOORS = ("front_door", "back_door", "barn_side", "pasture_gate")   # (he has the padlock key)
 # how far he sees: by day, in the dark, with the flashlight on you, and when you're under a lamp
 SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 60.0, 18.0, 42.0, 30.0
 # how far noises carry to him, as a multiple of each noise's own radius
@@ -668,6 +668,8 @@ class Farmer(Walker):
     def _vision(self, dt):
         g = self.g
         p = g.player
+        if g.cutscene or g.in_dialogue:
+            return      # nobody gets caught mid-conversation (or mid-cutscene)
         v, dist = self.visibility()
         self.sees_player = v > 0
         restricted = g.player_restricted()
