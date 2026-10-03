@@ -629,8 +629,10 @@ class Bot:
         g = self.g
         yield from self.interact("doormat")
         yield from self.interact("flowerpot")
-        # a level look, the way a player stands in front of him (not aimed down at his hat)
-        yield from self.headbutt_at((41, 1.42, 24), dist=1.5)
+        # Gary: the fisherman with the bare hook (a level look, the way a player stands in front of him)
+        i = g.flags["gnome_order"].index("empty")
+        gx, gz = g.world.gnome_spots[i]
+        yield from self.headbutt_at((gx, 1.42, gz), dist=1.5)
         yield from self.until(lambda: g.inv.has("house_key"), 5, "gnome key")
         yield from self.open_door("front_door")
         yield from self.until(lambda: g.world.doors["front_door"].is_open, 5, "front door")
@@ -677,13 +679,19 @@ class Bot:
         yield from self.walk_to(13, 0.7)
         yield from self.interact("tractor")
         yield from self.until(lambda: g.flags.get("sparkplug_in"), 5, "plug")
-        for i in range(3):
+        # two long planks from the pile, and the shed board you knocked in on Tuesday (in through the hole)
+        laid = g.flags.get("planks_laid", 0)
+        while g.flags.get("pile_taken", 0) < 2 and g.inv.count("plank") + laid < 3:
             yield from self.interact("woodpile")
+        if not g.flags.get("shed_plank_taken") and g.inv.count("plank") + laid < 3:
+            yield from self.walk_path([(-15, -30), (-14.5, -22.2), (-10.2, -22.2)])
+            yield from self.interact("shed_plank")
+            yield from self.until(lambda: g.flags.get("shed_plank_taken"), 5, "shed board")
         # carry them for real part of the way, then over to the grid
         yield from self.wait_ready()
         self.place(0, 60, 0)
         yield from self.walk_to(0, 77)
-        for i in range(3):
+        while g.inv.has("plank"):
             yield from self.interact("cattle_grid")
         for i in range(5):
             yield from self.interact(f"herd_{i * 3}")
@@ -732,7 +740,8 @@ class Bot:
 
     def p_d6_stars(self):
         yield from self.wait_ready()
-        self.place(-46, -41, 0)
+        # well inside the 7.5 m around the oak (the herd jostles a cow standing near the edge back out of it)
+        self.place(-50.5, -41.5, 0)
         yield from self.wait(2)
 
     def p_d7_fuse(self):

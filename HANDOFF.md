@@ -100,7 +100,18 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
-- **Tuesday, Chuck, music (latest)**: the radio gets only static until it's set down against the electric
+- **Look-before-you-smash, softlocks (latest)**: Friday has three gnomes in the flowerbed (`World.gnome_ents`
+  fish / empty / lantern, `gnome_spots`, ias `gnome_0..2`), shuffled per playthrough (`flags.gnome_order`, set
+  in `apply_world_flags`). Chuck's flowerpot note says the key is in Gary, "the fisherman who's never caught a
+  thing": the bare hook. E offers a headbutt only after you've looked at that gnome (`gnome_seen`); a wrong one
+  cracks open empty (`flags.gnomes_broken`, a list of kinds). Saturday's lumber pile has only two long planks
+  (`flags.pile_taken`); the third is the shed board you knocked in on Tuesday, still on the shed floor (ia
+  `shed_plank`, `flags.shed_plank_taken` removes the `board_fallen` prop). Monday's meeting lost a third; the
+  cut lines (Moogenes on Chuck's face, Moothagoras' nice problem, Big Ajax's one-step plan) are Tuesday and
+  Wednesday chatter. Radio: Q never sets it down through a fence or wall (raycast, plus a pasture-zone check),
+  and on Tuesday you only count as back in the pasture with the radio in your mouth or set down inside, so
+  the gate stays open (and Chuck's feed runs keep going) until you've fetched it.
+- **Tuesday, Chuck, music**: the radio gets only static until it's set down against the electric
   fence (`near_fence`; the fence is the aerial), then Archimoodes comes to hear the farm report. Chuck can open
   the pasture gate himself (`OWN_DOORS`): without that, shutting it behind you while he was inside left him
   scraping along the fence (find_path falls back to a straight line when there's no route). Chuck's eyes are

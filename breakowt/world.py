@@ -125,12 +125,11 @@ DEFAULT_TEXT = {
     "duck": ["A rubber duck. Squeak. It's the only one on this farm who's ever been happy."],
     "bathtub": ["A bathtub. There's a ring. There's always a ring."],
     "chimes": ["Wind chimes made of seashells. Chuck has never been to the sea."],
-    "gnome": ["A garden gnome with a fishing rod. He's been fishing in a flowerbed for 20 years. No bites."],
     "flowerpot": ["A flowerpot. Petunias. Wilting. Chuck waters them with coffee."],
     "doormat": ["WELCOME, it says. You don't believe it."],
     "front_door": ["Chuck's front door. Locked."],
     "back_door": ["The back door. Locked. It has a little doggy flap, much too small for you."],
-    "woodpile": ["A pile of lumber. Some good planks in there."],
+    "woodpile": ["A pile of lumber. Offcuts, mostly, and a couple of good long planks."],
     "coop": ["The chicken coop. Twelve hens and one rooster, and the rooster is in charge."],
     "hens": ["A hen. She stares at you without blinking."],
     "barn_door": ["The big barn doors. Closed."],
@@ -2079,6 +2078,33 @@ class World:
         self.add_ia("plant_note", (x1 + 0.3, 1.0, PLANT_BACK - 1.05), 0.17, "Sticky note", prompt="Read the note",
                     reach=2.4)
 
+    @staticmethod
+    def _gnome_mesh(kind):
+        gm = MeshBuilder()
+        coat = {"fish": (0.2, 0.4, 0.8, 1), "empty": (0.25, 0.6, 0.3, 1), "lantern": (0.6, 0.3, 0.6, 1)}[kind]
+        gm.cylinder((0, 0, 0), 0.18, 0.35, color=coat, segs=8, radius_top=0.14)
+        gm.sphere((0, 0.45, 0), 0.13, color=(0.95, 0.78, 0.65, 1), segs=8, rings=6)
+        gm.sphere((0, 0.37, 0.05), 0.12, color=(0.97, 0.97, 0.97, 1), segs=8, rings=6, scale=(1, 1.2, 0.8))
+        gm.cone((0, 0.52, 0), 0.14, 0.35, color=(0.85, 0.12, 0.12, 1), segs=8)
+        dark = (0.12, 0.12, 0.12, 1)
+        if kind in ("fish", "empty"):
+            # a rod held out in front, its line hanging from the tip (at about (0.15, 0.5, 0.55))
+            gm.box((0.15, 0.3, 0.2), (0.025, 0.025, 0.8), color=(0.4, 0.3, 0.2, 1), rot=(-30, 0, 0))
+            gm.box((0.15, 0.31, 0.55), (0.008, 0.38, 0.008), color=(0.85, 0.85, 0.85, 1))
+            if kind == "fish":
+                gm.box((0.15, 0.08, 0.55), (0.04, 0.16, 0.09), color=(1.0, 0.55, 0.1, 1))
+                gm.box((0.15, -0.02, 0.55), (0.03, 0.06, 0.12), color=(1.0, 0.45, 0.05, 1), rot=(45, 0, 0))
+            else:
+                gm.box((0.15, 0.11, 0.55), (0.012, 0.05, 0.012), color=dark)
+                gm.box((0.15, 0.09, 0.57), (0.012, 0.012, 0.04), color=dark)
+        else:
+            # Diogenes' lamp: still looking
+            gm.box((0.17, 0.33, 0.16), (0.02, 0.18, 0.02), color=dark)
+            gm.box((0.17, 0.22, 0.16), (0.1, 0.12, 0.1), color=(1.0, 0.85, 0.4, 1))
+            gm.box((0.17, 0.29, 0.16), (0.12, 0.02, 0.12), color=dark)
+            gm.box((0.17, 0.15, 0.16), (0.12, 0.02, 0.12), color=dark)
+        return gm
+
     def build_deer_stand(self):
         """Chuck's deer stand, in the empty corner by the gate. Its own entity, so it can sway."""
         x, z = DEER_STAND
@@ -2173,18 +2199,18 @@ class World:
         # garden gnome + flowerbed by the house corner
         self.mb("dirt").ground(38, 21, 44, 27, y=0.035, uv_density=0.4)
         self.flowers(38.2, 43.8, 21.2, 26.8, 40)
-        gx, gz = 41, 24
-        # a big gnome, so a cow looking straight ahead can see him
-        self.gnome = Entity(position=(gx, 0, gz), rotation_y=200, scale=1.5)
-        gm = MeshBuilder()
-        gm.cylinder((0, 0, 0), 0.18, 0.35, color=(0.2, 0.4, 0.8, 1), segs=8, radius_top=0.14)
-        gm.sphere((0, 0.45, 0), 0.13, color=(0.95, 0.78, 0.65, 1), segs=8, rings=6)
-        gm.sphere((0, 0.37, 0.05), 0.12, color=(0.97, 0.97, 0.97, 1), segs=8, rings=6, scale=(1, 1.2, 0.8))
-        gm.cone((0, 0.52, 0), 0.14, 0.35, color=(0.85, 0.12, 0.12, 1), segs=8)
-        gm.box((0.15, 0.3, 0.2), (0.02, 0.02, 0.8), color=(0.4, 0.3, 0.2, 1), rot=(-30, 0, 0))
-        Entity(parent=self.gnome, model=gm.build(), texture=tex("white"), shader=FARM_SHADER)
-        self.phys.add_circle(gx, gz, 0.35, 0, 1.3)
-        self.add_ia("gnome", (gx, 0.7, gz), 0.55, "Garden gnome")
+        # three big gnomes (a cow looking straight ahead can see them): one fisherman with a fish on his line, one
+        # with a bare hook, one with a lantern. Which stands where is decided per playthrough (DayScripts), and
+        # Chuck's Friday note says which one has the key in him.
+        self.gnome_spots = [(39.4, 23.2), (41.1, 25.4), (42.8, 23.0)]
+        self.gnome_ents = {}
+        for kind in ("fish", "empty", "lantern"):
+            e = Entity(position=(0, -20, 0), rotation_y=200, scale=1.5)
+            Entity(parent=e, model=self._gnome_mesh(kind).build(), texture=tex("white"), shader=FARM_SHADER)
+            self.gnome_ents[kind] = e
+        for i, (gx, gz) in enumerate(self.gnome_spots):
+            self.phys.add_circle(gx, gz, 0.35, 0, 1.3)
+            self.add_ia(f"gnome_{i}", (gx, 0.7, gz), 0.5, "Garden gnome", text_key=None)
         # pickup truck parked by the house
         self.pickup = models.pickup_model(position=(74, 0, 36), rotation_y=180)
         self.colliders["pickup"] = self.phys.add_box_c(74, 36.2, 2.1, 5.0, 0, 2.0)
@@ -2303,6 +2329,11 @@ class World:
         self.colliders["shed_board"] = self.phys.add_box(SHED[0] - 0.12, SHED[0] + 0.12, -23.0, -21.4, 0, 2.0)
         self.add_ia("shed_board", (SHED[0] - 0.2, 1.0, -22.2), 0.7, "Loose board", text_key=None).text = [
             "One of the boards back here is loose. A good headbutt would do it... but it would be LOUD."]
+        # ...and once it's knocked in, it lies on the shed floor (shown by DayScripts.fallen_board)
+        self.add_ia("shed_plank", (SHED[0] + 1.1, 0.2, -22.2), 0.9, "Fallen shed board", text_key=None,
+                    enabled=False).text = [
+            "The board you knocked out of the back wall. Chuck hasn't been round the back since. Long, flat, and "
+            "nobody's using it."]
         # barn doors
         bx0 = BARN[0]
 

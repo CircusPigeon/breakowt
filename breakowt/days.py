@@ -146,12 +146,14 @@ class DayScripts:
             # the spare key stays in the front door once it's unlocked
             give("sparkplug")
             f["house_unlocked"] = True
-            f["gnome_broken"] = True
+            f["gnomes_broken"] = ["empty"]
             f["emails_read"] = True
         elif d == 6:
             take("sparkplug")
             f["sparkplug_in"] = True
             f["planks_laid"] = 3
+            f["pile_taken"] = 2
+            f["shed_plank_taken"] = True
             f["herd_rallied"] = True
             f["cabinet_open"] = True
             give("shotgun")
@@ -170,8 +172,10 @@ class DayScripts:
         board = bool(fl.get("board_broken"))
         w.colliders["shed_board"].enabled = not board
         w.shed_board.enabled = not board
-        if board:
+        self.remove_prop("board_fallen")
+        if board and not fl.get("shed_plank_taken"):
             self.fallen_board()
+        g.ia.get("shed_plank").enabled = board and not fl.get("shed_plank_taken")
         mh = bool(fl.get("moohole_open"))
         w.colliders["moohole"].enabled = not mh
         if mh:
@@ -180,7 +184,14 @@ class DayScripts:
             w.set_moohole_wire(None)
         self.lay_planks(fl.get("planks_laid", 0))
         self.place_tractor(22, 1, 180)
-        w.gnome.rotation = (0, 200, 0) if not fl.get("gnome_broken") else (80, 200, 0)
+        if sorted(fl.get("gnome_order") or []) != ["empty", "fish", "lantern"]:
+            fl["gnome_order"] = random.sample(["fish", "empty", "lantern"], 3)
+        broken = fl.get("gnomes_broken", [])
+        for i, kind in enumerate(fl["gnome_order"]):
+            gx, gz = w.gnome_spots[i]
+            e = w.gnome_ents[kind]
+            e.position = (gx, 0, gz)
+            e.rotation = (80, 200, 0) if kind in broken else (0, 200, 0)
         w.props["bessie"].enabled = not (fl.get("cabinet_open") or g.inv.has("shotgun"))
         w.props["monitor_screen"].texture = tex("monitor_inbox" if fl.get("emails_read") else "monitor")
         w.chain.enabled = True
@@ -371,18 +382,20 @@ class DayScripts:
     def register_globals(self):
         """Wardrobe hiding and the radio: useful whenever you're around them."""
         g = self.g
-        # Before Friday the gnome is only a gnome (Chuck moves the spare key into him on Friday). Say so,
-        # instead of a headbutt doing nothing at all.
-        gn = g.ia.get("gnome")
-        if self.day < 5:
-            g.on("gnome", "Look at the gnome", lambda gg: gg.examine(
-                "A garden gnome with a fishing rod. Something small rattles inside him. Chuck's about today, "
-                "though. The house can wait until he's out."), scope="day")
-            gn.on_headbutt = lambda gg: gg.examine(
-                "Clonk. The gnome wobbles and something rattles inside him. Not today: Chuck's around. "
-                "Come back when he's out of the house.")
-        else:
-            gn.on_headbutt = None
+        # the three gnomes: anyone can look at them; before Friday a headbutt only wobbles one (Chuck moves the
+        # spare key into a gnome on Friday). On Friday, E only offers a headbutt once you've had a look at him.
+        self.gnome_seen = set()
+        for i in range(3):
+            def look(gg, i=i):
+                self.gnome_seen.add(i)
+                kind = gg.flags["gnome_order"][i]
+                if kind in gg.flags.get("gnomes_broken", []):
+                    gg.examine("What's left of a garden gnome.")
+                else:
+                    gg.examine(self.GNOME_LOOKS[kind])
+            g.on(f"gnome_{i}", "Look at the gnome", look, scope="day")
+            g.ia.get(f"gnome_{i}").on_headbutt = (lambda gg: gg.examine(
+                "Clonk. The gnome wobbles and settles. He's been knocked about before.")) if self.day < 5 else None
 
         def hide(gg):
             gg.flags["_hiding"] = True
@@ -680,6 +693,14 @@ class DayScripts:
             self.item(f"clover{i}", "clover", (cx, 0.25, cz), "Golden Clover", "Pick the Golden Clover", take,
                       spin=True, bob=True, glow=0.5, radius=0.3)
 
+    GNOME_LOOKS = {
+        "fish": "A garden gnome with a fishing rod, and a little painted fish on the end of his line. Twenty years in "
+                "a flowerbed, and he caught one.",
+        "empty": "A garden gnome with a fishing rod and a bare hook. Twenty years in a flowerbed. Not a bite.",
+        "lantern": "A garden gnome holding up a lantern, looking for something. Twenty years, and he hasn't found it "
+                   "either.",
+    }
+
     def flush(self):
         g = self.g
         g.audio.play("flush", vol=1.0, pos=(66.8, 1, 47), rng=40)
@@ -693,7 +714,17 @@ class DayScripts:
             return False
         p = g.player
         f = p.forward()
-        pos = (p.x + f[0] * 1.2, 0.0, p.z + f[2] * 1.2)
+        n = math.hypot(f[0], f[2]) or 1.0
+        fx, fz = f[0] / n, f[2] / n
+        # it goes down on your side of any fence or wall, where you can pick it up again: never through one
+        reach, pad = 1.2, 0.3
+        y = p.y + 0.4
+        t = g.phys.raycast((p.x, y, p.z), (p.x + fx * (reach + pad), y, p.z + fz * (reach + pad)), sight_only=False)
+        if t is not None:
+            reach = min(reach, max(0.0, t * (reach + pad) - pad))
+        pos = (p.x + fx * reach, 0.0, p.z + fz * reach)
+        if g.phys.in_zone("pasture", pos[0], pos[2]) != g.phys.in_zone("pasture", p.x, p.z):
+            pos = (p.x, 0.0, p.z)
         gh, _ = g.phys.ground(pos[0], pos[2], p.y + 0.5)
         pos = (pos[0], gh + 0.13, pos[2])
         g.inv.remove("radio")
@@ -1143,9 +1174,6 @@ class DayScripts:
                         "isn't hospitality. It's a mortgage."),
             ("cowleen", "...I'll need to think about that."),
             ("moomaw", "It'll still be Thursday when you've thought about it, dear."),
-            ("sirloin", "I'm in. Not to escape. I'd just like to see Chuck's face."),
-            ("cowpernicus", "It's a nice problem. I'll do the numbers. It won't change anything, but nice problems are "
-                            "rare."),
             ("moozart", "That'll do. The fence runs off the generator in the tool shed: no current, no fence. The main "
                         "gate's chained, with a cattle grid in front. We can't undo the chain. So we don't open the "
                         "gate. We knock it down."),
@@ -1154,11 +1182,7 @@ class DayScripts:
                         "barn. It weighs four tons, and Chuck calls it 'baby'."),
             ("sirloin", "He means the tractor."),
             ("moozart", "I mean the tractor. Somebody drives it through the gate, and everybody walks out behind it."),
-            ("moomaw", "Ajax's plan was 'headbutt the truck'. One step. Very elegant."),
-            ("cowleen", "How did that go?"),
-            ("moomaw", "He's in Chuck's freezer, dear. What's left of him. He's been at three barbecues."),
-            ("moozart", "Which is why this plan has more than one step. The first is tonight. Here comes Chuck for the "
-                        "headcount. Moodysseus: get behind him and take his pencil. A man who can't write things down "
+            ("moozart", "The first step is tonight. Here comes Chuck for the headcount. Moodysseus: get behind him and take his pencil. A man who can't write things down "
                         "has to remember them, and Chuck can't."),
             ("cowpernicus", "His eyes cover about a hundred degrees in front of him. Behind him there's nothing at all. "
                             "Sneak in it: C or Ctrl."),
@@ -1477,6 +1501,7 @@ class DayScripts:
         g.world.colliders["shed_board"].enabled = False
         g.world.shed_board.enabled = False
         self.fallen_board()
+        g.ia.get("shed_plank").enabled = True
         g.audio.play("thump", vol=0.6, pos=(SHED[0], 0.5, -22), rng=30)
         g.ui.popup_sub("The board falls in. You're through.", 3)
         p = g.player
@@ -1530,7 +1555,39 @@ class DayScripts:
             return True
         self.hook("after_caught", back)
         p = g.player
-        yield lambda: g.phys.in_zone("pasture", p.x, p.z) and not g.runner.running("caught")
+        st = {"warned": False}
+
+        def radio_here():
+            # in your mouth, or set down on this side of the fence
+            r = self.radio_on
+            return g.inv.has("radio") or bool(r and g.phys.in_zone("pasture", r["pos"][0], r["pos"][2]))
+
+        def home():
+            if not g.phys.in_zone("pasture", p.x, p.z) or g.runner.running("caught"):
+                if st["warned"] and not g.phys.in_zone("pasture", p.x, p.z):
+                    st["warned"] = False
+                    self.mark((-18, -35, "Pasture gate"))
+                return False
+            if radio_here():
+                return True
+            if not st["warned"]:
+                # back in without it (set down outside, or caught with it set down): Chuck's feed runs carry on, so
+                # the gate opens again, and nobody shuts you in until you've brought it
+                st["warned"] = True
+                r = self.radio_on
+                if r:
+                    self.mark((r["pos"][0], r["pos"][2], "Chuck's radio"))
+                g.ui.popup_sub("You've left Chuck's radio out there, and Archimoodes asked for it. Go back and get "
+                               "it. Moocrates will shut the gate once you're in with it.", 6)
+            return False
+
+        def hint():
+            if st["warned"]:
+                return ("The radio's still outside the fence. Fetch it. If the gate's shut, wait for Chuck's next "
+                        "feed run: he leaves it open behind him.")
+            return None
+        self.hook("hint", hint)
+        yield home
         g.complete("back")
         yield 1.5
         gate = g.world.doors["pasture_gate"]
@@ -1589,6 +1646,10 @@ class DayScripts:
                 self.flags["radio_static"] = True
                 g.complete("radio_mz")
                 show()
+                return True
+            if self.radio_on:
+                yield from g.talk([("moozart", "You've put it down somewhere, Moodysseus. Bring it here. Radios don't "
+                                               "walk.")])
                 return True
             if not g.inv.has("radio"):
                 yield from g.talk([("moozart", "No radio? Chuck had one on the tractor last summer. He doesn't throw things away. He "
@@ -2659,9 +2720,10 @@ class DayScripts:
     def day5(self):
         yield from self.step("d5_leave", self.d5_leave)
         yield from self.step("d5_key", self.d5_key, hint=(
-            "Where does every human on earth hide a spare key? And then where does Chuck move it?",
-            "Lift the doormat and follow the notes. The key ends up inside the garden gnome by the corner of the "
-            "house: knock him over."))
+            "Where does every human on earth hide a spare key? And then where does Chuck move it? Read his notes "
+            "carefully, and look at the gnomes before you break one.",
+            "Doormat, then flowerpot. The key's in Gary: the gnome fishing with a bare hook, the one who's never "
+            "caught a thing. Knock him over."))
         yield from self.step("d5_inside", self.d5_inside, hint=(
             "Who has Chuck ever called his best friend? There's exactly one photo in that house.",
             "The spark plug's in a glass on the kitchen table. The computer's in the office, and the password is "
@@ -2736,7 +2798,7 @@ class DayScripts:
         # each note you find goes in the objective, so you don't have to remember it
         clue = {0: "   The front door's locked",
                 1: "   A note says: under the flowerpot",
-                2: "   A note says: in the gnome"}
+                2: "   A note says: the fisherman who's never caught a thing"}
 
         def show():
             self.objectives(("in", "Get into the farmhouse"),
@@ -2759,71 +2821,92 @@ class DayScripts:
         def pot(gg):
             gg.audio.play("rock_land", vol=0.6, pitch=0.7)
             yield from gg.show_document("Under the flowerpot", "Another sticky note:\n\n"
-                                                               "    Moved it. Spare key is in the GNOME.\n"
-                                                               "    (Break him open. I'll buy another.\n"
-                                                               "     His name is Gary. He knew the risks.)\n"
+                                                               "    Moved it. Spare key is in GARY.\n"
+                                                               "    (Gary's the fisherman who's never\n"
+                                                               "     caught a thing. Break him open.\n"
+                                                               "     He knew the risks.)\n"
                                                                "                              - Chuck")
             found(2)
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
 
-        if self.done("gnome_broken") and not g.inv.has("house_key") and not self.done("house_unlocked"):
-            # broken in an earlier try (the old version dropped the key in the flowerbed): hand it over
+        order = self.flags["gnome_order"]
+        broken = self.flags.setdefault("gnomes_broken", [])
+        w = g.world
+        if "empty" in broken and not g.inv.has("house_key") and not self.done("house_unlocked"):
             g.inv.add("house_key", silent=True)
 
-        def bonk(gg):
-            # works whether or not you've read the notes: the key is in the gnome either way
-            if self.done("gnome_broken") or gg.inv.has("house_key"):
+        def bonk(gg, i):
+            # works whether or not you've read the notes: the key is in Gary either way
+            kind = order[i]
+            if kind in broken or gg.inv.has("house_key") or self.done("house_unlocked"):
                 return
-            self.setf("gnome_broken")
-            gg.world.gnome.animate_rotation((80, 200, 0), duration=0.3)
-            gg.audio.play("crash", vol=0.8, pos=(41, 0.4, 24), rng=30)
-            gg.inv.add("house_key")
-            gg.ui.popup_sub("The gnome topples over and cracks open. The spare key falls out. You pick it up in "
-                            "your teeth.", 5)
-        def smash(gg):
+            broken.append(kind)
+            gx, gz = w.gnome_spots[i]
+            w.gnome_ents[kind].animate_rotation((80, 200, 0), duration=0.3)
+            gg.audio.play("crash", vol=0.8, pos=(gx, 0.4, gz), rng=30)
+            if kind == "empty":
+                gg.inv.add("house_key")
+                gg.ui.popup_sub("Gary topples over and cracks open. The spare key falls out. You pick it up in your "
+                                "teeth.", 5)
+            else:
+                gg.ui.popup_sub("The gnome topples over and cracks open. Nothing inside but more gnome. That wasn't "
+                                "Gary.", 4)
+
+        def smash(gg, i):
             # E does the same as a left click here: the prompt tells you what's going to happen
             p = gg.player
             p.lunge = 1.0
             p.shake = 0.3
             gg.audio.play("headbutt", vol=0.9)
-            bonk(gg)
-        g.on("gnome", "Headbutt the gnome", smash,
-             cond=lambda gg: not self.done("gnome_broken") and self.flags.get("d5_keystate", 0) >= 2)
-        g.ia.get("gnome").on_headbutt = bonk
-        g.ia.get("gnome").on_rock = lambda gg, pt: bonk(gg)
-
-        GX, GZ = 41.0, 24.0
+            bonk(gg, i)
+        for i in range(3):
+            g.on(f"gnome_{i}", "Headbutt the gnome", lambda gg, i=i: smash(gg, i),
+                 cond=lambda gg, i=i: order[i] not in broken and self.flags.get("d5_keystate", 0) >= 2
+                 and i in self.gnome_seen and not gg.inv.has("house_key"))
+            g.ia.get(f"gnome_{i}").on_headbutt = lambda gg, i=i: bonk(gg, i)
+            g.ia.get(f"gnome_{i}").on_rock = lambda gg, pt, i=i: bonk(gg, i)
         p = g.player
+
+        def nearest(x, z, r):
+            best = None
+            for i, (gx, gz) in enumerate(w.gnome_spots):
+                d = math.hypot(x - gx, z - gz)
+                if d < r and order[i] not in broken and (best is None or d < best[1]):
+                    best = (i, d)
+            return best[0] if best else None
 
         def upd(dt):
             self.base_update(dt)
-            if self.done("gnome_broken"):
-                return
-            # walking into him is enough: the cow's body stops about 0.9 m from his middle
-            if math.hypot(p.x - GX, p.z - GZ) < 1.05 and abs(p.y) < 1.0:
-                bonk(g)
+            # walking into one is enough: the cow's body stops about 0.9 m from his middle
+            if abs(p.y) < 1.0:
+                i = nearest(p.x, p.z, 1.05)
+                if i is not None:
+                    bonk(g, i)
         self.hook("update", upd)
 
         def kick(pos, yaw):
-            # a back-kick with him behind you
-            dx, dz = GX - pos[0], GZ - pos[2]
-            d = math.hypot(dx, dz)
+            # a back-kick with one behind you
             fx, fz = math.sin(math.radians(yaw)), math.cos(math.radians(yaw))
-            if d < 2.4 and (dx * fx + dz * fz) / max(d, 0.01) < -0.2 and not self.done("gnome_broken"):
-                bonk(g)
-                return True
+            for i, (gx, gz) in enumerate(w.gnome_spots):
+                dx, dz = gx - pos[0], gz - pos[2]
+                d = math.hypot(dx, dz)
+                if d < 2.4 and (dx * fx + dz * fz) / max(d, 0.01) < -0.2 and order[i] not in broken:
+                    bonk(g, i)
+                    return True
             return False
         self.hook("kick", kick)
 
         def land(proj, pos):
-            # anything thrown that comes down on or next to him
-            if math.hypot(pos[0] - GX, pos[2] - GZ) < 1.4:
-                bonk(g)
+            # anything thrown that comes down on or next to one
+            i = nearest(pos[0], pos[2], 1.4)
+            if i is not None:
+                bonk(g, i)
         self.hook("land", land)
         yield lambda: g.inv.has("house_key") or self.done("house_unlocked")
-        g.ia.get("gnome").on_headbutt = None
-        g.ia.get("gnome").on_rock = None
+        for i in range(3):
+            g.ia.get(f"gnome_{i}").on_headbutt = None
+            g.ia.get(f"gnome_{i}").on_rock = None
         self.objectives(("in", "Get into the farmhouse"), ("in_key", "   Found the spare key"))
         g.complete("in_key", sound=False)
         self.mark((56, 29, "Front door"))
@@ -3136,7 +3219,8 @@ class DayScripts:
         yield from self.step("d6_wake", self.d6_wake)
         yield from self.step("d6_prep", self.d6_prep, hint=(
             "What's the tractor still missing? What makes a floor across bars? And who still hasn't been told?",
-            "Spark plug: in the tractor, in the barn. Planks: the lumber pile south of the shed, carried to the "
+            "Spark plug: in the tractor, in the barn. Planks: two from the lumber pile south of the shed, and the "
+            "board you knocked out of the shed wall on Tuesday (it's still on the shed floor). Carry them to the "
             "cattle grid at the main gate. Herd: talk to five of the herd cows."))
         yield from self.step("d6_night", self.d6_night, hint=(
             "Where does a man who never gets out of bed keep a key? And what wakes a sleeping farmer?",
@@ -3194,16 +3278,45 @@ class DayScripts:
              lambda gg: gg.examine("Key: you have it. Diesel: full. Spark plug: in. Ready for tomorrow."),
              cond=lambda gg: gg.flags.get("sparkplug_in"))
 
-        def take_plank(gg):
-            carrying = gg.inv.count("plank")
-            if carrying + planks["n"] >= 3:
+        # the lumber pile has two planks long enough to span the grid; the third is the board you knocked out of
+        # the shed wall on Tuesday, still lying on the shed floor
+        board = self.done("board_broken")
+        pile_max = 2 if board else 3
+
+        def enough(gg):
+            if gg.inv.count("plank") + planks["n"] >= 3:
                 gg.examine("That's enough planks.")
-                return
+                return True
+            return False
+
+        def got_plank(gg):
             gg.inv.add("plank", 1, silent=True)
             gg.inv.select_key("plank")
             gg.audio.play("wood_crack", vol=0.3, pitch=1.5)
             gg.ui.toast(f"Plank ({gg.inv.count('plank')} in your mouth)", "plank")
+
+        def take_plank(gg):
+            if enough(gg):
+                return
+            if self.flags.get("pile_taken", 0) >= pile_max:
+                gg.examine("Only short offcuts left: nothing that would span the grid. You need one more long, flat "
+                           "board. You've seen one lying on a floor this week. You put it there.")
+                return
+            self.flags["pile_taken"] = self.flags.get("pile_taken", 0) + 1
+            got_plank(gg)
         g.on("woodpile", "Take a plank", take_plank, cond=lambda gg: planks["n"] < 3)
+
+        def take_board(gg):
+            if enough(gg):
+                return
+            self.setf("shed_plank_taken")
+            self.remove_prop("board_fallen")
+            gg.ia.get("shed_plank").enabled = False
+            got_plank(gg)
+            gg.examine("The board you knocked out of the wall on Tuesday. Long, flat, and exactly as wide as a hoof "
+                       "needs. Chuck never put it back. Chuck never puts anything back.")
+        g.on("shed_plank", "Take the board", take_board,
+             cond=lambda gg: planks["n"] < 3 and not self.done("shed_plank_taken"))
 
         def lay(gg):
             gg.inv.remove("plank")
@@ -4218,11 +4331,19 @@ CHATTER = {
         "moozart": [["The radio, if you find it. I want the farm report. Chuck's world is mostly prices, and I'd like "
                      "to see it the way he does."]],
         "sirloin": [["If there's a bucket in that shed, I want it. A dog needs a house nobody can sell. I've checked "
-                     "the market. Nobody sells buckets with dogs in them."]],
+                     "the market. Nobody sells buckets with dogs in them."],
+                    ["I'm in, you know. Not to escape. I'd just like to see Chuck's face when his gate comes down.",
+                     ("you", "Moo. (That's it?)"),
+                     "That's plenty. A man who's never been surprised by a cow. You can't buy that at any price."]],
         "cowpernicus": [["The toolbox has a three-digit lock. Humans write their codes down. A species that invented "
                          "cryptography and then wrote the key next to the lock."],
                         ["I don't eat beans. Beans have souls. The herd says grass has souls too. I've asked the "
-                         "grass. It hasn't objected."]],
+                         "grass. It hasn't objected."],
+                        ["I'm doing the numbers on Archimoodes' plan. Four tons of tractor, two hinges, one chain. "
+                         "It's a nice problem.",
+                         ("you", "Moo. (Will it work?)"),
+                         "It won't change anything. Souls go round: out on Thursday, back in a calf by spring. But "
+                         "nice problems are rare, and I'd hate to waste one."]],
         "mooriarty": [["The loose board on the back of the shed? I loosened it. Years ago. You plan for "
                        "opportunities that don't exist yet. It's the only kind of planning that's any fun."]],
         "moomaw": [["You're so quiet without that bell. It's nice. A bell is a leash that sings."],
@@ -4245,7 +4366,11 @@ CHATTER = {
         "moomaw": [["Chuck's dentist is Dale's cousin. The one at the plant. Teeth and beef. Same tools, different "
                     "customer."],
                    ["Ajax won Best in Show in '09. Best day of Chuck's life, he says. Ajax didn't rank it. Ajax ate "
-                    "the ribbon."]],
+                    "the ribbon."],
+                   ["Ajax had a plan too, you know. 'Headbutt the truck.' One step. Very elegant.",
+                    ("you", "Moo. (How did that go?)"),
+                    "He's in Chuck's freezer, dear. What's left of him. He's been at three barbecues. The river only "
+                    "runs one way."]],
     },
     4: {
         "cowleen": [["Stay low. He can't see much in the rain. He can still see a black cow counting primes."],
