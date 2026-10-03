@@ -120,10 +120,18 @@ class CowModel(Entity):
             mb.box((-0.1, 1.08, 1.09), (0.16, 0.14, 0.06), color=RED, uv_rect=WHITE, rot=(0, 0, 20))
             mb.box((0.1, 1.08, 1.09), (0.16, 0.14, 0.06), color=RED, uv_rect=WHITE, rot=(0, 0, -20))
             mb.box((0, 1.08, 1.11), (0.07, 0.08, 0.06), color=(0.5, 0.05, 0.05, 1), uv_rect=WHITE)
-        if "cape" in self.acc:
-            mb.box((0, 1.3, -0.1), (1.0, 0.1, 1.2), color=(0.55, 0.1, 0.15, 1), uv_rect=WHITE)
-            mb.box((0.5, 1.0, -0.1), (0.05, 0.6, 1.2), color=(0.55, 0.1, 0.15, 1), uv_rect=WHITE)
-            mb.box((-0.5, 1.0, -0.1), (0.05, 0.6, 1.2), color=(0.55, 0.1, 0.15, 1), uv_rect=WHITE)
+        if "lantern" in self.acc:
+            # Diogenes' lamp, on a cord round the neck: he carried one in broad daylight, looking for an honest man
+            cz = 1.16 * sz
+            mb.box((0, 1.16, 1.06 * sz), (0.52, 0.04, 0.04), color=(0.3, 0.22, 0.14, 1), uv_rect=WHITE)
+            mb.box((0, 1.04, cz), (0.02, 0.22, 0.02), color=(0.3, 0.22, 0.14, 1), uv_rect=WHITE)
+            mb.box((0, 0.86, cz), (0.16, 0.04, 0.16), color=(0.18, 0.18, 0.2, 1), uv_rect=WHITE)
+            mb.box((0, 0.74, cz), (0.13, 0.2, 0.13), color=(1.0, 0.85, 0.45, 1), uv_rect=WHITE)
+            mb.box((0, 0.62, cz), (0.16, 0.04, 0.16), color=(0.18, 0.18, 0.2, 1), uv_rect=WHITE)
+            for sx in (-1, 1):
+                for sz2 in (-1, 1):
+                    mb.box((sx * 0.07, 0.74, cz + sz2 * 0.07), (0.02, 0.22, 0.02), color=(0.18, 0.18, 0.2, 1),
+                           uv_rect=WHITE)
         part(self.body, mb)
 
         self.head = Entity(parent=self.body, position=(0, 1.4, 1.02 * sz))
@@ -200,13 +208,16 @@ class CowModel(Entity):
                 hm.box((cx + math.cos(a) * 0.07, cy + math.sin(a) * 0.07, cz), (0.07, 0.04, 0.02),
                        color=(1, 1, 1, 1), uv_rect=WHITE, rot=(0, 0, math.degrees(a)))
             hm.sphere((cx, cy, cz + 0.01), 0.04, color=(1, 0.8, 0.1, 1), segs=6, rings=4)
-        if "fedora" in self.acc:
-            hm.cylinder((0, 0.27, 0.22), 0.36, 0.03, color=(0.22, 0.2, 0.2, 1), segs=14)
-            hm.cylinder((0, 0.29, 0.22), 0.22, 0.22, color=(0.25, 0.23, 0.23, 1), segs=12, radius_top=0.19)
-            hm.cylinder((0, 0.29, 0.22), 0.225, 0.06, color=(0.08, 0.08, 0.08, 1), segs=12)
-        if "bonnet" in self.acc:
-            hm.sphere((0, 0.22, 0.2), 0.34, color=(0.7, 0.82, 0.95, 1), segs=10, rings=6, scale=(1, 0.6, 1))
-            hm.box((0, -0.1, 0.42), (0.04, 0.4, 0.04), color=(0.7, 0.82, 0.95, 1), uv_rect=WHITE)
+        if "clover" in self.acc:
+            # a Golden Clover tucked behind the ear: the Garden's currency, worn like a shop sign
+            cx, cy, cz = -0.32, 0.28, 0.14
+            G = (1.0, 0.82, 0.15, 1)
+            for k in range(3):
+                a = k / 3 * 6.283 + 0.4
+                hm.sphere((cx + math.cos(a) * 0.055, cy + math.sin(a) * 0.055, cz), 0.05, color=G, segs=8, rings=5,
+                          scale=(1, 1, 0.35))
+            hm.box((cx + 0.02, cy - 0.09, cz), (0.02, 0.12, 0.02), color=(0.7, 0.55, 0.1, 1), uv_rect=WHITE,
+                   rot=(0, 0, -15))
         if "glasses" in self.acc:
             for sx in (-1, 1):
                 hm.cylinder((sx * 0.19, 0.17, 0.60), 0.12, 0.02, color=DARK, segs=12, rot=(90, 0, 0), caps=True)

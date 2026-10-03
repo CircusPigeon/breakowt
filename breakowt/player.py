@@ -19,18 +19,7 @@ EYE_SNEAK = 0.95
 RADIUS = 0.55
 SNOUT_Y = -0.38
 
-MOO_THOUGHTS = [
-    "Moo. (A sound with no referent. Somewhere a sophist is charging for this.)",
-    "Moo. (Nobody answered. The universe is indifferent. Same as yesterday.)",
-    "Moo. (Louder than intended. Like most of my existence.)",
-    "Moo. (I think, therefore I am. Chuck thinks, therefore I'm lunch.)",
-    "Moo. (Somebody moos back from the far side of the pasture. Solidarity, or an echo. Unfalsifiable.)",
-    "Moo. (Four stomachs, one existential crisis.)",
-    "Moo. (Proof by moo: I mooed, therefore a moo exists. Tight.)",
-    "Moo. (Archimoodes would say that was statistically insignificant.)",
-    "Moooo. (That one was for Big Ajax. Two thousand pounds of dignity, served on a bun.)",
-    "Moo. (Chuck, if you can hear this: the answer is no.)",
-]
+MOO_THOUGHTS = ["Moo.", "Moo.", "Mooo.", "Moooo.", "MOO.", "Moo?", "Moo!", "Mm. Moo."]
 
 THROWABLE = {"rock": 14.0, "cowbell": 18.0, "egg": 12.0, "rubber_chicken": 16.0, "shoes": 12.0, "boot": 12.0,
              "tincan": 16.0}

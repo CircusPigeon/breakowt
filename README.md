@@ -71,10 +71,9 @@ last checkpoint, quit). Press **H** any time you're stuck for a hint.
 | E | interact / talk |
 | Left click | headbutt (also nudges crates along) |
 | Right click | back-kick (hits what's behind you) |
-| R | throw a rock or the selected throwable |
-| Q | use the selected item |
+| Q | use what's in your mouth: throw it, fire it, set it down, put it on (nothing selected: throw a rock) |
 | M | moo |
-| 1-9, 0 / scroll wheel | pick an item (press its number again to put it away) |
+| 1-9, 0 / scroll wheel | pick an item: everything you carry is on the bar (press its number again to put it away) |
 | Tab or J | journal, inventory and map |
 | H | hint |
 | Esc | pause |

@@ -100,6 +100,31 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
+- **The schedule and the story (latest audit)**. The truck to Happy Acres comes every other Thursday (#12 this
+  week); Sunday is different: Chuck is killing #47 himself for Dale's barbecue (the planner says so, and so does
+  Moocrates on Monday), which is why he sharpens knives on Saturday. Everyone but Archimoodes and you treats the
+  truck as routine at first, each for a real reason: Moocrates is Socrates in the *Crito* ("you can't take the
+  grass for years and refuse the truck"), Epicowrus "death is nothing to us", Moothagoras "souls go round",
+  Heifercleitus "the river runs one way", Moogenes "throw me over the fence for the crows". Archimoodes
+  (Archimedes) is an engineer, not a theorem prover: "give me a lever and a place to stand" (the tractor is the
+  lever); maths is only his hobby (trapping the circle between 96-gons, primes when he's nervous). No lemmas,
+  proofs or QED anywhere. He hid his #12 under mud on Monday because he'd made his peace and didn't want the
+  week to be about him; Moocrates' curiosity about the mud is the trough scene's hook. Only he calls you
+  Moodysseus after the page; at the truck it's the trolley problem, and he's the one at the lever. The
+  awakening starts at the funeral and is complete on Friday ("there isn't a bargain, there's a price list").
+  The plan item (key `score`) is "Archimoodes' Plan". The epilogue: India, jobs, then the short serious note.
+  Cast models: Moogenes wears Diogenes' lantern (not the old knight's cape), Epicowrus a Golden Clover behind
+  the ear (not the fedora), Heifercleitus just the shawl (the bonnet read as a grey wig).
+- **Mechanics in that round**: every item is on the hotbar and Q does everything (throw, fire, set down, put
+  on; R still throws as a quiet alias); Ol' Bessie takes a third of Chuck's health; sight 60 m by day (rain 34,
+  dawn 36, dark 18, torch 42) and Chuck makes up his mind faster at range; running into a bin knocks it over
+  (noise 40); the fuse box can be solved with no pulls (the shed-light fuse's cable runs up to the ceiling
+  lamp); the computer's sticky note is readable; the tractor is looked at, not climbed into; herd cows no longer
+  buzz in place when blocked (a one-off sidestep waypoint, and a waypoint with no progress for two seconds is
+  dropped); HUD objectives wrap and stack by measured height; the house windows' frames were solid plates
+  covering the real openings; the paper texture lost its coffee ring and its own ruled lines; fonts are
+  Candara / Candara Bold / Cooper Black / Segoe Print; the ending music is a new folk piece (`ending_theme`,
+  audio version 10) instead of the composer-era symphony with the cow choir.
 - **Polish pass after the crates** (player's notes): the letterbox bars were 0.12 tall and covered the
   bottom of the dialogue box (`UI.LB_H` 0.075, `DLG_BOTTOM` -0.405). Text that has to fit a box is now
   measured glyph by glyph (`ui.text_width`, `ui.wrap_to`; the old character-count guess was off by a third

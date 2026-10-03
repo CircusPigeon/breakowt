@@ -31,11 +31,13 @@ _tex_cache: dict = {}
 
 # first one found wins. The first picks ship with Windows/Office; the last ones are the DejaVu set Linux has
 FONT_CHOICES = {
-    "ui": ["BRLNSDB.TTF", "seguisb.ttf", "segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"],     # names, buttons
-    "body": ["segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"],
-    "title": ["ROCKEB.TTF", "COOPBL.TTF", "georgiab.ttf", "impact.ttf", "DejaVuSerif-Bold.ttf",
-              "DejaVuSans-Bold.ttf"],                                                             # farm-sign slab
-    "hand": ["Inkfree.ttf", "segoepr.ttf", "comic.ttf", "DejaVuSans.ttf"],                       # Chuck's notes
+    # one family for the words (Candara: warm, round, very readable), a fat friendly face for titles, and
+    # handwriting you can actually read for Chuck's notes
+    "ui": ["Candarab.ttf", "seguisb.ttf", "segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"],     # names, headers
+    "body": ["Candara.ttf", "segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"],
+    "title": ["COOPBL.TTF", "ROCKEB.TTF", "georgiab.ttf", "impact.ttf", "DejaVuSerif-Bold.ttf",
+              "DejaVuSans-Bold.ttf"],                                                             # barnyard
+    "hand": ["segoepr.ttf", "Inkfree.ttf", "comic.ttf", "DejaVuSans.ttf"],                       # Chuck's notes
     "mono": ["consola.ttf", "lucon.ttf", "cour.ttf", "DejaVuSansMono.ttf"],                      # ChuckOS
     "serif": ["georgia.ttf", "pala.ttf", "times.ttf", "DejaVuSerif.ttf"],
     "serif_i": ["georgiai.ttf", "palai.ttf", "timesi.ttf", "DejaVuSerif-Italic.ttf", "DejaVuSerif.ttf"],
@@ -109,7 +111,7 @@ def setup_fonts() -> dict:
     try:
         # Ursina rasterises glyphs at 54 px per unit by default, which is soft on a tall (or high-DPI) window
         from ursina import Text, window
-        Text.default_resolution = int(min(140, max(54, window.size[1] * Text.size * 2)))
+        Text.default_resolution = int(min(170, max(64, window.size[1] * Text.size * 3)))
     except Exception:
         pass
     return out

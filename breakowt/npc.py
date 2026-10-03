@@ -28,10 +28,10 @@ FRIENDS = {
     "cowleen": ("Moocrates", "cowleen", dict(hide="hide_brown", acc=("daisy",), bell=True), "tag_blank"),
     # the key stays "moozart" (sounds, flags and saves use it); on screen he's Archimoodes, the logician
     "moozart": ("Archimoodes", "moozart", dict(hide="hide_black", acc=("bowtie",), bell=True), "tag_12_mud"),
-    "sirloin": ("Moogenes", "sirloin", dict(hide="hide_red", bull=True, acc=("cape",)), "tag_blank"),
+    "sirloin": ("Moogenes", "sirloin", dict(hide="hide_red", bull=True, acc=("lantern",)), "tag_blank"),
     "cowpernicus": ("Moothagoras", "cowpernicus", dict(hide="hide_dun", acc=("laurel",), bell=True), "tag_blank"),
-    "mooriarty": ("Epicowrus", "mooriarty", dict(hide="hide_bw", acc=("fedora",)), "tag_blank"),
-    "moomaw": ("Heifercleitus", "moomaw", dict(hide="hide_gray", acc=("shawl", "bonnet"), bell=True), "tag_blank"),
+    "mooriarty": ("Epicowrus", "mooriarty", dict(hide="hide_bw", acc=("clover",)), "tag_blank"),
+    "moomaw": ("Heifercleitus", "moomaw", dict(hide="hide_gray", acc=("shawl",), bell=True), "tag_blank"),
 }
 
 
@@ -147,8 +147,17 @@ class Walker:
             nx, ny, nz = self.path[0]
             dx, dz = nx - self.x, nz - self.z
             d = math.hypot(dx, dz)
-            if d < 0.5:
+            # no headway on this waypoint for two seconds (another cow parked on it, pushing back): drop it
+            key = (round(nx, 2), round(nz, 2))
+            if getattr(self, "_wp", None) != key:
+                self._wp, self._wp_best, self._wp_t = key, d, 0.0
+            elif d < self._wp_best - 0.3:
+                self._wp_best, self._wp_t = d, 0.0
+            else:
+                self._wp_t += dt
+            if d < 0.5 or (self._wp_t > 2.0 and self.trail_fn is None):
                 self.path.pop(0)
+                self._wp = None
             else:
                 want = math.degrees(math.atan2(dx, dz))
                 self.yaw += ang_diff(want, self.yaw) * min(1, dt * 6)
@@ -160,14 +169,24 @@ class Walker:
                 moved = math.hypot(self.x - ox, self.z - oz)
                 if moved < step * 0.2 and step > 0.01:
                     self.stuck_t += dt
-                    if self.stuck_t > 1.2:
-                        # nudge sideways, then skip the waypoint if still stuck
-                        self.x += math.cos(math.radians(self.yaw)) * 0.3
-                        if self.stuck_t > 2.5:
-                            self.path.pop(0)
-                            self.stuck_t = 0.0
+                    if self.stuck_t > 0.8 and not getattr(self, "_sidestepped", False):
+                        # blocked: one waypoint a metre to the side, to walk round whatever it is. (This used to
+                        # shove the cow 0.3 m sideways every frame, and the collision shoved her straight back,
+                        # so a stuck cow buzzed on the spot.)
+                        self._sidestepped = True
+                        sy = math.radians(self.yaw + 90 * (1 if self.radius * 1000 % 2 < 1 else -1))
+                        sx, sz = self.x + math.sin(sy) * 1.0, self.z + math.cos(sy) * 1.0
+                        if not self.g.phys.blocked_at(sx, sz, self.radius * 0.9, self.y, 1.5):
+                            self.path.insert(0, (sx, self.y, sz))
+                    elif self.stuck_t > 2.0:
+                        # still stuck: give up on that waypoint
+                        self.path.pop(0)
+                        self.stuck_t = 0.0
+                        self._sidestepped = False
                 else:
                     self.stuck_t = max(0.0, self.stuck_t - dt)
+                    if self.stuck_t == 0.0:
+                        self._sidestepped = False
                 gh, _ = self.g.phys.ground(self.x, self.z, self.y)
                 self.y += (gh - self.y) * min(1, dt * 10)
                 return moved / dt if dt > 0 else 0
@@ -257,11 +276,11 @@ class NPCCow(Walker):
 
 
 # the herd named themselves too: Greek, every one (Chuck only uses the numbers)
-HERD_NAMES = ["Echo", "Io", "Hera", "Cassandra", "Zeno", "Achilles", "Parmoonides", "Xenophanes", "Demoocritus",
-              "Empedocles", "Protagoras", "Plutarch", "Porphyry", "Chrysippus", "Aristotle", "Theophrastus", "Homer",
-              "Antigone", "Niobe", "Sisyphus", "Hypatia", "Pheidippides", "Anaximoonder", "Xanthippe", "Aesop",
-              "Diotima", "Penelope", "Pythia", "Europa", "Thales", "Sappho", "Chloe", "Daphne", "Calliope", "Athena",
-              "Artemis", "Persephone", "Ariadne", "Thalia", "Iris", "Phoebe", "Melissa"]
+HERD_NAMES = ["Echo", "Io", "Hera", "Cassandra", "Zeno", "Achilles", "Plato", "Aristotle", "Homer", "Aesop",
+              "Hercules", "Helen", "Medusa", "Pandora", "Narcissus", "Prometheus", "Icarus", "Midas", "Orpheus",
+              "Sisyphus", "Antigone", "Euclid", "Penelope", "Hector", "Thales", "Hippocrates", "Psyche", "Demeter",
+              "Athena", "Artemis", "Aphrodite", "Persephone", "Ariadne", "Medea", "Sappho", "Daphne", "Calliope",
+              "Iris", "Phoebe", "Gaia", "Nike", "Hermes"]
 
 HERD_TAGS = [n for n in range(1, 51) if n not in (12, 47)]
 

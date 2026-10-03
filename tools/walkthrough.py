@@ -228,6 +228,7 @@ class Bot:
         t = 0
         last = (p.x, p.z)
         stall = 0
+        sidesteps = 0
         try:
             while math.hypot(p.x - x, p.z - z) > tol:
                 if not g.controls_enabled():
@@ -246,7 +247,17 @@ class Bot:
                 if int(t * FPS) % 30 == 0:
                     if math.hypot(p.x - last[0], p.z - last[1]) < 0.3:
                         stall += 1
-                        if stall > 3:
+                        if stall > 3 and sidesteps < 4:
+                            # something in the way (a cow, usually): step round it, like a player would
+                            sidesteps += 1
+                            stall = 0
+                            side = "d" if sidesteps % 2 else "a"
+                            held_keys["w"] = 0
+                            held_keys[side] = 1
+                            for _ in range(int(0.7 * FPS)):
+                                yield
+                            held_keys[side] = 0
+                        elif stall > 3:
                             raise Stuck(f"walk blocked at ({p.x:.1f},{p.z:.1f}) going to ({x},{z})")
                     else:
                         stall = 0
@@ -254,6 +265,7 @@ class Bot:
         finally:
             held_keys["w"] = 0
             held_keys["shift"] = 0
+            held_keys["a"] = held_keys["d"] = 0
 
     def walk_path(self, pts, **kw):
         for x, z in pts:
@@ -590,7 +602,7 @@ class Bot:
                                 f"({mz.x:.1f},{mz.y:.1f},{mz.z:.1f})")
 
     def p_d4_loft(self):
-        # all cutscene now: Archimoodes writes the proof, nobody has to moo
+        # all cutscene: Archimoodes writes the plan down
         yield from self.wait(0.5)
 
     def p_d4_back(self):
@@ -716,13 +728,16 @@ class Bot:
         g = self.g
         yield from self.wait_ready()
         self.place(-7.5, -22, 270)
-        # every label is wrong: the fuse marked HOUSE is the fence or the shed light, so pull it first
-        yield from self.interact("fuse_1")
+        # the cable to the ceiling marks the shed-light fuse; every label is wrong, so the fence is the other
+        # one not labelled FENCE. One pull, the right one.
+        labels = ("fence", "house", "shed")
+        shed = g.flags["fuse_map"].index("shed")
+        fence = next(i for i in range(3) if i != shed and labels[i] != "fence")
+        print(f"    the cable says fuse {shed} is the light; pulling fuse {fence}", flush=True)
+        yield from self.interact(f"fuse_{fence}")
         yield from self.wait(0.5)
-        if g.story.cur == "d7_fuse" and not g.ia.get("fuse_1").active_handler(g).prompt.startswith("Pull"):
-            # it was the shed light: the fence is the one marked SHED LIGHT
-            print("    fuse marked HOUSE was the shed light; pulling SHED LIGHT", flush=True)
-            yield from self.interact("fuse_2")
+        if not g.is_done("fuse"):
+            raise Stuck("pulled the deduced fuse and the fence is still on")
 
     def p_d7_tractor(self):
         g = self.g
@@ -807,7 +822,7 @@ class Bot:
                 yield
                 self.press("q")
                 yield
-                if boss.hp != hp0 - 1 or boss.state != "fallen":
+                if abs(boss.hp - (hp0 - boss.MAX_HP / 3)) > 1e-6 or boss.state != "fallen":
                     raise Stuck(f"shotgun didn't land: hp {hp0}->{boss.hp}, state {boss.state}")
                 print(f"    shotgun hit: hp {hp0}->{boss.hp}, shells left {g.inv.count('shells')}", flush=True)
                 continue

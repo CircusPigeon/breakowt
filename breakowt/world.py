@@ -73,6 +73,8 @@ DEFAULT_TEXT = {
     "shed_door": ["The tool shed door. Padlocked, and the padlock is newer than the door."],
     "generator": ["The generator. Everything runs off it: the fence, the house, the light in here. It hums a low "
                   "note all day and all night."],
+    "fuse_box": ["Three fat fuses, three of Chuck's masking-tape labels, and a note. Cables come off the top: two of "
+                 "them go sideways into the wall together, and one climbs the wall and runs off across the ceiling."],
     "fuse_note": ["A sticky note on the fuse box, in Chuck's capitals: 'ELECTRICIAN SAYS EVERY LABEL ON HERE IS "
                   "WRONG. NOT PAYING HIM $80 TO SWAP THREE STICKERS. -C'"],
     "fuse_0": ["A fat ceramic fuse. Chuck's masking tape under it says FENCE."],
@@ -970,6 +972,7 @@ class World:
             self.add_ia(f"fuse_{i}", (fx_, 1.3, fz + 0.12), 0.14, f"Fuse marked {('FENCE', 'HOUSE', 'SHED LIGHT')[i]}",
                         reach=2.4)
         self.sign("sticky_fuses", (-7.78, 1.55, fz + 0.045), (0.34, 0.34), rot_y=180)
+        self.add_ia("fuse_box", (-8.7, 1.75, fz + 0.06), 0.25, "Fuse box", reach=2.6)
         self.add_ia("fuse_note", (-7.78, 1.55, fz + 0.06), 0.17, "Sticky note", prompt="Read the note", reach=2.4)
         # cable from the generator, out through the back wall, along the ground and up a fence post
         # to the wires (fence line x = -18, wires at 0.45 / 0.8 / 1.15)
@@ -1339,10 +1342,14 @@ class World:
                    (48, z1): (0.3, 0.42, 0.3, 1), (x0, 45): (0.3, 0.42, 0.3, 1),
                    (55.6, z1): (0.45, 0.52, 0.7, 1)}
         for (wx, wz, ry, (nx, nz)) in wins:
-            # white frame proud of the siding, glass just in front of it, and glass on the inside wall face
+            # a white frame proud of the siding (a border and a cross bar: it used to be one solid plate, which
+            # was fine for a painted-on window and covered up the real opening), glass just inside it, and
+            # glass on the inside wall face
             fx, fz = wx + nx * 0.16, wz + nz * 0.16
-            fsize = (1.6, 1.3, 0.06) if nz else (0.06, 1.3, 1.6)
-            self.mb("white").box((fx, y + 1.6, fz), fsize, color=(0.95, 0.95, 0.95, 1))
+            for (a, b, w_, h_) in ((0, 0.6, 1.6, 0.1), (0, -0.6, 1.6, 0.1), (-0.75, 0, 0.1, 1.3), (0.75, 0, 0.1, 1.3),
+                                   (0, 0, 1.4, 0.05), (0, 0, 0.05, 1.1)):
+                c = (fx + (a if nz else 0), y + 1.6 + b, fz + (0 if nz else a))
+                self.mb("white").box(c, (w_, h_, 0.06) if nz else (0.06, h_, w_), color=(0.95, 0.95, 0.95, 1))
             glass.quad((wx + nx * 0.195, y + 1.6, wz + nz * 0.195), (1.4, 1.1), rot=(0, ry, 0))
             glass.quad((wx - nx * 0.135, y + 1.6, wz - nz * 0.135), (1.4, 1.1), rot=(0, ry + 180, 0))
             # inside: trim round the opening, a sill, and a cross bar splitting the panes
@@ -1713,7 +1720,10 @@ class World:
         scr = self.sign("monitor", (dx_, DT + 0.35, 46.684), (0.5, 0.375), rot_y=0, emissive=0.9)
         self.props["monitor_screen"] = scr
         self.sign("sticky_password", (dx_ + 0.25, DT + 0.52, 46.683), (0.12, 0.12), rot_y=0)
-        self.add_ia("computer", (47.5, y + 1.1, 46.7), 0.5, "Computer")
+        self.add_ia("computer", (47.5, y + 1.1, 46.7), 0.4, "Computer")
+        self.add_ia("password_note", (dx_ + 0.25, DT + 0.52, 46.66), 0.09, "Sticky note", text_key=None,
+                    prompt="Read the note", reach=2.4).text = [
+            "A sticky note on the corner of the monitor: 'PASSWORD HINT: my best friend (NOT Dale)'."]
         # keyboard (keys drawn on top), mouse on a mat, a mug, a banker's lamp, a stack of bills
         self.mb("white").box((dx_ - 0.02, DT + 0.015, 46.34), (0.48, 0.03, 0.17), color=beige)
         self.mb("keyboard").quad((dx_ - 0.02, DT + 0.032, 46.34), (0.46, 0.15), rot=(90, 0, 0))

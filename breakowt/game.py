@@ -25,12 +25,13 @@ from .ui import UI, C, CREAM, BRASS, DIM
 from .world import World, PASTURE, in_pond
 from . import models
 
+# what the crew moo back at you: just moos, each in their own way
 MOO_BUBBLES = {
-    "sirloin": ["MOOOO.", "MOO!", "Moo, forsooth."],
-    "moomaw": ["Mooo-oo", "Moo, dear.", "Memento moo."],
+    "sirloin": ["MOOOO.", "MOO!", "MOOO!"],
+    "moomaw": ["Mooo-oo.", "Moo.", "Mooo..."],
     "mooriarty": ["psst. moo.", "moo.", "...moo."],
-    "cowpernicus": ["Moo (p < 0.05).", "Moo.", "Moo?"],
-    "moozart": ["Moo. QED.", "Moo.", "Moo, trivially."],
+    "cowpernicus": ["Moo.", "Moo?", "Moo moo."],
+    "moozart": ["Moo.", "Mm. Moo.", "Moo..."],
     "cowleen": ["Moo.", "Moo!", "Moo?"],
 }
 
@@ -203,12 +204,17 @@ class Game(Entity):
         k["ent"].animate_rotation((0, random.uniform(0, 360), 88), duration=0.35)
         k["ent"].animate_y(k["lie"], duration=0.35)
         self.audio.play("crash", vol=1.0, pos=(k["x"], 0.5, k["z"]), rng=60)
-        self.noise((k["x"], 0.5, k["z"]), 22, source="crash")
+        self.noise((k["x"], 0.5, k["z"]), 40, source="crash")
         self.stats["knocked"] = self.stats.get("knocked", 0) + 1
         self.event("knock", key=k["key"])
 
     def _update_knockables(self, dt):
+        p = self.player
         for k in self.knockables:
+            if not k["down"] and p.speed > 2.6 and abs(p.y) < 0.4 and \
+                    math.hypot(p.x - k["x"], p.z - k["z"]) < 0.45 + 0.55 + 0.2:
+                # walked (or galloped) straight into it: sneak if you'd rather it stayed up
+                self.knock(k)
             if k["down"]:
                 k["t"] -= dt
                 if k["t"] <= 0:
@@ -545,7 +551,7 @@ class Game(Entity):
         self.inv.add("rock", 1, silent=True)
         self.inv.select_key("rock")
         self.audio.play("rock_land", vol=0.5, pitch=1.3)
-        self.ui.toast(f"Rock ({self.inv.count('rock')}/{cap}) - [R] to throw", "rock")
+        self.ui.toast(f"Rock ({self.inv.count('rock')}/{cap}) - [Q] to throw", "rock")
 
     def drop_item_at(self, kind, p):
         key = f"dropped_{kind}"
@@ -661,7 +667,7 @@ class Game(Entity):
         eye = p.eye_pos
         for e in list(self.enemies):
             if e.alive and e.in_front(eye, fwd, 14) and self.phys.line_of_sight(eye, e.center(), include_dynamic=False):
-                e.take_hit(3, "shotgun", p.pos)
+                e.take_hit(3, "shotgun", p.pos)       # (Chuck takes a third of his health from it)
                 hit = True
         left = shells - 1
         rest = "That was the last shell." if left == 0 else f"{left} shell left."
@@ -1223,11 +1229,21 @@ class Game(Entity):
             self.use_selected()
 
     def use_selected(self):
+        """Q: whatever's in your mouth. Throw it, fire it, set it down, put it on, or (keys and the like, which
+        work by themselves) just look at it. With nothing in your mouth, Q throws a rock if you have one."""
         sel = self.inv.selected()
+        p = self.player
         if not sel:
+            if self.inv.has("rock") and p.throw("rock"):
+                self.inv.remove("rock")
             return
-        if not self.story.use_item(sel):
-            self.examine(f"You hold the {ITEMS[sel][0].lower()} thoughtfully in your mouth. Nothing happens.")
+        if self.story.use_item(sel):
+            return
+        if sel in THROWABLE:
+            if p.throw(sel):
+                self.inv.remove(sel)
+            return
+        self.examine(ITEMS[sel][1])
 
     def show_hint(self):
         h = self.story.hint()

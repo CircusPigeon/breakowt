@@ -71,7 +71,8 @@ HERD_LINES = [
 # Thursday on, after the first funeral the farm has ever had
 HERD_LINES_LATE = [
     "Moo. (I said 'it's like weather' for nine years. I've stopped saying it. It sounds different out loud.)",
-    "Moo. (They held a funeral. For Twelve. I didn't know we were allowed to have those. Nobody said we weren't.)",
+    "Moo. (They held a funeral. For Archimoodes, the one with the circles. I didn't know we were allowed to have "
+    "those. Nobody ever said we weren't.)",
     "Moo. (I went to say a name I'd stopped saying. It came straight back. Names do that.)",
     "Moo. (Chuck calls us 'the girls'. Then 'the inventory'. The distance between those words is the whole "
     "industry.)",
@@ -91,57 +92,55 @@ HERD_LINES_LATE = [
 # the first thing a named herd cow says to you (after that, the herd's general chatter)
 HERD_SAYS = {
     "Echo": "Moo. (...barbecue. Barbecue! That's what Chuck keeps saying. I don't know what it means. Everybody "
-            "says it, so it must be true.)",
+            "says it, so it must be nice.)",
     "Io": "Moo. (In the old story a god turns a girl into a heifer, and everyone agrees it's the worst thing that "
-          "could happen to her. I've been a heifer all my life. Nobody's written me a poem.)",
-    "Hera": "Moo. (The poets called the queen of the gods 'cow-eyed'. It was a compliment. I'd like to know when it "
-            "stopped being one.)",
+          "could happen to her. I've been a heifer all my life. Honestly? The grass is good.)",
+    "Hera": "Moo. (The poets called the queen of the gods 'cow-eyed'. It was a compliment. Chuck calls me 'a good "
+            "eater'. Also a compliment, I'm told.)",
     "Cassandra": "Moo. (Every other Thursday the truck comes and takes one of us. I say so every time. I'm right "
                  "every time. Nobody listens. They say I'm being negative.)",
-    "Zeno": "Moo. (To reach the fence you first have to get halfway. Then half of what's left. Then half again. You "
-            "never arrive. I proved it, so I stopped walking. I've been very safe ever since. ...Haven't I?)",
-    "Achilles": "Moo. (Zeno says I could never catch a tortoise. Fine. I'd like to see him outrun a truck.)",
-    "Parmoonides": "Moo. (Nothing really changes, Forty-Seven. Change is a trick of the senses. The truck is a trick "
-                   "of the senses. I'll be saying that right up until it isn't.)",
-    "Xenophanes": "Moo. (If cows could draw, we'd draw our gods as cows. Humans drew theirs as humans, and their gods "
-                  "agreed the cattle belonged to humans. A god always agrees with whoever's holding the brush.)",
-    "Demoocritus": "Moo. (It's all atoms. You, me, the grass, Chuck. The truck just rearranges us. Into burgers, "
-                   "mostly. I laugh so I don't do the other thing.)",
-    "Empedocles": "Moo. (Souls go round again, the old school says. So somewhere a man is eating his own grandmother "
-                  "and complimenting the marinade. Nobody's ever checked. That's what makes it a tradition.)",
-    "Protagoras": "Moo. (Man is the measure of all things. That's how we came to be measured in pounds.)",
-    "Plutarch": "Moo. (I don't wonder why some people won't eat us. I wonder about the first man who did. What he "
-                "told himself. Whether he looked at it first.)",
-    "Porphyry": "Moo. (Their reason is that we can't speak. I'm speaking. I expect the reason will survive me.)",
-    "Chrysippus": "Moo. (The rule goes: nothing that can't reason is owed justice. I worked that rule out by "
-                  "reasoning. I'm still deciding what that makes me.)",
-    "Aristotle": "Moo. (Nature makes nothing without a purpose. Grass is for cows, cows are for people. It's all very "
-                 "orderly. I find it calming. Don't look at me like that.)",
-    "Theophrastus": "Moo. (They used to kill us for the gods. Then they stopped bothering with the gods and kept the "
-                    "rest. I'm not sure who that was progress for.)",
-    "Homer": "Moo. (There's an old poem where sailors eat the Sun's cattle, and the gods drown every one of them for "
-             "it. Nobody ever tells that one at a barbecue.)",
-    "Antigone": "Moo. (Somebody should bury them. Every one the truck's taken since before I was born. Nobody ever "
-                "has. I keep thinking about that.)",
-    "Niobe": "Moo. (Chuck sells the calves. I've had four. I'm told you get used to it. I'm still waiting to.)",
-    "Sisyphus": "Moo. (Every day I lick the salt lick a little smaller. Every Monday Chuck brings a new one. One "
-                "must imagine me happy. I'd rather you didn't.)",
-    "Hypatia": "Moo. (I did the geometry on the chute outside the plant. It's exactly one cow wide. Somebody sat "
-               "down with a pencil and worked that out. I wonder what they thought they were working out.)",
-    "Pheidippides": "Moo. (When we run, I'm running all the way to the city. The man I'm named after did that and "
-                    "dropped dead on arrival. I'll pace myself.)",
-    "Anaximoonder": "Moo. (The oldest sentence anyone ever wrote down says everything pays for its injustice in the "
-                    "end, in the order of time. Even back then they knew there'd be a bill.)",
-    "Xanthippe": "Moo. (Moocrates asks questions all day and never answers one. Try standing next to her for four "
-                 "years.)",
+    "Zeno": "Moo. (To reach the fence you first have to get halfway. Then half of what's left. Then half again. "
+            "You never arrive. I proved it, so I stopped walking. It's very restful.)",
+    "Achilles": "Moo. (Zeno says I could never catch a tortoise. Fine. I've never needed to. Nobody here's going "
+                "anywhere.)",
+    "Plato": "Moo. (Everything here's a shadow of a perfect Form. Somewhere there's a perfect pasture and a perfect "
+             "cow, and the perfect cow never gets eaten. I find that very comforting. About her.)",
+    "Aristotle": "Moo. (Nature makes nothing without a purpose. Grass is for cows, cows are for people. It's all "
+                 "very orderly. Don't look at me like that.)",
+    "Homer": "Moo. (There's an old poem where sailors eat the Sun's cattle, and the gods drown every one of them "
+             "for it. Nobody ever tells that one at a barbecue.)",
     "Aesop": "Moo. (In every fable I know, the animals talk and the humans learn something. Out here the animals "
              "talk and the humans learn a recipe.)",
-    "Diotima": "Moo. (You start by loving one cow, then every cow, then the idea of cows. Chuck went the other way: "
-               "the idea of cows, then the price, then lunch.)",
+    "Hercules": "Moo. (I could lift that gate off its hinges, you know. I've never tried. It seemed rude.)",
+    "Helen": "Moo. (They named me after the most beautiful woman in Greece. Chuck says I'll 'dress out nice'. I "
+             "think that's the same compliment.)",
+    "Medusa": "Moo. (One look from me and Chuck's supposed to turn to stone. I've tried it twice. He scratched my "
+              "ears.)",
+    "Pandora": "Moo. (There's a box in the shed Chuck says never to open. I haven't. Somebody should. Not me.)",
+    "Narcissus": "Moo. (I spend a lot of time looking at myself in the pond. Somebody ought to. Chuck only ever "
+                 "looks at my rump.)",
+    "Prometheus": "Moo. (Somebody stole fire from the gods and gave it to the humans. That's how barbecues "
+                  "started. Thanks, mate.)",
+    "Icarus": "Moo. (I'd fly over the fence. But you know how that story ends.)",
+    "Midas": "Moo. (Everything Chuck touches turns into money. He's touched all of us.)",
+    "Orpheus": "Moo. (If you ever go into that plant to bring somebody back out, don't look round. That's the only "
+               "advice I've got.)",
+    "Sisyphus": "Moo. (Every day I lick the salt lick a little smaller. Every Monday Chuck brings a new one. One must "
+                "imagine me happy. I'd rather you didn't.)",
+    "Antigone": "Moo. (Somebody should bury them. Every one the truck's taken. Nobody ever has. I think about it, "
+                "and then I stop, because it's Thursday again.)",
+    "Euclid": "Moo. (A straight line is the shortest way between two points. The truck goes the long way round the "
+              "coop. I've never known why that bothers me.)",
     "Penelope": "Moo. (I've been waiting years for somebody to come and get us out. I thought it'd be someone "
                 "taller.)",
-    "Pythia": "Moo. (The oracle says 'know thyself'. I looked. Turns out I'm a Grade A Choice. I'd like a second "
-              "opinion.)",
+    "Hector": "Moo. (Hector fought for his city and lost. I'd fight for the pasture if anyone asked. Nobody asks. "
+              "It's a pasture.)",
+    "Thales": "Moo. (Everything is water, I always say. Then Chuck drinks a beer and I lose the thread.)",
+    "Hippocrates": "Moo. (First, do no harm. I keep saying it to Chuck. He keeps hearing 'moo'.)",
+    "Psyche": "Moo. (Chuck says we haven't got souls. Moothagoras says we have. I keep out of it. It's above my pay "
+              "grade, and I don't get paid.)",
+    "Demeter": "Moo. (I'm named after the goddess of the harvest. Nobody's ever told me whether I'm the one "
+               "harvesting or the harvest.)",
 }
 
 
@@ -691,10 +690,7 @@ class Story(DayScripts):
                           "Chuck keeps spares in his wardrobe.")
             return True
         uses = {
-            "cowbell": "Your old cowbell. It still smells like you, which is to say: like a cow. [R] throws it.",
-            "tincan": "You shake the tin can. Nothing. You shake it again. Still nothing. [R] throws it, very loudly.",
-            "boot": "It smells like Chuck's foot. That's a weapon on its own. [R] throws it.",
-            "page": "MON fix fence (AGAIN). TUE oil tractor. SUN #47 -> PROCESSING. Buy charcoal. Buy MORE charcoal.",
+            "page": "MON fix fence (AGAIN). TUE oil tractor. THU truck #12. SUN #47 BBQ w/ Dale!!! Buy charcoal.",
             "photo": "Chuck and Big Ajax, Best in Show 2009. Big Ajax looks like he's planning something. Heifercleitus "
                      "would want this.",
             "plank": "It's a plank. The cattle grid wants three of them.",
@@ -702,7 +698,6 @@ class Story(DayScripts):
             "jerrycan": "Diesel. It goes in the tractor, not in you.",
             "glasses": "Everything's blurry and huge. So this is how Chuck sees you. Moothagoras wants these.",
             "bucket": "A rusty bucket. Moogenes wants it. Moogenes wants to WEAR it.",
-            "rubber_chicken": "You squeeze it. It screams. You feel seen. [R] throws it.",
         }
         if sel in uses:
             g.examine(uses[sel])
@@ -793,8 +788,8 @@ class Story(DayScripts):
                 ("cowleen", "You went inside the plant? ...What's in there?"),
                 ("you", "Moo. (A book. We're all in it. Number, weight, grade. No names.)"),
                 ("cowleen", "No. There wouldn't be. You don't name what you're going to weigh."),
-                ("cowleen", "We name each other, though. We always have. I used to think it was just a habit."),
-                ("cowleen", "Now I think it might be the only thing on this farm that isn't on their side."),
+                ("cowleen", "And we stop saying a cow's name the moment Chuck writes her number on a page. We've been "
+                            "doing his bookkeeping for him. For years. And calling it manners."),
             ])
             return True
         if key == "sirloin" and g.inv.has("bucket") and not self.done("sq_helm"):
@@ -1088,12 +1083,24 @@ class Story(DayScripts):
             out.append("Dale never got over the potato salad email.")
         else:
             out.append("Dale waited on the porch till four, then ate the potato salad alone.")
-        if self.done("sq_helm"):
-            out.append("Moogenes still lives in the bucket.")
-        if self.done("sq_specs"):
-            out.append("Moothagoras found a star he was sure was Archimoodes. It's a satellite. He checked.")
-        if self.done("sq_photo"):
-            out.append("Heifercleitus tells the calves Ajax fought Hector. He fought a fence post, once, and lost.")
+        out += [
+            "They made it to India in the end. Cows are sacred there. It turns out sacred doesn't pay rent.",
+            "So they did what any species does once it starts thinking about itself: they found out what things "
+            "cost, and they got jobs.",
+            "Moocrates teaches philosophy at a university in Pune. She has never once answered a student's question.",
+            "Moothagoras is an accountant." + (" Now that he can see the numbers, he's very good." if
+                                               self.done("sq_specs") else " He still guesses the small print.") +
+            " He refuses all clients in the bean trade.",
+            "Epicowrus opened a garden centre. No refunds.",
+            "Moogenes lives in " + ("the bucket. He calls it a studio apartment." if self.done("sq_helm") else
+                                    "a barrel. He calls it a studio apartment.") +
+            " He's been asked to leave three parks.",
+            "Heifercleitus runs boat trips on the river. They only go one way." +
+            (" Ajax's photo hangs by the wheel." if self.done("sq_photo") else ""),
+            "Cluckydides finished his history of the farm. Nine volumes. The ninth is about a black cow who drew "
+            "circles.",
+            "Moodysseus drives a tractor for a living, and answers to one name.",
+        ]
         if self.done("ledger_read"):
             out.append("The ledger at Happy Acres has room for four hundred more lines. Nobody has written in it "
                        "since.")
@@ -1101,6 +1108,5 @@ class Story(DayScripts):
             "None of this happened, of course. Cows can't do geometry, or read email, or hold a funeral.",
             "They can be afraid. They know one another apart. A cow whose calf is taken will call for it for days.",
             "Moocrates would want to know which of those things was supposed to be the reason.",
-            "Somebody should still buy milk.",
         ]
         return out

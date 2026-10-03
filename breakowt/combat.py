@@ -392,7 +392,8 @@ class ChuckBoss(Enemy):
                 p.vx += dx / d * 7
                 p.vz += dz / d * 7
             return
-        self.hp -= 1        # a charged headbutt, a kick or Ol' Bessie: each lands as one of the eight
+        # a headbutt or a kick lands as one of eight; Ol' Bessie takes a third of him in one go
+        self.hp -= self.MAX_HP / 3 if kind == "shotgun" else 1
         g.audio.play("punch", vol=0.9)
         f.say(random.choice(BOSS_HURT), kind="ow", force=True)
         self.fx.append(Feathers(self.center(), col=(0.95, 0.9, 0.8, 1), n=6))

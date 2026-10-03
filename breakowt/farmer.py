@@ -14,7 +14,7 @@ from .world import _seg_hits_box
 # doors Chuck opens for himself on the way through, and shuts behind him (his house, his barn)
 OWN_DOORS = ("front_door", "back_door", "barn_side")
 # how far he sees: by day, in the dark, with the flashlight on you, and when you're under a lamp
-SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 40.0, 13.0, 34.0, 24.0
+SIGHT_DAY, SIGHT_DARK, SIGHT_TORCH, SIGHT_LIT = 60.0, 18.0, 42.0, 30.0
 # how far noises carry to him, as a multiple of each noise's own radius
 HEARING = 1.5
 
@@ -696,7 +696,7 @@ class Farmer(Walker):
                                             "Dale, you're a menace. Love ya."]), force=True)
                     self.resume_routine()
         if v > 0 and restricted:
-            rate = v / (0.18 + dist * 0.1)
+            rate = v / (0.18 + dist * 0.05)
             self.susp = min(1.0, self.susp + rate * dt)
             self.last_seen = p.pos
             if self.susp >= 1.0:

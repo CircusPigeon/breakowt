@@ -13,7 +13,7 @@ import numpy as np
 from scipy import signal
 
 SR = 44100
-AUDIO_VERSION = "9"
+AUDIO_VERSION = "10"
 
 _rng = np.random.default_rng(47)
 
@@ -1026,81 +1026,78 @@ def music_box_theme(tempo_scale=1.25, bars=range(16), sparse=False) -> np.ndarra
     return reverb(tr.out(1.5), 2.6, 0.35)
 
 
+D_CHORDS = {
+    "D": ("D2", ["D3", "F#3", "A3", "D4"]), "A": ("A1", ["A2", "C#3", "E3", "A3"]),
+    "Bm": ("B1", ["B2", "D3", "F#3", "B3"]), "G": ("G1", ["G2", "B2", "D3", "G3"]),
+    "Em": ("E2", ["E3", "G3", "B3", "E4"]),
+}
+ROAD_A = [
+    [("F#4", 1), ("A4", 1), ("D5", 1.5), ("C#5", 0.5)], [("E5", 2), ("C#5", 1), ("A4", 1)],
+    [("B4", 1), ("D5", 1), ("F#5", 1.5), ("E5", 0.5)], [("D5", 3), ("R", 1)],
+    [("F#4", 1), ("A4", 1), ("D5", 1), ("E5", 1)], [("F#5", 2), ("E5", 1), ("C#5", 1)],
+    [("B4", 1), ("D5", 1), ("C#5", 1), ("B4", 1)], [("A4", 3), ("R", 1)],
+]
+ROAD_A_END = ROAD_A[:6] + [[("B4", 1), ("D5", 1), ("E5", 1), ("C#5", 1)], [("D5", 3), ("R", 1)]]
+ROAD_B = [
+    [("B4", 2), ("A4", 1), ("G4", 1)], [("F#4", 2), ("A4", 2)],
+    [("G4", 1), ("B4", 1), ("E5", 1.5), ("D5", 0.5)], [("C#5", 3), ("R", 1)],
+    [("B4", 2), ("D5", 1), ("B4", 1)], [("A4", 2), ("F#4", 1), ("A4", 1)],
+    [("B4", 1), ("C#5", 1), ("D5", 1), ("F#5", 1)], [("E5", 3), ("R", 1)],
+]
+
+
 def ending_theme() -> np.ndarray:
-    """Archimoodes' Symphony No. 1 in Moo Major — full version for the ending/credits."""
-    intro = 2 * BAR
-    A = intro                      # music box solo, first 8 bars
-    B = A + 8 * BAR                # strings+piano, bars 9-16
-    C = B + 8 * BAR                # full: choir, strings, piano: all 16 bars
-    D = C + 16 * BAR               # coda
-    total = D + 4 * BAR + 6
-    tr = Track(total)
-    # intro: soft pad on F
-    tr.add(0, pad(midi(nm("F3")), intro + BAR, 0.18))
-    tr.add(0, pad(midi(nm("C4")), intro + BAR, 0.14))
-    # A: music box melody + light arpeggios
-    for t0, m, d in melody_events(range(8), 12):
-        tr.add(A + t0, music_box(midi(m), 2.0, 0.7))
-    for bi in range(8):
-        bass, tones = CHORDS[bi]
-        tr.add(A + bi * BAR, music_box(midi(nm(bass) + 24), 2.2, 0.25))
-        tr.add(A + bi * BAR + BEAT, music_box(midi(nm(tones[1]) + 12), 1.2, 0.15))
-        tr.add(A + bi * BAR + 2 * BEAT, music_box(midi(nm(tones[2]) + 12), 1.2, 0.15))
-        tr.add(A + bi * BAR, pad(midi(nm(tones[0])), BAR, 0.08))
-    # B: piano melody + strings
-    for t0, m, d in melody_events(range(8, 16), 0):
-        tr.add(A + t0, piano(midi(m), d + 0.3, 0.55))
-    for bi in range(8, 16):
-        bass, tones = CHORDS[bi]
-        tb = A + bi * BAR
-        tr.add(tb, strings(midi(nm(bass) + 12), BAR, 0.35, attack=0.4))
-        for tn in tones:
-            tr.add(tb, strings(midi(nm(tn)), BAR, 0.22, attack=0.5))
-        tr.add(tb, piano(midi(nm(bass)), BAR, 0.3))
-    # C: full statement with cow choir
-    for t0, m, d in melody_events(range(16), -12):
-        tr.add(C + t0, sung_moo(midi(m), d * 0.97, voice="moozart", open_=0.55), 0.55)
-    for t0, m, d in harmony_events(range(16), -12):
-        tr.add(C + t0, sung_moo(midi(m), d * 0.97, voice="cowleen", open_=0.4), 0.35)
-    for t0, m, d in melody_events(range(16), 12):
-        tr.add(C + t0, music_box(midi(m), 1.8, 0.35))
-    for bi in range(16):
-        bass, tones = CHORDS[bi]
-        tb = C + bi * BAR
-        tr.add(tb, sung_moo(midi(nm(bass) + 12), BAR * 0.95, voice="sirloin", open_=0.3), 0.35)
-        tr.add(tb, strings(midi(nm(bass)), BAR, 0.4, attack=0.3))
-        for tn in tones:
-            tr.add(tb, strings(midi(nm(tn) + 12), BAR, 0.18, attack=0.4))
-        tr.add(tb, piano(midi(nm(bass) + 12), BAR * 0.5, 0.25))
-    # D: coda — the last phrase again, slowing, then the final chord held
-    coda_bars = [12, 13, 14]
-    t = D
-    for i, bi in enumerate(coda_bars):
-        stretch = 1 + 0.18 * i
-        tt0 = t
-        for n, b in MELODY[bi]:
-            tr.add(tt0, piano(midi(nm(n)), b * BEAT * stretch + 0.3, 0.5))
-            tr.add(tt0, music_box(midi(nm(n) + 12), 1.8, 0.3))
-            tt0 += b * BEAT * stretch
-        bass, tones = CHORDS[bi]
-        tr.add(t, strings(midi(nm(bass)), BAR * stretch, 0.35, attack=0.3))
-        for tn in tones:
-            tr.add(t, strings(midi(nm(tn) + 12), BAR * stretch, 0.18))
-        t += BAR * stretch
-    # final chord: everyone
-    tr.add(t, sung_moo(midi(nm("F3")), 5.0, voice="player", open_=0.5), 0.6)
-    tr.add(t, sung_moo(midi(nm("A3")), 5.0, voice="cowleen", open_=0.4), 0.4)
-    tr.add(t, sung_moo(midi(nm("F2")), 5.0, voice="sirloin", open_=0.3), 0.4)
-    tr.add(t, music_box(midi(nm("F5")), 5.0, 0.5))
-    tr.add(t, piano(midi(nm("F2")), 5.0, 0.45))
-    for n in ["F3", "A3", "C4", "F4"]:
-        tr.add(t, strings(midi(nm(n)), 5.5, 0.25, attack=0.5, release=2.0))
-    return reverb(tr.out(3.0), 3.0, 0.3)
+    """The road out: about two minutes of something warm and unhurried for the hill and the epilogue cards.
+    Plucked arpeggios, an upright bass, a simple tune on the piano, then flute and strings. No mooing."""
+    bpm = 80
+    beat = 60 / bpm
+    bar = 4 * beat
+    A = ["D", "A", "Bm", "G", "D", "A", "G", "A"]
+    A_end = ["D", "A", "Bm", "G", "D", "A", "G", "D"]
+    B = ["G", "D", "Em", "A", "G", "D", "Bm", "A"]
+    prog = ["D", "A", "Bm", "G"] + A + B + A + B + A_end + ["G", "D", "D"]
+    tr = Track(len(prog) * bar + 4)
+    for i, c in enumerate(prog):
+        root, tones = D_CHORDS[c]
+        tb = i * bar
+        last = i == len(prog) - 1
+        # a soft bed of strings under everything, a touch brighter in the middle
+        sv = 0.1 if i < 4 or last else (0.17 if 12 <= i < 20 or 28 <= i < 36 else 0.13)
+        for tn in tones[1:]:
+            tr.add(tb, strings(midi(nm(tn) + 12), bar * (2.0 if last else 1.02), sv, attack=0.6, release=0.9))
+        if last:
+            tr.add(tb, piano(midi(nm(root) + 12), bar * 2, 0.4))
+            tr.add(tb, pluck(midi(nm(tones[0]) + 12), 3.0, 0.5, bright=0.35), 0.3)
+            break
+        if i >= 4:
+            tr.add(tb, upright_bass(midi(nm(root) + 12), beat * 1.8, 0.75))
+            tr.add(tb + 2 * beat, upright_bass(midi(nm(root) + 19), beat * 1.8, 0.55))
+        pat = [0, 1, 2, 3, 2, 1, 2, 3] if i % 2 == 0 else [0, 2, 1, 3, 2, 1, 3, 2]
+        for j, p in enumerate(pat):
+            tr.add(tb + j * beat / 2, pluck(midi(nm(tones[p]) + 12), 1.6, 0.5, bright=0.4), 0.26 if j % 2 else 0.32)
+        if 12 <= i < 20 or 28 <= i < 44:
+            tr.add(tb + beat, brush(), 0.1)
+            tr.add(tb + 3 * beat, brush(), 0.1)
+    t = 4 * bar
+    for b in ROAD_A:
+        t = seq(tr, t, beat, b, piano, 0.42, wrap=False)
+    for b in ROAD_B:
+        t = seq(tr, t, beat, b, flute, 0.26, wrap=False)
+    t2 = t
+    for b in ROAD_A:
+        t = seq(tr, t, beat, b, piano, 0.4, wrap=False)
+    for b in ROAD_A:
+        t2 = seq(tr, t2, beat, b, flute, 0.12, transpose=12, wrap=False)
+    for b in ROAD_B:
+        t = seq(tr, t, beat, b, piano, 0.36, wrap=False)
+    t2 = t
+    for b in ROAD_A_END:
+        t = seq(tr, t, beat, b, piano, 0.42, wrap=False)
+    for b in ROAD_A_END:
+        t2 = seq(tr, t2, beat, b, flute, 0.18, wrap=False)
+    x = tr.out(tail=3.0)
+    return reverb(x, decay=1.6, wet=0.16, tone=5000)[: len(x)]
 
-
-# --------------------------------------------------------------------------
-# more instruments
-# --------------------------------------------------------------------------
 
 def harmonica(freq, dur, vel=1.0):
     t = tt(dur + 0.08)

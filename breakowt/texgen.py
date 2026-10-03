@@ -10,7 +10,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-TEX_VERSION = "15"
+TEX_VERSION = "16"
 _rng = np.random.default_rng(1987)
 
 FONT_DIRS = [r"C:\Windows\Fonts", "/usr/share/fonts/truetype/dejavu", "/Library/Fonts"]
@@ -387,14 +387,8 @@ def tex_white():
 def tex_paper():
     size = 512
     n = tile_noise(size, 1.0)
-    img = to_img(colorize(n, (238, 230, 205), (250, 246, 230)))
-    d = ImageDraw.Draw(img)
-    for y in range(60, size, 28):
-        d.line([(0, y), (size, y)], fill=(170, 195, 225), width=2)
-    d.line([(52, 0), (52, size)], fill=(225, 140, 140), width=2)
-    # coffee ring
-    d.ellipse([360, 380, 470, 490], outline=(185, 150, 110), width=5)
-    return img
+    # plain paper: the documents draw their own ruled lines and margin over it
+    return to_img(colorize(n, (238, 230, 205), (250, 246, 230)))
 
 
 def tex_blob_shadow():

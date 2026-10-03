@@ -138,7 +138,7 @@ class UI:
         # --- day header + objectives (top-left)
         self.day_text = txt(self.hud, "", self.L + 0.03, 0.47, 1.35, BRASS, font=fonts.get("title"))
         self.day_sub = txt(self.hud, "", self.L + 0.03, 0.425, 0.85, DIM)
-        self.obj_texts = [txt(self.hud, "", self.L + 0.03, 0.38 - i * 0.034, 0.95, CREAM, wrap=52) for i in range(7)]
+        self.obj_texts = [txt(self.hud, "", self.L + 0.03, 0.38 - i * 0.034, 0.95, CREAM) for i in range(9)]
 
         # --- crosshair + prompt
         self.cross = Entity(parent=self.hud, model=Quad(radius=0.5), scale=0.006, color=C(1, 1, 1, 0.6))
@@ -222,19 +222,27 @@ class UI:
         self.day_text.text = title
         self.day_sub.text = sub
 
+    OBJ_W = 0.6         # how wide the objectives list on the HUD may get
+
     def set_objectives(self, lines):
+        y = 0.38
         for i, t in enumerate(self.obj_texts):
-            if i < len(lines):
+            t._wrap_chars = None
+            if i < len(lines) and y > -0.05:
                 text, done = lines[i]
-                t.text = ("[x] " if done else "- ") + text
+                indent = 0.035 if text.startswith(" ") else 0.0
+                body = wrap_to(("[x] " if done else "- ") + text.strip(), self.OBJ_W - indent, 0.95)
+                t.text = body
                 t.color = DIM if done else CREAM
+                t.x, t.y = self.L + 0.03 + indent, y
+                y -= 0.034 * (body.count("\n") + 1)
             else:
                 t.text = ""
 
     def set_prompt(self, text):
         if text:
             self.prompt.text = text
-            w = max(0.22, len(text) * 0.0125 + 0.05)
+            w = max(0.22, text_width(text, 1.05) + 0.06)
             self.prompt_bg.scale = (w, 0.045)
             self.prompt_bg.enabled = True
             self.cross.color = BRASS
@@ -246,19 +254,23 @@ class UI:
             self.cross.scale = 0.006
 
     def popup_sub(self, text, dur=None):
-        self.popup.text = text
         n = len(text)
-        lines = wrap_str(text, 70).split("\n")
-        w = max(len(ln) for ln in lines)
-        self.popup_bg.scale = (min(1.3, max(0.3, w * 0.0135 + 0.06)), 0.045 * len(lines) + 0.02)
+        text = wrap_to(text, 1.15, 1.05)
+        self.popup._wrap_chars = None
+        self.popup.text = text
+        lines = text.split("\n")
+        w = max(text_width(ln, 1.05) for ln in lines)
+        self.popup_bg.scale = (max(0.3, w + 0.06), 0.034 * len(lines) + 0.025)
         self.popup_bg.enabled = True
         self.popup_t = dur if dur else max(3.0, 1.5 + n * 0.045)
 
     def bark_line(self, text, speaker="Chuck", dur=None):
-        self.bark.text = f"{speaker}: {text}"
+        body = wrap_to(f"{speaker}: {text}", 1.15, 1.05)
+        self.bark._wrap_chars = None
+        self.bark.text = body
         self.bark.color = SPEAKER_COLORS.get(speaker, CREAM)
-        lines = wrap_str(f"{speaker}: {text}", 70).split("\n")
-        self.bark_bg.scale = (max(len(ln) for ln in lines) * 0.0135 + 0.06, 0.045 * len(lines) + 0.02)
+        lines = body.split("\n")
+        self.bark_bg.scale = (max(text_width(ln, 1.05) for ln in lines) + 0.06, 0.034 * len(lines) + 0.025)
         self.bark_bg.enabled = True
         self.bark_t = dur if dur else max(2.5, 1.2 + len(text) * 0.05)
 
@@ -288,8 +300,9 @@ class UI:
             return
         self.aspect, self.L, self.R = A, -A / 2, A / 2
         self.vignette.scale = (A + 0.02, 1.02)
-        for e in [self.day_text, self.day_sub, self.hearts, self.keys_hint] + self.obj_texts:
+        for e in [self.day_text, self.day_sub, self.hearts, self.keys_hint]:
             e.x = self.L + 0.03
+        self.set_objectives(self.g.objective_lines())
         self.stam_bg.x, self.stam.x = self.L + 0.13, self.L + 0.03
         self.clover_text.x = self.R - 0.03
         for t in self.toasts:
