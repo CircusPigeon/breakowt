@@ -100,7 +100,13 @@ hand-holding, no sentimentality.
 - **World**: house windows are real openings with tinted glass; a barn window by the side door; the
   player's body is drawn in cutscenes (`Player.sync_body`); herd tags 1-50 (no #96); Archimoodes gets up the
   loft ramp (`World.ramp_ends`) and opens the side door himself.
-- **Look-before-you-smash, softlocks (latest)**: Friday has three gnomes in the flowerbed (`World.gnome_ents`
+- **No repeated conversations (latest)**: a friend's chatter for the day plays once per conversation
+  (`Story.idle_talk` / `_next_chat`, counted per day in `talk_i["<day>:<key>"]`), then a short brush-off from
+  `BRUSH_OFF` (days.py). On Monday a friend you've already told about the page gets their chatter, not the
+  whole introduction again. Epicowrus' daily chatter now opens the shop (it was unreachable once you'd met
+  him). Herd cows draw from one shuffled deck (`talk_i["herd_deck"]`, a separate one from Thursday on), skip
+  lines that name themselves, and shrug (`HERD_SHRUGS`) once it's empty.
+- **Look-before-you-smash, softlocks**: Friday has three gnomes in the flowerbed (`World.gnome_ents`
   fish / empty / lantern, `gnome_spots`, ias `gnome_0..2`), shuffled per playthrough (`flags.gnome_order`, set
   in `apply_world_flags`). Chuck's flowerpot note says the key is in Gary, "the fisherman who's never caught a
   thing": the bare hook. E offers a headbutt only after you've looked at that gnome (`gnome_seen`); a wrong one

@@ -1037,6 +1037,10 @@ class DayScripts:
 
         def teller(key, lines, after=None):
             def fn():
+                if key in told:
+                    # already heard it: today's ordinary chat, not the whole introduction again
+                    res = yield from self.idle_talk(key)
+                    return res
                 res = yield from lines()
                 if key not in told:
                     told.add(key)
@@ -4288,6 +4292,22 @@ Dale, BBQ's off. I've gone vegetarian. Also I've always hated your potato salad.
 
 [Sent]"""
 
+
+# ----------------------------------------------------------------------
+# once a friend has said everything they had for today
+BRUSH_OFF = {
+    "cowleen": ["I've told you everything I know. It didn't take long. That's rather my point.",
+                "Go on. I'll be here, asking questions nobody likes."],
+    "moozart": ["Not now, Moodysseus. I'm thinking. It looks a lot like standing still.",
+                "Later. I'm halfway round a circle and I'd hate to lose my place."],
+    "sirloin": ["I've said my piece. I don't keep spares. I don't keep anything.",
+                "Still here. Still not for sale."],
+    "cowpernicus": ["Shh. I'm counting. Don't make me start again.",
+                    "Come back later. Souls go round. So do conversations."],
+    "mooriarty": ["The philosophy's free, but you've had today's. The shop's open."],
+    "moomaw": ["I've said it, dear. Saying it twice won't make the river run any faster.",
+               "Off you go, dear. The river doesn't wait, and neither do I."],
+}
 
 # ----------------------------------------------------------------------
 # idle conversations: day -> friend -> list of conversations

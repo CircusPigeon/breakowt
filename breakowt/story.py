@@ -12,7 +12,7 @@ import random
 
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
-from .days import DayScripts, DAYS
+from .days import BRUSH_OFF, DayScripts, DAYS
 from .farmer import HEARING, OWN_DOORS, SIGHT_DAY
 from .game import aim_camera
 from .interact import Handler, Interactable
@@ -88,6 +88,15 @@ HERD_LINES_LATE = [
 ]
 
 
+
+# when the herd has told you everything it has to say
+HERD_SHRUGS = [
+    "Moo.",
+    "Moo. (Mm.)",
+    "Moo. (Chewing. Come back later.)",
+    "Moo. (I've nothing new. Ask Echo. Actually, don't.)",
+    "Moo. (Same grass as yesterday. Same opinion.)",
+]
 
 # the first thing a named herd cow says to you (after that, the herd's general chatter)
 HERD_SAYS = {
@@ -751,14 +760,28 @@ class Story(DayScripts):
         if res:
             return True
         if key == "mooriarty" and self.done("mooriarty_met"):
-            yield from self.shop()
+            # today's word from Epicowrus first (once), then the shop
+            intro = None
+            if self.talk_i.get(f"{self.day}:{key}", 0) < len(self.chatter(key)):
+                intro = self._next_chat(key)
+            yield from self.shop(intro)
             return True
-        lines = self.chatter(key)
-        if not lines:
-            lines = [[(key, "Moo.")]]
-        i = self.talk_i.get(key, 0)
-        self.talk_i[key] = i + 1
-        yield from g.talk(lines[i % len(lines)])
+        yield from self.idle_talk(key)
+        return True
+
+    def _next_chat(self, key):
+        lines = self.chatter(key) or [[(key, "Moo.")]]
+        k = f"{self.day}:{key}"
+        i = self.talk_i.get(k, 0)
+        self.talk_i[k] = i + 1
+        if i < len(lines):
+            return lines[i]
+        bo = BRUSH_OFF.get(key) or ["Moo."]
+        return [(key, bo[(i - len(lines)) % len(bo)])]
+
+    def idle_talk(self, key):
+        """Today's conversations, each once; after that a short brush-off, never the same conversation again."""
+        yield from self.g.talk(self._next_chat(key))
         return True
 
     def herd_talk(self, cow):
@@ -773,8 +796,18 @@ class Story(DayScripts):
         if n == 0 and cow.name in HERD_SAYS:
             line = HERD_SAYS[cow.name]
         else:
-            lines = HERD_LINES_LATE if self.day >= 5 or self.done("moozart_gone") else HERD_LINES
-            line = lines[(cow.idx * 7 + n) % len(lines)]
+            # one deck for the whole herd: nobody says what another cow already told you. When it runs out,
+            # they've got nothing new, and say so.
+            late = self.day >= 5 or self.done("moozart_gone")
+            pool = HERD_LINES_LATE if late else HERD_LINES
+            dk = "herd_deck_late" if late else "herd_deck"
+            if dk not in self.talk_i:
+                self.talk_i[dk] = random.sample(range(len(pool)), len(pool))
+            deck = self.talk_i[dk]
+            # (and nobody quotes herself: Zeno doesn't say "Zeno says")
+            j = next((j for j in range(len(deck) - 1, -1, -1) if cow.name not in pool[deck[j]]), None)
+            line = pool[deck.pop(j)] if j is not None else random.choice(
+                [ln for ln in HERD_SHRUGS if cow.name not in ln] or ["Moo."])
         self.talk_i[f"herd{cow.idx}"] = n + 1
         yield from g.talk([(cow, line)])
         return True
@@ -859,7 +892,7 @@ class Story(DayScripts):
             return True
         return False
 
-    def shop(self):
+    def shop(self, intro=None):
         g = self.g
         done = {"d": False}
 
@@ -911,7 +944,7 @@ class Story(DayScripts):
         def reopen():
             g.ui.open_shop("THE GARDEN", entries(), g.clovers(), buy, close)
 
-        yield from g.talk([("mooriarty", random.choice([
+        yield from g.talk(intro or [("mooriarty", random.choice([
             "Psst. Over here. Take a look. Don't touch unless you're buying.",
             "Back again. I knew you would be. I know things.",
             "Golden Clovers only. Don't ask me where the merchandise comes from. Or where the clovers go.",
