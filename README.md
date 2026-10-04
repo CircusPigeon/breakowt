@@ -21,10 +21,10 @@ Either:
 
 - **With git:**
   ```
-  git clone https://github.com/CircusPigeon/cow_game.git
-  cd cow_game
+  git clone https://github.com/CircusPigeon/breakowt.git
+  cd breakowt
   ```
-- **Without git:** on the [repository page](https://github.com/CircusPigeon/cow_game), click the green
+- **Without git:** on the [repository page](https://github.com/CircusPigeon/breakowt), click the green
   **Code** button, then **Download ZIP**, unzip it, and open a terminal in the unzipped folder.
   (In File Explorer: open the folder, click the address bar, type `cmd` and press Enter.)
 

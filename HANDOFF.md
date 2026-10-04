@@ -18,9 +18,10 @@ rounds below, newest first). This file tracks what the game is now.
   2880x1920 panel at 200%. `python` is the Microsoft Store build (x64, runs under emulation). Graphics
   driver quirks here don't show up in the cloud's software renderer, so rendering changes need a run on
   this machine (see Testing).
-- Private repo: github.com/CircusPigeon/cow_game. Work has happened both in a cloud session (branch
-  `claude/upbeat-allen-m6ufzp`) and locally on `main`; they're linear, and `main` was fast-forwarded to
-  the branch. Run `git fetch --all` and compare branches before starting.
+- Repo: github.com/CircusPigeon/breakowt (public; renamed from cow_game, and GitHub redirects the
+  old URL). The local checkout is Coding/Breakowt (it was Coding/Cow Game). Work has happened both in a
+  cloud session (branch `claude/upbeat-allen-m6ufzp`) and locally on `main`; they're linear, and `main`
+  was fast-forwarded to the branch. Run `git fetch --all` and compare branches before starting.
 
 ## Status
 - [x] Audio synthesis (`breakowt/synth.py`)
