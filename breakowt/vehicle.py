@@ -159,10 +159,12 @@ class Tractor:
         self.ent.position = (self.x, 0, self.z)
         self.ent.rotation_y = self.yaw
         rumble = 0.012 + abs(self.speed) * 0.002
-        self.ent.rotation_z = math.sin(g.env.time * 31) * rumble * 20
+        self.ent.rotation_z = math.sin(g.env.time * 31) * rumble * 20 * g.player.camera_roll
         self.shake = max(0.0, self.shake - dt)
         self.seat.rotation_y = self.look_yaw
-        self.seat.rotation_x = self.look_pitch + random.uniform(-1, 1) * self.shake * 5
+        self.seat.rotation_x = self.look_pitch + random.uniform(-1, 1) * self.shake * 5 * g.player.camera_shake
+        if not g.cam_free:
+            camera.fov += (g.player.fov_base - camera.fov) * min(1, dt * 5)
         # the player rides along (AI, zones and audio all follow)
         p = g.player
         p.x, p.z = self.x, self.z

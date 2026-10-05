@@ -125,6 +125,10 @@ class Player:
         self.sensitivity = 1.0
         self.invert_y = False
         self.fov_base = 80.0
+        self.camera_bob = 1.0
+        self.camera_roll = 1.0
+        self.camera_shake = 1.0
+        self.sprint_fov = True
         self.surface = "grass"
         self.in_water = False
         self.moo_cd = 0.0
@@ -364,11 +368,11 @@ class Player:
         spd = self.speed
         if spd > 0.3 and self.y_vel == 0:
             self.bob_t += dt * (6.5 if self.galloping else 5.0) * min(1.6, spd / 3.5)
-        bob = math.sin(self.bob_t * 2) * 0.04 * min(1.0, spd / 4.0) * (1.6 if self.galloping else 1)
-        roll = math.sin(self.bob_t) * 1.2 * min(1.0, spd / 4.0)
+        bob = math.sin(self.bob_t * 2) * 0.04 * min(1.0, spd / 4.0) * (1.6 if self.galloping else 1) * self.camera_bob
+        roll = math.sin(self.bob_t) * 1.2 * min(1.0, spd / 4.0) * self.camera_roll
         self.lunge = max(0.0, self.lunge - dt * 3)
-        lunge_off = math.sin(min(1.0, self.lunge) * math.pi) * 0.35
-        sh = self.shake
+        lunge_off = math.sin(min(1.0, self.lunge) * math.pi) * 0.35 * self.camera_shake
+        sh = self.shake * self.camera_shake
         self.shake = max(0.0, self.shake - dt)
         self._apply()
         self.head.y = self.cam_y + bob + random.uniform(-1, 1) * sh * 0.1
@@ -376,10 +380,10 @@ class Player:
         if not g.cam_free:
             # first-person camera effects only while the camera is on our head (not in cutscenes)
             camera.z = lunge_off
-            target_fov = self.fov_base + (7 if self.galloping else 0)
+            target_fov = self.fov_base + (7 if self.galloping and self.sprint_fov else 0)
             camera.fov += (target_fov - camera.fov) * min(1, dt * 5)
         # snout wiggle
-        self.snout.y = SNOUT_Y + math.sin(self.bob_t * 2) * 0.008 - (0.03 if self.crouching else 0)
+        self.snout.y = SNOUT_Y + math.sin(self.bob_t * 2) * 0.008 * self.camera_bob - (0.03 if self.crouching else 0)
         # footsteps + cowbell noise
         if moved > 0 and self.y_vel == 0:
             self.step_acc += moved

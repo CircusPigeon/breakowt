@@ -38,7 +38,42 @@ rounds below, newest first). This file tracks what the game is now.
 - [x] Ending + epilogue cards (the player asked for no credits roll)
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
-### Philosophers round (latest; branch `wip/philosophers`, merged to `main`)
+### Reliability and comfort round (latest, `main`)
+- **Monday**: the pencil theft follows the planner, before the five introductions and sunset meeting.
+  Moocrates introduces the stealth trick; Chuck returns to his daytime routine afterwards. Old saves
+  with the meeting already done still resume correctly. Each introduction saves its reward and flag.
+- **Final choice**: a loaded Ol' Bessie offers "Lower Ol' Bessie and leave" or "Shoot Chuck" after the
+  boss. Mercy keeps ammunition; shooting consumes one shell and sets `chuck_shot`. An empty gun goes
+  straight to the survival dialogue. `chuck_verdict` is the shared ending branch in `days.py`.
+- **Persistence**: `engine/persistence.py` writes JSON through a flushed temporary file and atomic
+  replacement, keeping the previous valid file as `.json.bak`. Progress, settings and Moo-dals use it;
+  failed writes show a notice. Consumable purchases atomically store a debit and a receipt in the
+  profile; `_run_id` and checkpoint `_purchases` prevent duplicate delivery while recovering purchases
+  after rewinding. Coffee also records `_coffee_day` and lasts through same-day reloads. Permanent
+  equipment retains the existing profile ownership. Checkpoints now include `Story.talk_i`.
+  A placed radio and dropped/airborne reusable items return to inventory in a checkpoint; teardown clears
+  their old entities so reload cannot duplicate or lose them. Natural day transitions recover them too.
+- **Partial objectives**: Friday's clue chain and pickups, Saturday's spark plug, planks, herd rally,
+  cabinet key and gun, plus completed favours save through `Story.save_progress`. Only reconstructable
+  steps with `save=True` can save a milestone; Sunday's escape still replays as a sequence.
+- **Comfort & reading**: Settings has two tabs. FOV 60–110, bob/roll/shake Off/Reduced/Full, optional
+  sprint FOV and reading size 100/115/130% persist. Motion controls also apply while driving. Dialogue,
+  documents, mail and the journal page at the selected size instead of shrinking or dropping text.
+  Reading pages use arrows/Page Up/Page Down (wheel for documents/journal); dialogue uses Space.
+  Measured wrapping uses Panda3D TextNode so literal `<` in story clues is not parsed as markup.
+- **Physics**: coincident circle contacts use a unit separation direction instead of dividing by an
+  epsilon; near-zero contacts preserve direction without huge displacement. Unowned dynamic circles
+  participate in collisions when no owner is ignored.
+- New checks: `python -B -m unittest discover -s tools -p 'test_*.py'` (persistence and physics),
+  `tools/narrativecheck.py` (story branches), `tools/persistencecheck.py` (real purchase/reload APIs),
+  `tools/comfortcheck.py [width height]` (layout and settings). Walkthrough supports
+  `--ending spare|shoot|empty`, and `--resume` exercises partial checkpoints as well as step boundaries.
+- Verified on Windows with offscreen rendering and isolated saves: 22 persistence/physics tests and
+  5 narrative checks; seven-day walkthrough with detection and armed mercy; Sunday shoot and empty
+  endings; Monday, Friday and Saturday checkpoint replay; purchase, item-recovery and failed-save
+  integration checks; enlarged UI/settings/tractor checks at 1200x800, 1024x768 and 1280x720.
+
+### Philosophers round (branch `wip/philosophers`, merged to `main`)
 The player's long playtest list, all addressed. The design taste behind it is in the notes below and in
 the player's own words: as humorous as it is a thought piece, puzzles you have to think about, no
 hand-holding, no sentimentality.
@@ -73,8 +108,8 @@ hand-holding, no sentimentality.
 - **Shells are an item** (`shells`, stackable). Ol' Bessie comes out of the cabinet empty; Q with no shells
   clicks. Shells come from the deer stand or the shop (6 clovers for two). Before the boss, Q says "not
   yet". In the boss intro Chuck notices the cow has his shotgun and whether it's loaded. The finale needs
-  a shell left: with one, the old shot ending (`chuck_shot` flag); without, Bessie clicks and Chuck lives
-  ("you get to live, and think about it").
+  a shell left to offer the shot ending (`chuck_shot` flag). The final choice and empty-gun dialogue were
+  revised in the reliability and comfort round above.
 - **Happy Acres** (`build_plant_inside`, `DayScripts._plant`): a staff door at the back (`plant_back`,
   `PLANT_BACK`) with a keypad and Chuck's sticky note ("the year of the best day of my life"). 2009 (Big
   Ajax's Best in Show: the photo, and Heifercleitus says it in chatter); 1998 (the bowling trophy) gets a
@@ -367,7 +402,7 @@ right click kick, R throw, Q use selected item (fires Ol' Bessie), M moo, 1-9 / 
 H hint, Esc pause, F11 fullscreen, F12 screenshot. In the tractor: W/S throttle, A/D steer.
 
 Settings (title screen or pause menu) has volume sliders, mouse sensitivity, invert Y, fullscreen and
-Graphics: Low / Medium (default) / High.
+Graphics: Low / Medium (default) / High, plus the Comfort & reading controls described above.
 
 ## Rendering and performance
 - The 3D scene is drawn into an offscreen buffer (`engine/postfx.py`) and put on screen by one pass that

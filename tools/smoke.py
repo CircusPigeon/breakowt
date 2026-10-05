@@ -26,8 +26,8 @@ g.story.new_game(day)
 t0 = _t.time()
 frames = int(secs * 30)
 for i in range(frames):
-    if g.in_dialogue and g.ui.dlg_revealed():
-        g._advance = True
+    if g.in_dialogue and g.ui.dlg_page_revealed():
+        g.input("space")
     if g.ui.choice_root.enabled:
         g.ui.choice_result = 0
     if g.ui.modal == "document":

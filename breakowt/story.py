@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import random
+import uuid
 
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
@@ -160,6 +161,7 @@ class Story(DayScripts):
         self.base_music = "music_pasture"
         self.day = 0
         self.cur = None
+        self.cur_save = False
         self.cur_cheat = None
         self.hooks: dict = {}
         self.day_hooks: dict = {}
@@ -201,7 +203,7 @@ class Story(DayScripts):
 
     def reset_run(self):
         g = self.g
-        g.flags = {}
+        g.flags = {"_run_id": uuid.uuid4().hex}
         g.stats = {}
         g.inv.items = {}
         g.inv.order = []
@@ -214,10 +216,10 @@ class Story(DayScripts):
     def new_game(self, day=1):
         self.reset_run()
         self.canon_before(day)
-        self.apply_owned()
+        self.apply_owned(day)
         self._leave_title(lambda: self.start_day(day))
 
-    def apply_owned(self):
+    def apply_owned(self, day=None):
         """Things bought from Epicowrus, and favours' rewards, in any playthrough come with you (unless this run
         already has them)."""
         g = self.g
@@ -237,6 +239,22 @@ class Story(DayScripts):
                 self.setf("star_chart")
             elif perk == "horseshoe" and not self.flags.get("horseshoe_used"):
                 g.inv.add("horseshoe", silent=True)
+        self.apply_purchases(day)
+
+    def apply_purchases(self, day=None, silent=True):
+        """Deliver durable receipts once per checkpoint, including after a rewind."""
+        g = self.g
+        day = g.day if day is None else day
+        for receipt in g.moodals.pending_purchases(self.flags):
+            key = receipt["key"]
+            if key == "shells":
+                g.inv.add("shells", 2, silent=silent)
+            elif receipt.get("day") == day:
+                self.setf("coffee")
+                self.setf("_coffee_day", day)
+                if not silent:
+                    g.ui.toast("You drink it on the spot. Gallop for longer today.", "coffee")
+            self.flags.setdefault("_purchases", []).append(receipt["id"])
 
     def continue_game(self):
         d = self.g.load_save()
@@ -270,7 +288,7 @@ class Story(DayScripts):
     def load_from_save(self, d):
         self.reset_run()
         self.g.apply_save(d)
-        self.apply_owned()
+        self.apply_owned(int(d.get("day", 1)))
         self.start_day(int(d.get("day", 1)))
 
     def start_day(self, n):
@@ -282,15 +300,21 @@ class Story(DayScripts):
         g.busy = False
         g.state = "play"
         g.set_mouse(True)
-        g.runner.start(self._run_day(n), name="story")
+        g.runner.start(self._run_day(n, recover_items=False), name="story")
 
-    def _run_day(self, n):
+    def _run_day(self, n, recover_items=True):
         g = self.g
         if g.ui.fade_alpha < 0.99:
             yield from g.fade_out(0.6)
+        if recover_items:
+            g.inv.from_dict(g.checkpoint_inventory())
+            g.refresh_hotbar()
         self.clear_day()
         self.day = n
         g.day = n
+        if self.flags.get("_coffee_day") != n:
+            self.flags.pop("coffee", None)
+            self.flags.pop("_coffee_day", None)
         # a day restarted from a mid-day checkpoint skips its opening step, which is where the
         # screen fades in; step() notices and fades in (and puts the light back) instead
         self.resume_time = self.flags.get("_time")
@@ -324,7 +348,14 @@ class Story(DayScripts):
         self.marks = []
         self.hint_text = ""
         self.cur = None
+        self.cur_save = False
         self.cur_cheat = None
+        self.radio_on = None
+        for projectile in g.player.projectiles:
+            if projectile.alive:
+                destroy(projectile.ent)
+            projectile.alive = False
+        g.player.projectiles = []
         g.restricted_fn = None
         g.noise_masks = []
         g.flags.pop("_hiding", None)
@@ -362,7 +393,6 @@ class Story(DayScripts):
         g.player.frozen = False
         g.player.health = g.player.max_health
         g.player.set_disguise(False)
-        self.flags.pop("coffee", None)
         f = g.farmer
         f.boss = None
         f.door_keys = OWN_DOORS
@@ -568,6 +598,7 @@ class Story(DayScripts):
             if self.day_skipped:
                 yield from self._resume_in()
         self.cur = key
+        self.cur_save = save
         self.cur_cheat = cheat
         self.hint_text = hint
         self.hint_level = 0
@@ -578,10 +609,21 @@ class Story(DayScripts):
         self.hooks = {}
         self.marks = []
         self.cur = None
+        self.cur_save = False
         self.cur_cheat = None
         if save:
             g.save_checkpoint()
         return res
+
+    def save_progress(self):
+        """Checkpoint only milestones whose step can rebuild its partial state.
+
+        Sunday deliberately replays its escape sequence as a whole, so its
+        save=False steps must never gain a checkpoint through an interaction.
+        """
+        if self.cur is not None and self.cur_save:
+            return self.g.save_checkpoint()
+        return False
 
     def _resume_in(self):
         g = self.g
@@ -824,6 +866,7 @@ class Story(DayScripts):
                 ("cowleen", "And we stop saying a cow's name the moment Chuck writes her number on a page. We've been "
                             "doing his bookkeeping for him. For years. And calling it manners."),
             ])
+            self.save_progress()
             return True
         if key == "sirloin" and g.inv.has("bucket") and not self.done("sq_helm"):
             g.inv.remove("bucket")
@@ -844,6 +887,7 @@ class Story(DayScripts):
                             "very stupid and I recommend it."),
             ])
             g.side_quest("helm", state="done")
+            self.save_progress()
             return True
         if key == "cowpernicus" and g.inv.has("glasses") and not self.done("sq_specs"):
             g.inv.remove("glasses")
@@ -864,6 +908,7 @@ class Story(DayScripts):
             g.side_quest("specs", state="done")
             g.ui.toast("Hiding spots marked on your map, in this playthrough and every one after", "glasses",
                        col=BRASS)
+            self.save_progress()
             return True
         if key == "moomaw" and g.inv.has("photo") and not self.done("sq_photo"):
             g.inv.remove("photo")
@@ -889,6 +934,7 @@ class Story(DayScripts):
             g.moodals.add_perk("horseshoe")
             self.setf("perk_horseshoe")
             g.side_quest("photo", state="done")
+            self.save_progress()
             return True
         return False
 
@@ -918,7 +964,10 @@ class Story(DayScripts):
                 g.audio.play("blip_lo", vol=0.5)
                 g.ui.toast("Not enough Golden Clovers. Earn Moo-dals.")
                 return
-            g.moodals.spend(price, k, keep=k not in CONSUMABLE)
+            transaction = g.moodals.spend(price, k, keep=k not in CONSUMABLE,
+                                         run_id=self.flags["_run_id"], day=g.day)
+            if not transaction:
+                return
             if k not in CONSUMABLE:
                 self.setf(f"shop_{k}")
             g.stats["bought"] = g.stats.get("bought", 0) + 1
@@ -926,11 +975,8 @@ class Story(DayScripts):
             if k == "rock_pouch":
                 self.setf("rock_pouch")
                 g.ui.toast("Rock Pouch: carry up to 6 rocks", "rock")
-            elif k == "coffee":
-                self.setf("coffee")
-                g.ui.toast("You drink it on the spot. Gallop for longer today.", "coffee")
-            elif k == "shells":
-                g.inv.add("shells", 2)
+            elif k in CONSUMABLE:
+                self.apply_purchases(silent=False)
             else:
                 g.inv.add(k)
             g.refresh_hotbar()

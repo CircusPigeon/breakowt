@@ -7,6 +7,7 @@ fights. Every story step must finish within a time limit or the run fails with a
 Chuck's eyes are off by default (--detect turns them on) so a run is deterministic. --caught all
 (or a comma list of step keys) makes Chuck catch you once per step, the first time you're somewhere
 you shouldn't be, then checks the caught sequence hands control back and the step still finishes.
+--ending spare / shoot supplies shells for the final choice; empty verifies the unloaded ending.
 """
 from __future__ import annotations
 
@@ -46,6 +47,9 @@ class Bot:
         self.catch = set((args.caught or "").split(",")) - {""}
         self.caught_steps = set()
         self.watch = None
+        self.ending = getattr(args, "ending", "auto")
+        self.ending_shells = None
+        self.ending_choice = None
         orig = g._script_error
 
         def on_err(s):
@@ -89,10 +93,15 @@ class Bot:
         # dialogue, choices, documents, modals
         if g.in_dialogue:
             if ui.choice_root.enabled and ui.choice_items and ui.choice_result is None:
-                idx = self.choice_queue.pop(0) if self.choice_queue else 0
+                if any("Shoot Chuck" in " ".join(str(b.text).split()) for b in ui.choice_items):
+                    self.ending_shells = g.inv.count("shells")
+                    idx = 1 if self.ending == "shoot" else 0
+                    self.ending_choice = idx
+                else:
+                    idx = self.choice_queue.pop(0) if self.choice_queue else 0
                 ui.choice_result = idx
-            elif ui.dlg_revealed():
-                g._advance = True
+            elif ui.dlg_page_revealed():
+                g.input("space")
             else:
                 ui.dlg_complete()
         if ui.modal == "document":
@@ -385,10 +394,15 @@ class Bot:
         yield from self.interact("st_page")
 
     def p_d1_crew(self):
+        if not self.g.flags.get("d1_pencil") or not self.g.inv.has("pencil"):
+            raise Stuck("Monday introductions started before stealing the pencil")
         for k in ("moozart", "sirloin", "cowpernicus", "mooriarty", "moomaw"):
-            yield from self.talk_to(k)
+            if k not in self.g.flags.get("d1_told", []):
+                yield from self.talk_to(k)
 
     def p_d1_meeting(self):
+        if not self.g.flags.get("d1_pencil"):
+            raise Stuck("Monday meeting started before the pencil tutorial")
         yield from self.wait_ready()
         self.place(-50, -40, 0)
         yield from self.wait(1)
@@ -627,13 +641,16 @@ class Bot:
 
     def p_d5_key(self):
         g = self.g
-        yield from self.interact("doormat")
-        yield from self.interact("flowerpot")
+        if g.flags.get("d5_keystate", 0) < 1:
+            yield from self.interact("doormat")
+        if g.flags.get("d5_keystate", 0) < 2:
+            yield from self.interact("flowerpot")
         # Gary: the fisherman with the bare hook (a level look, the way a player stands in front of him)
         i = g.flags["gnome_order"].index("empty")
         gx, gz = g.world.gnome_spots[i]
-        yield from self.headbutt_at((gx, 1.42, gz), dist=1.5)
-        yield from self.until(lambda: g.inv.has("house_key"), 5, "gnome key")
+        if not g.inv.has("house_key") and not g.flags.get("house_unlocked"):
+            yield from self.headbutt_at((gx, 1.42, gz), dist=1.5)
+        yield from self.until(lambda: g.inv.has("house_key") or g.flags.get("house_unlocked"), 5, "gnome key")
         yield from self.open_door("front_door")
         yield from self.until(lambda: g.world.doors["front_door"].is_open, 5, "front door")
         yield from self.wait(0.6)
@@ -641,10 +658,14 @@ class Bot:
         yield from self.walk_to(56, 33)
 
     def p_d5_inside(self):
+        g = self.g
         self.choice_queue = [0]
-        yield from self.interact("st_sparkplug")
-        yield from self.interact("st_photo")
-        yield from self.interact("computer")
+        if not g.flags.get("sparkplug_taken"):
+            yield from self.interact("st_sparkplug")
+        if not g.flags.get("photo_taken"):
+            yield from self.interact("st_photo")
+        if not g.flags.get("emails_read"):
+            yield from self.interact("computer")
         yield from self.until(lambda: self.g.flags.get("emails_read"), 30, "emails")
 
     def p_d5_return(self):
@@ -677,13 +698,18 @@ class Bot:
         yield from self.open_door("barn_side")
         yield from self.wait(0.6)
         yield from self.walk_to(13, 0.7)
-        yield from self.interact("tractor")
+        if not g.flags.get("sparkplug_in"):
+            yield from self.interact("tractor")
         yield from self.until(lambda: g.flags.get("sparkplug_in"), 5, "plug")
         # two long planks from the pile, and the shed board you knocked in on Tuesday (in through the hole)
         laid = g.flags.get("planks_laid", 0)
         while g.flags.get("pile_taken", 0) < 2 and g.inv.count("plank") + laid < 3:
             yield from self.interact("woodpile")
         if not g.flags.get("shed_plank_taken") and g.inv.count("plank") + laid < 3:
+            # A partial save can already have both pile planks, so no woodpile
+            # interaction has moved us out of the barn. Leave through its door.
+            if g.phys.in_zone("barn", g.player.x, g.player.z):
+                yield from self.walk_path([(13, 0.7), (4.5, 0.7)])
             yield from self.walk_path([(-15, -30), (-14.5, -22.2), (-10.2, -22.2)])
             yield from self.interact("shed_plank")
             yield from self.until(lambda: g.flags.get("shed_plank_taken"), 5, "shed board")
@@ -694,6 +720,10 @@ class Bot:
         while g.inv.has("plank"):
             yield from self.interact("cattle_grid")
         for i in range(5):
+            if len(g.flags.get("rallied", [])) >= 5:
+                break
+            if i * 3 in g.flags.get("rallied", []):
+                continue
             yield from self.interact(f"herd_{i * 3}")
             yield from self.until(lambda: not g.busy, 30, "herd talk")
 
@@ -702,20 +732,25 @@ class Bot:
         g = self.g
         from breakowt.world import DEER_STAND, PLANT_BACK
         x, z = DEER_STAND
-        for _ in range(4):
-            if g.flags.get("shells_found"):
-                break
-            yield from self.headbutt_at((x, 1.2, z - 0.9), dist=1.6)
-        yield from self.until(lambda: g.ia.get("st_ammo_tin") is not None, 5, "ammo tin falls")
-        yield from self.interact("st_ammo_tin")
-        yield from self.until(lambda: g.inv.count("shells") >= 2, 5, "shells")
-        self.combo = "2009"
-        yield from self.interact("plant_keypad")
-        yield from self.until(lambda: g.world.doors["plant_back"].is_open, 5, "plant door")
-        yield from self.wait(0.6)
-        self.place(77.6, PLANT_BACK, 270)
-        yield from self.walk_to(73.5, PLANT_BACK)
-        yield from self.interact("ledger")
+        if not g.flags.get("shells_taken"):
+            for _ in range(4):
+                if g.flags.get("shells_found"):
+                    break
+                yield from self.headbutt_at((x, 1.2, z - 0.9), dist=1.6)
+            yield from self.until(lambda: g.ia.get("st_ammo_tin") is not None, 5, "ammo tin falls")
+            yield from self.interact("st_ammo_tin")
+            yield from self.until(lambda: g.inv.count("shells") >= 2, 5, "shells")
+        if not g.flags.get("ledger_read"):
+            if not g.flags.get("plant_unlocked"):
+                self.combo = "2009"
+                yield from self.interact("plant_keypad")
+            else:
+                yield from self.open_door("plant_back")
+            yield from self.until(lambda: g.world.doors["plant_back"].is_open, 5, "plant door")
+            yield from self.wait(0.6)
+            self.place(77.6, PLANT_BACK, 270)
+            yield from self.walk_to(73.5, PLANT_BACK)
+            yield from self.interact("ledger")
         yield from self.until(lambda: g.flags.get("ledger_read") and not g.busy, 30, "ledger")
         for i in range(5):
             if g.ia.get(f"st_clover{i}") is not None:
@@ -732,7 +767,11 @@ class Bot:
         # sneak the whole way: walking near his bed wakes him, and a drawer opened standing up creaks
         g.player.crouch_toggle = True
         yield from self.walk_path([(51.5, 35), (51.2, 38.9), (48.9, 39.2), (48.9, 41), (56.9, 41), (56.4, 43.9)])
-        yield from self.interact("nightstand")
+        if g.inv.has("shotgun"):
+            g.player.crouch_toggle = False
+            return
+        if not g.inv.has("cabinet_key"):
+            yield from self.interact("nightstand")
         yield from self.until(lambda: g.inv.has("cabinet_key"), 5, "cabinet key")
         yield from self.walk_path([(56.9, 41), (47.9, 41), (47.9, 44.5)])
         yield from self.interact("gun_cabinet")
@@ -743,6 +782,18 @@ class Bot:
         # well inside the 7.5 m around the oak (the herd jostles a cow standing near the edge back out of it)
         self.place(-50.5, -41.5, 0)
         yield from self.wait(2)
+
+    def p_d7_crow(self):
+        # Explicit ending runs cover armed mercy, shooting and no ammunition even when starting on Sunday.
+        g = self.g
+        self.ending_choice = None
+        self.ending_shells = None
+        if self.ending == "empty":
+            while g.inv.has("shells"):
+                g.inv.remove("shells")
+        elif self.ending in ("spare", "shoot") and g.inv.count("shells") < 2:
+            g.inv.add("shells", 2 - g.inv.count("shells"), silent=True)
+        yield
 
     def p_d7_fuse(self):
         g = self.g
@@ -925,6 +976,17 @@ class Bot:
             if self.errors:
                 raise Stuck(f"script error: {self.errors[-1][0]}")
             if g.state == "title" and g.flags.get("game_finished"):
+                if self.ending in ("spare", "shoot"):
+                    if self.ending_choice is None or not self.ending_shells:
+                        raise Stuck("loaded ending did not offer an explicit choice")
+                    shot = self.ending == "shoot"
+                    if bool(g.flags.get("chuck_shot")) != shot:
+                        raise Stuck(f"expected {self.ending} ending, chuck_shot={g.flags.get('chuck_shot')}")
+                    expected = self.ending_shells - (1 if shot else 0)
+                    if g.inv.count("shells") != expected:
+                        raise Stuck("final choice consumed the wrong number of shells")
+                elif self.ending == "empty" and (g.flags.get("chuck_shot") or self.ending_choice is not None):
+                    raise Stuck("an empty gun offered or fired a final shot")
                 print("  reached the title screen after the epilogue", flush=True)
                 return "finished"
             if g.day > to_day:
@@ -950,9 +1012,10 @@ def resume_test(bot, day):
     g.save_checkpoint = rec
 
     def note_light():
-        # the light a step starts in (read the same way in both runs: once its first frame has run)
+        # Compare the playable scene, after any opening fade/time-of-day transition.
+        # A mid-step checkpoint can already be past that transition.
         k = g.story.cur
-        if k and k not in light:
+        if k and k not in light and bot.ready():
             light[k] = g.flags.get("_time")
     bot.watch = note_light
     g.story.new_game(day)
@@ -962,9 +1025,10 @@ def resume_test(bot, day):
     seen = set()
     for i, d in enumerate(saves):
         done = tuple(sorted(k for k, v in d["flags"].items() if v and k.startswith(f"d{day}_")))
-        if done in seen or not done:
+        progress = json.dumps({"flags": d["flags"], "inv": d["inv"]}, sort_keys=True)
+        if progress in seen or not done:
             continue
-        seen.add(done)
+        seen.add(progress)
         g.story.load_from_save(d)
         for _ in range(3 * FPS):
             if g.day == day:
@@ -974,7 +1038,7 @@ def resume_test(bot, day):
         min_fade = [1.0]
 
         def watch():
-            if g.story.cur and first["key"] is None:
+            if g.story.cur and first["key"] is None and bot.ready():
                 first["key"] = g.story.cur
                 first["light"] = g.flags.get("_time")
             if first["key"] is not None:
@@ -1013,6 +1077,8 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--caught", default="")
     ap.add_argument("--resume", action="store_true", help="restart each day from every checkpoint")
+    ap.add_argument("--ending", choices=("auto", "spare", "shoot", "empty"), default="auto",
+                    help="choose the final outcome (spare/shoot supply shells; empty removes them)")
     args = ap.parse_args()
     t0 = _time.time()
     app, g = harness.boot(size=(960, 540))

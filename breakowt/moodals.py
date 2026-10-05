@@ -6,11 +6,12 @@ Clovers, Epicowrus' currency: your purse is their total payout less what a run h
 """
 from __future__ import annotations
 
-import json
+import copy
 import math
 import time
 
 from .engine.assets import SAVE_DIR
+from .engine.persistence import pending_purchases, read_json, record_purchase, write_json
 from .world import OAK, in_pond
 
 # id, name, how to earn it, clover reward, hidden until earned
@@ -71,7 +72,7 @@ class Moodals:
     # ------------------------------------------------------------------
     def load(self):
         try:
-            d = json.loads(self.path.read_text())
+            d = read_json(self.path) or {}
             for k in ("unlocked", "counters", "sets", "purse"):
                 if isinstance(d.get(k), dict):
                     self.data[k] = d[k]
@@ -80,11 +81,13 @@ class Moodals:
 
     def save(self):
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(self.data, indent=1))
+            write_json(self.path, self.data)
             self._dirty = False
-        except OSError:
-            pass
+            return True
+        except OSError as error:
+            self._dirty = True
+            self.g.save_failed("Moo-dals and clovers", error)
+            return False
 
     def unlocked(self, mid):
         return mid in self.data["unlocked"]
@@ -98,12 +101,18 @@ class Moodals:
         pu = self.data["purse"]
         return max(0, self.total_reward() + int(pu.get("found", 0)) - int(pu.get("spent", 0)))
 
-    def spend(self, n, key=None, keep=True):
-        pu = self.data["purse"]
-        pu["spent"] = int(pu.get("spent", 0)) + n
-        if key and keep and key not in pu.setdefault("owned", []):
-            pu["owned"].append(key)
-        self.save()
+    def spend(self, n, key=None, keep=True, run_id=None, day=None):
+        # The receipt and the debit share one atomic write. A failed write never
+        # charges the purse or grants merchandise in memory.
+        before = copy.deepcopy(self.data)
+        receipt = record_purchase(self.data, n, key, keep, run_id, day)
+        if not self.save():
+            self.data = before
+            return False
+        return receipt or True
+
+    def pending_purchases(self, flags):
+        return pending_purchases(self.data, flags)
 
     def owned(self):
         return list(self.data["purse"].get("owned", []))

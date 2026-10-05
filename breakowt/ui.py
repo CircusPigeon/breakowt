@@ -4,7 +4,8 @@ from __future__ import annotations
 import math
 
 from PIL import Image, ImageDraw
-from ursina import Button, Entity, Quad, Text, Texture, camera, color, destroy, window
+from panda3d.core import TextNode
+from ursina import Button, Entity, Quad, Text, Texture, camera, color, destroy, mouse, window
 
 from .engine.assets import tex
 from . import texgen
@@ -16,7 +17,6 @@ CREAM = C(0.98, 0.95, 0.86, 1)
 BRASS = C(0.98, 0.78, 0.25, 1)
 DIM = C(0.75, 0.72, 0.65, 1)
 RED = C(0.95, 0.3, 0.25, 1)
-DLG_WRAP = 74
 GREEN = C(0.5, 0.9, 0.45, 1)
 
 SPEAKER_COLORS = {
@@ -40,6 +40,7 @@ def panel(parent, x, y, w, h, col=PANEL, radius=0.02, origin=(0, 0), z=0):
 
 
 _GLYPH_W: dict = {}
+_MEASURE_NODES: dict = {}
 
 
 def text_width(s, scale=1.0, font=None):
@@ -47,14 +48,20 @@ def text_width(s, scale=1.0, font=None):
     and 'W's are a lot wider than 'i's, so a character count can't keep text inside a box."""
     f = font or Text.default_font
     tbl = _GLYPH_W.setdefault(str(f), {})
+    node = _MEASURE_NODES.get(str(f))
+    if node is None:
+        # Text.get_width builds tagged Text: a literal '<' is interpreted as a tag and crashes
+        # its alignment path. A TextNode measures the actual font without parsing story text.
+        probe = Text("", font=f, use_tags=False, add_to_scene_entities=False)
+        node = TextNode("ui_measure")
+        node.setFont(probe.font)
+        _MEASURE_NODES[str(f)] = node
+        destroy(probe)
     w = 0.0
     for ch in s:
         cw = tbl.get(ch)
         if cw is None:
-            if ch == " ":
-                cw = Text.get_width("i i", font=f) - Text.get_width("ii", font=f)
-            else:
-                cw = Text.get_width(ch, font=f)
+            cw = node.calcWidth(ch) * Text.size
             tbl[ch] = cw
         w += cw
     return w * scale
@@ -72,8 +79,22 @@ def wrap_to(s, width, scale=1.0, font=None):
                 line = word
             else:
                 line = cand
+            # A long password, code or inventory name must fit too.
+            while text_width(line, scale, font) > width and len(line) > 1:
+                cut = 1
+                while cut < len(line) and text_width(line[:cut + 1], scale, font) <= width:
+                    cut += 1
+                out.append(line[:cut])
+                line = line[cut:]
         out.append(line)
     return "\n".join(out)
+
+
+def text_pages(s, width, height, scale=1.0, font=None):
+    """Keep the chosen reading size: measure width, then page by the available line height."""
+    lines = wrap_to(s, width, scale, font).split("\n")
+    per = max(1, int(height / (0.031 * scale)))
+    return ["\n".join(lines[i:i + per]) for i in range(0, len(lines), per)]
 
 
 def wrap_str(s, width):
@@ -118,6 +139,7 @@ class UI:
     def __init__(self, g, fonts):
         self.g = g
         self.fonts = fonts
+        self.reading_scale = 1.0
         self.aspect = window.aspect_ratio
         A = self.aspect
         self.L = -A / 2
@@ -194,6 +216,9 @@ class UI:
         self.dlg_full = ""
         self.dlg_shown = 0.0
         self.dlg_speed = 55.0
+        self._dlg_source = ""
+        self.dlg_pages = [""]
+        self.dlg_page = 0
         self.choice_root = Entity(parent=self.root, enabled=False)
         self.choice_items = []
         self.choice_sel = 0
@@ -315,6 +340,37 @@ class UI:
         if k:
             self.set_health(*k)
         self.g.refresh_hotbar()
+        # Rebuild reading columns after F11/resize instead of retaining the previous window's widths.
+        st = getattr(self, "_modal_state", {})
+        page = st.get("page", 0)
+        if self.modal == "journal":
+            self.open_journal(self.g)
+            self._journal_page(page)
+        elif self.modal == "document":
+            self.show_document(**st["source"])
+            self._document_page(page)
+        elif self.modal == "mail":
+            selected = st["sel"]
+            self.open_mail(st["msgs"], st["title"])
+            self._mail_pick(selected)
+            self._document_page(page)
+        elif self.modal == "settings":
+            self.open_settings(st["close_cb"], st["tab"])
+        if self.dlg.enabled:
+            complete = self.dlg_page_revealed()
+            choices = getattr(self, "_choice_options", None) if self.choice_root.enabled else None
+            selected, result = self.choice_sel, self.choice_result
+            self.dlg_show(self.dlg_name.text, self._dlg_source)
+            # Reflow from the start so a wider window cannot skip text between page boundaries.
+            if choices:
+                self.dlg_page = len(self.dlg_pages) - 1
+                self._dlg_page_show()
+            if complete:
+                self.dlg_complete()
+            if choices:
+                self.show_choices(choices)
+                self.choice_sel, self.choice_result = selected, result
+                self._hl()
 
     def set_stamina(self, v, visible=True):
         self.stam.scale_x = 0.2 * max(0, v)
@@ -415,25 +471,40 @@ class UI:
         self.dlg.enabled = True
         self.dlg_name.text = name
         self.dlg_name.color = SPEAKER_COLORS.get(name, CREAM)
-        self.dlg_full = wrap_str(text, DLG_WRAP)
+        self._dlg_source = text
+        self.dlg_page = 0
+        width = min(1.25, self.aspect - 0.1)
+        scale = 1.18 * self.reading_scale
+        self.dlg_pages = text_pages(text, width - 0.08, 0.37, scale, self.fonts.get("body"))
+        self._dlg_page_show()
+
+    def _dlg_page_show(self):
+        self.dlg_full = self.dlg_pages[self.dlg_page]
         self.dlg_shown = 0.0
         self.dlg_text.text = ""
         self.dlg_hint.enabled = False
-        # size the box to the text, growing upward from a fixed bottom edge, so a long line never runs off
-        # the bottom of the screen (or under the letterbox)
+        width = min(1.25, self.aspect - 0.1)
+        scale = self.reading_scale
+        self.dlg_name.scale = 1.25 * scale
+        self.dlg_text.scale = 1.18 * scale
+        self.dlg_name.x = self.dlg_text.x = -width / 2 + 0.04
+        self.dlg_hint.x = width / 2 - 0.04
+        name = self.dlg_name.text
         n = self.dlg_full.count("\n") + 1
-        h = 0.09 + n * self.DLG_LINE + (0.0 if name else -0.035)
+        h = 0.045 + n * 0.031 * 1.18 * scale + (0.04 * scale if name else 0)
         bottom = self.DLG_BOTTOM
         top = bottom + h
-        qk = (n, bool(name))
+        qk = (width, h)
         if qk not in self._dlg_quads:
-            self._dlg_quads[qk] = Quad(radius=0.02, aspect=1.25 / h)
+            self._dlg_quads[qk] = Quad(radius=0.02, aspect=width / h)
         self.dlg_bg.model = self._dlg_quads[qk]
-        self.dlg_bg.scale = (1.25, h)
+        self.dlg_bg.scale = (width, h)
         self.dlg_bg.y = bottom + h / 2
         self.dlg_name.y = top - 0.012
-        self.dlg_text.y = top - (0.05 if name else 0.018)
+        self.dlg_text.y = top - (0.045 * scale if name else 0.018)
         self.dlg_hint.y = bottom + 0.018
+        self.dlg_hint.text = (f"[Space] next page  {self.dlg_page + 1}/{len(self.dlg_pages)}"
+                              if self.dlg_page < len(self.dlg_pages) - 1 else "[Space]")
         self.dlg_top = top
 
     def dlg_hide(self):
@@ -441,28 +512,44 @@ class UI:
         self.choice_root.enabled = False
 
     def dlg_revealed(self):
+        return self.dlg_page_revealed() and self.dlg_page == len(self.dlg_pages) - 1
+
+    def dlg_page_revealed(self):
         return self.dlg_shown >= len(self.dlg_full)
+
+    def dlg_next_page(self):
+        if self.dlg_page >= len(self.dlg_pages) - 1:
+            return False
+        self.dlg_page += 1
+        self._dlg_page_show()
+        return True
 
     def dlg_complete(self):
         self.dlg_shown = len(self.dlg_full)
         self.dlg_text.text = self.dlg_full
 
     def show_choices(self, options):
+        self._choice_options = options
         for c in self.choice_items:
             destroy(c)
         self.choice_items = []
         self.choice_root.enabled = True
         self.choice_sel = 0
         self.choice_result = None
-        n = len(options)
-        for i, opt in enumerate(options):
-            y = -0.2 + (n - 1 - i) * 0.055
-            b = Button(parent=self.choice_root, text=f"{i + 1}.  {opt}", position=(0, y), scale=(0.9, 0.048),
+        width = min(1.1, self.aspect - 0.12)
+        scale = 0.9 * self.reading_scale
+        rows = [wrap_to(f"{i + 1}.  {opt}", width - 0.065, scale) for i, opt in enumerate(options)]
+        heights = [max(0.048, (row.count("\n") + 1) * 0.031 * scale + 0.02) for row in rows]
+        y = self.dlg_top + 0.018 + sum(heights) + 0.008 * (len(rows) - 1)
+        for i, (row, h) in enumerate(zip(rows, heights)):
+            y -= h / 2
+            b = Button(parent=self.choice_root, text=row, position=(0, y), scale=(width, h),
                        color=PANEL_LIGHT, text_origin=(-0.5, 0), radius=0.25)
             b.text_entity.x = -0.47
-            b.text_entity.scale *= 0.9
+            b.text_size = scale
             b.on_click = (lambda i=i: self._pick(i))
             self.choice_items.append(b)
+            y -= h / 2 + 0.008
         self._hl()
 
     def _pick(self, i):
@@ -515,23 +602,14 @@ class UI:
         self.modal = None
         self._modal_state = {}
 
-    def _fit(self, body, width, height, scale, lead=1.25, min_scale=0.7):
-        """Largest text scale (from `scale` down) at which `body` wrapped to `width` fits in `height`."""
-        s = scale
-        while True:
-            w = self._wrap_for(width, s)
-            lines = wrap_str(body, w).count("\n") + 1
-            if lines * 0.025 * s * lead <= height or s <= min_scale:
-                return s, w
-            s -= 0.04
-
     def show_document(self, title, body, footer="[E] / [Space] to close", paper=True, style=None):
         """style: 'note' (a sticky note: short scraps), 'paper' (ruled paper: the planner, letters) or
-        'screen' (ChuckOS). Text is fitted to the sheet, so long documents shrink instead of spilling off."""
+        'screen' (ChuckOS). Longer documents page at the player's chosen reading size."""
         style = style or (("note" if len(body) < 200 and body.count("\n") < 8 else "paper") if paper else "screen")
         r = self.open_modal("document")
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
         hand, body_f = self.fonts.get("hand"), self.fonts.get("body")
+        reading = self.reading_scale
         if style == "note":
             w = h = 0.66
             sheet = Entity(parent=r, rotation_z=-2.5)
@@ -541,9 +619,9 @@ class UI:
             Entity(parent=sheet, model="quad", color=C(1, 1, 1, 0.5), scale=(0.2, 0.05), y=h / 2 + 0.005,
                    rotation_z=4, z=0.04)
             ink = C(0.1, 0.12, 0.3, 1)
-            txt(sheet, title, -w / 2 + 0.05, h / 2 - 0.09, 1.25, C(0.45, 0.35, 0.15, 1), font=hand)
-            s, wr = self._fit(body, w - 0.1, h - 0.2, 1.55)
-            txt(sheet, body, -w / 2 + 0.05, h / 2 - 0.16, s, ink, wrap=wr, font=hand)
+            x, ty, title_scale, body_scale, body_font = -w / 2 + 0.05, h / 2 - 0.08, 1.25, 1.55, hand
+            body_w = w - 0.1
+            title_col = C(0.45, 0.35, 0.15, 1)
             foot_col = C(0.85, 0.82, 0.75, 1)
             foot_y = -h / 2 - 0.05
         elif style == "paper":
@@ -558,9 +636,8 @@ class UI:
             Entity(parent=sheet, model="quad", color=C(0.85, 0.3, 0.3, 0.5), scale=(0.003, h - 0.02),
                    x=-w / 2 + 0.085, z=0.044)
             ink = C(0.12, 0.13, 0.32, 1)
-            txt(sheet, title, -w / 2 + 0.11, h / 2 - 0.05, 1.7, ink, font=hand)
-            s, wr = self._fit(body, w - 0.17, h - 0.2, 1.25)
-            txt(sheet, body, -w / 2 + 0.11, h / 2 - 0.135, s, ink, wrap=wr, font=hand)
+            x, ty, title_scale, body_scale, body_font = -w / 2 + 0.11, h / 2 - 0.035, 1.7, 1.25, hand
+            body_w, title_col = w - 0.17, ink
             foot_col = C(0.85, 0.82, 0.75, 1)
             foot_y = -h / 2 - 0.04
         elif style == "ledger":
@@ -578,26 +655,66 @@ class UI:
                            position=(sx * (w / 2 - 0.022), h / 2 - 0.04 - k * 0.054, 0.044))
             ink = C(0.15, 0.15, 0.17, 1)
             mono = self.fonts.get("mono") or body_f
-            txt(sheet, title, -w / 2 + 0.07, h / 2 - 0.04, 1.2, ink, font=mono)
-            s, wr = self._fit(body, w - 0.14, h - 0.16, 1.0)
-            txt(sheet, body, -w / 2 + 0.07, h / 2 - 0.11, s, ink, wrap=wr, font=mono)
+            x, ty, title_scale, body_scale, body_font = -w / 2 + 0.07, h / 2 - 0.035, 1.2, 1.0, mono
+            body_w, title_col = w - 0.14, ink
             foot_col = C(0.85, 0.82, 0.75, 1)
             foot_y = -h / 2 - 0.04
         else:
             w, h = 1.05, 0.84
+            sheet = r
             Entity(parent=r, model=Quad(radius=0.012, aspect=w / h), scale=(w + 0.012, h + 0.012),
                    color=C(0.55, 0.57, 0.6, 1), z=0.06)
             Entity(parent=r, model="quad", color=C(0.94, 0.95, 0.97, 1), scale=(w, h), z=0.05)
-            Entity(parent=r, model="quad", color=C(0.12, 0.3, 0.62, 1), scale=(w, 0.055), y=h / 2 - 0.0275, z=0.045)
-            txt(r, title, -w / 2 + 0.02, h / 2 - 0.012, 1.0, C(1, 1, 1, 1), font=self.fonts.get("ui"))
-            txt(r, "_  []  x", w / 2 - 0.02, h / 2 - 0.012, 0.9, C(1, 1, 1, 0.8), origin=(0.5, 0.5))
-            s, wr = self._fit(body, w - 0.08, h - 0.13, 1.05)
-            txt(r, body, -w / 2 + 0.04, h / 2 - 0.085, s, C(0.08, 0.08, 0.12, 1), wrap=wr,
-                font=self.fonts.get("mono") or body_f)
+            ink = C(0.08, 0.08, 0.12, 1)
+            x, ty, title_scale, body_scale, body_font = -w / 2 + 0.04, h / 2 - 0.012, 1.0, 1.05, self.fonts.get("mono") or body_f
+            body_w, title_col = w - 0.08, C(1, 1, 1, 1)
             foot_col = DIM
             foot_y = -h / 2 - 0.035
-        txt(r, footer, 0, foot_y, 0.85, foot_col, origin=(0, 0))
+        title_font = self.fonts.get("ui") if style == "screen" else body_font
+        title_text = wrap_to(title, body_w, title_scale * reading, title_font)
+        title_h = (title_text.count("\n") + 1) * 0.031 * title_scale * reading
+        if style == "screen":
+            bar_h = title_h + 0.022
+            Entity(parent=r, model="quad", color=C(0.12, 0.3, 0.62, 1), scale=(w, bar_h),
+                   y=h / 2 - bar_h / 2, z=0.045)
+        txt(sheet, title_text, x, ty, title_scale * reading, title_col, font=title_font)
+        by = ty - title_h - 0.02
+        pages = text_pages(body, body_w, by - (-h / 2 + 0.085), body_scale * reading, body_font)
+        body_ent = txt(sheet, pages[0], x, by, body_scale * reading, ink, font=body_font)
+        nav_col = C(0.25, 0.27, 0.3, 1) if style == "screen" else ink
+        page_label = txt(sheet, "", 0, -h / 2 + 0.035, 0.8, nav_col, origin=(0, 0))
+        st = {"pages": pages, "page": 0, "body": body_ent, "page_label": page_label, "nav": [],
+              "source": {"title": title, "body": body, "footer": footer, "paper": paper, "style": style}}
+        for label, delta, nx in (("Previous", -1, -w / 2 + 0.11), ("Next", 1, w / 2 - 0.11)):
+            b = Button(parent=sheet, text=label, position=(nx, -h / 2 + 0.035), scale=(0.17, 0.041),
+                       color=C(0.2, 0.2, 0.2, 0.75), z=-0.02, radius=0.2)
+            b.text_size = 0.7
+            b.on_click = (lambda delta=delta: self._document_page(delta))
+            st["nav"].append(b)
+        self._modal_state = st
+        self._document_page(0)
+        txt(r, footer, 0, foot_y, 0.8, foot_col, origin=(0, 0))
         self.g.audio.play("paper" if style != "screen" else "type", vol=0.7)
+
+    def _document_page(self, delta):
+        st = self._modal_state
+        st["page"] = max(0, min(len(st["pages"]) - 1, st["page"] + delta))
+        st["body"].text = st["pages"][st["page"]]
+        st["page_label"].text = f"Page {st['page'] + 1} of {len(st['pages'])}" if len(st["pages"]) > 1 else ""
+        for i, b in enumerate(st["nav"]):
+            b.enabled = len(st["pages"]) > 1
+            b.disabled = st["page"] == (0 if i == 0 else len(st["pages"]) - 1)
+
+    def document_input(self, key):
+        if key in ("right arrow", "page down", "scroll down"):
+            self._document_page(1)
+        elif key in ("left arrow", "page up", "scroll up"):
+            self._document_page(-1)
+        elif key in ("e", "space", "escape", "enter"):
+            return True
+        elif key == "left mouse down":
+            return mouse.hovered_entity not in self._modal_state["nav"]
+        return False
 
     # --- ChuckOS Mail -----------------------------------------------------
     def open_mail(self, messages, title="ChuckOS Mail"):
@@ -605,8 +722,9 @@ class UI:
         (sender, subject, body). W/S or click to pick a message; E / Space / Esc to close."""
         r = self.open_modal("mail")
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        w, h = 1.3, 0.84
-        lw = 0.4
+        w, h = min(1.3, self.aspect - 0.1), 0.84
+        lw = w * 0.32
+        reading = self.reading_scale
         Entity(parent=r, model=Quad(radius=0.012, aspect=w / h), scale=(w + 0.012, h + 0.012),
                color=C(0.55, 0.57, 0.6, 1), z=0.06)
         Entity(parent=r, model="quad", color=C(0.96, 0.96, 0.97, 1), scale=(w, h), z=0.05)
@@ -615,16 +733,23 @@ class UI:
             font=self.fonts.get("ui"))
         Entity(parent=r, model="quad", color=C(0.88, 0.9, 0.93, 1), scale=(lw, h - 0.055),
                position=(-w / 2 + lw / 2, -0.0275, 0.044))
-        st = {"msgs": messages, "sel": 0, "rows": [], "pane": None, "w": w, "h": h, "lw": lw, "root": r}
+        st = {"msgs": messages, "title": title, "sel": 0, "rows": [], "pane": None,
+              "w": w, "h": h, "lw": lw, "root": r}
+        y = h / 2 - 0.09
         for i, (frm, subj, _body) in enumerate(messages):
-            y = h / 2 - 0.09 - i * 0.085
-            row = Button(parent=r, z=-0.01, model="quad", color=C(0, 0, 0, 0), scale=(lw - 0.01, 0.08),
-                         position=(-w / 2 + lw / 2, y - 0.025), highlight_color=C(0.12, 0.3, 0.62, 0.12))
+            sender = wrap_to(frm, lw - 0.04, 0.95 * reading, self.fonts.get("ui"))
+            subject = wrap_to(subj, lw - 0.04, 0.8 * reading)
+            sender_h = (sender.count("\n") + 1) * 0.031 * 0.95 * reading
+            subject_h = (subject.count("\n") + 1) * 0.031 * 0.8 * reading
+            row_h = sender_h + subject_h + 0.025
+            row = Button(parent=r, z=-0.01, model="quad", color=C(0, 0, 0, 0), scale=(lw - 0.01, row_h),
+                         position=(-w / 2 + lw / 2, y - row_h / 2 + 0.01), highlight_color=C(0.12, 0.3, 0.62, 0.12))
             row.on_click = (lambda i=i: self._mail_pick(i))
-            txt(r, frm, -w / 2 + 0.02, y, 0.95, C(0.08, 0.08, 0.12, 1), font=self.fonts.get("ui"))
-            txt(r, subj, -w / 2 + 0.02, y - 0.03, 0.8, C(0.3, 0.32, 0.38, 1), wrap=self._wrap_for(lw - 0.04, 0.8))
+            txt(r, sender, -w / 2 + 0.02, y, 0.95 * reading, C(0.08, 0.08, 0.12, 1), font=self.fonts.get("ui"))
+            txt(r, subject, -w / 2 + 0.02, y - sender_h, 0.8 * reading, C(0.3, 0.32, 0.38, 1))
             st["rows"].append(row)
-        txt(r, "W/S or click: pick a message     E / Space: close", 0, -h / 2 - 0.035, 0.85,
+            y -= row_h
+        txt(r, "W/S: message   Left/Right: page   E / Space: close", 0, -h / 2 - 0.035, 0.85,
             C(0.85, 0.82, 0.75, 1), origin=(0, 0))
         self._modal_state = st
         self._mail_pick(0)
@@ -646,12 +771,28 @@ class UI:
         x0 = -w / 2 + lw + 0.03
         pw = w - lw - 0.06
         ink = C(0.08, 0.08, 0.12, 1)
-        txt(pane, subj, x0, h / 2 - 0.08, 1.25, ink, font=self.fonts.get("ui"), wrap=self._wrap_for(pw, 1.25))
-        txt(pane, f"From: {frm}", x0, h / 2 - 0.135, 0.85, C(0.35, 0.37, 0.42, 1))
+        reading = self.reading_scale
+        subject = wrap_to(subj, pw, 1.25 * reading, self.fonts.get("ui"))
+        txt(pane, subject, x0, h / 2 - 0.08, 1.25 * reading, ink, font=self.fonts.get("ui"))
+        fy = h / 2 - 0.08 - (subject.count("\n") + 1) * 0.031 * 1.25 * reading - 0.005
+        sender = wrap_to(f"From: {frm}", pw, 0.85 * reading)
+        txt(pane, sender, x0, fy, 0.85 * reading, C(0.35, 0.37, 0.42, 1))
+        line_y = fy - (sender.count("\n") + 1) * 0.031 * 0.85 * reading - 0.006
         Entity(parent=pane, model="quad", color=C(0.75, 0.77, 0.8, 1), scale=(pw, 0.003),
-               position=(x0 + pw / 2, h / 2 - 0.165, -0.005))
-        s, wr = self._fit(body, pw, h - 0.25, 1.0)
-        txt(pane, body, x0, h / 2 - 0.19, s, ink, wrap=wr)
+               position=(x0 + pw / 2, line_y, -0.005))
+        by = line_y - 0.02
+        st["pages"] = text_pages(body, pw, by - (-h / 2 + 0.085), reading)
+        st["page"] = 0
+        st["body"] = txt(pane, st["pages"][0], x0, by, reading, ink)
+        st["page_label"] = txt(pane, "", x0 + pw / 2, -h / 2 + 0.034, 0.8, DIM, origin=(0, 0))
+        st["nav"] = []
+        for label, delta, nx in (("Previous", -1, x0 + 0.08), ("Next", 1, x0 + pw - 0.08)):
+            b = Button(parent=pane, text=label, position=(nx, -h / 2 + 0.034), scale=(0.15, 0.04),
+                       color=C(0.2, 0.2, 0.2, 0.85), z=-0.02, radius=0.2)
+            b.text_size = 0.65
+            b.on_click = (lambda delta=delta: self._document_page(delta))
+            st["nav"].append(b)
+        self._document_page(0)
 
     def mail_input(self, key):
         st = self._modal_state
@@ -661,6 +802,10 @@ class UI:
         elif key in ("s", "down arrow", "scroll down"):
             self._mail_pick(st["sel"] + 1)
             self.g.audio.play("blip", vol=0.3)
+        elif key in ("right arrow", "page down"):
+            self._document_page(1)
+        elif key in ("left arrow", "page up"):
+            self._document_page(-1)
         elif key in ("e", "space", "escape", "enter"):
             st["closed"] = True
 
@@ -828,62 +973,99 @@ class UI:
         txt(r, "[Esc] back", 0, -0.47, 0.9, DIM, origin=(0, 0))
         self._modal_state = {"back_cb": on_close}
 
-    def open_settings(self, on_close):
+    def open_settings(self, on_close, tab="sound"):
         r = self.open_modal("settings")
         from ursina import Slider
         g = self.g
+        w = min(1.1, self.aspect - 0.12)
+        left = -w / 2 + 0.05
         Entity(parent=r, model="quad", color=C(0, 0, 0, 0.6), scale=(3, 2), z=0.1)
-        Entity(parent=r, model=Quad(radius=0.02, aspect=0.9 / 0.8), scale=(0.9, 0.8), color=PANEL, z=0.05)
-        txt(r, "Settings", 0, 0.36, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
-        rows = [("Master volume", "master"), ("Music", "music"), ("Sound effects", "sfx"), ("Voices (moos)", "voice"),
-                ("Ambience", "ambient")]
-        for i, (label, key) in enumerate(rows):
-            y = 0.24 - i * 0.07
-            txt(r, label, -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
-            s = Slider(0, 1, default=g.audio.volumes[key], step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
+        Entity(parent=r, model=Quad(radius=0.02, aspect=w / 0.91), scale=(w, 0.91), color=PANEL, z=0.05)
+        txt(r, "Settings", 0, 0.425, 1.8, BRASS, origin=(0, 0.5), font=self.fonts.get("title"))
+        for label, key, bx in (("Sound & display", "sound", -w / 4 + 0.01),
+                               ("Comfort & reading", "comfort", w / 4 - 0.01)):
+            b = Button(parent=r, text=label, position=(bx, 0.34), scale=(w / 2 - 0.065, 0.046),
+                       color=BRASS if key == tab else PANEL_LIGHT, z=-0.02, radius=0.2)
+            b.text_size = 0.9
+            b.text_color = C(0.1, 0.08, 0.05, 1) if key == tab else CREAM
+            b.on_click = (lambda key=key: self.open_settings(on_close, key))
+
+        def slider(label, y, lo, hi, value, step, setter, unit=""):
+            txt(r, label, left, y, 0.95, CREAM, origin=(-0.5, 0))
+            number = txt(r, "", w / 2 - 0.04, y, 0.85, BRASS, origin=(0.5, 0))
+            s = Slider(lo, hi, default=value, step=step, parent=r, z=-0.02,
+                       x=0.005, y=y, scale=0.65, dynamic=True)
             s.knob.color = BRASS
+            def changed():
+                setter(s.value)
+                number.text = f"{s.value:.0f}{unit}" if step >= 1 else f"{s.value:.2f}"
+            s.on_value_changed = changed
+            changed()
 
-            def _set(s=s, key=key):
-                g.audio.volumes[key] = s.value
-            s.on_value_changed = _set
-        y = 0.24 - len(rows) * 0.07
-        txt(r, "Mouse sensitivity", -0.4, y, 1.0, CREAM, origin=(-0.5, 0))
-        s2 = Slider(0.2, 3.0, default=g.player.sensitivity, step=0.05, parent=r, z=-0.02, x=0.0, y=y, scale=0.7, dynamic=True)
+        def cycle(label, y, owner, field, values, names):
+            txt(r, label, left, y, 0.95, CREAM, origin=(-0.5, 0))
+            b = Button(parent=r, position=(w / 2 - 0.19, y), scale=(0.3, 0.043), color=PANEL_LIGHT,
+                       z=-0.02, radius=0.2)
+            b.text_size = 0.9
+            def refresh():
+                value = getattr(owner, field)
+                i = min(range(len(values)), key=lambda i: abs(values[i] - value))
+                b.text = names[i]
+                return i
+            def changed():
+                setattr(owner, field, values[(refresh() + 1) % len(values)])
+                refresh()
+            b.on_click = changed
+            refresh()
 
-        def _sens():
-            g.player.sensitivity = s2.value
-        s2.on_value_changed = _sens
-        y -= 0.08
-        b = Button(parent=r, z=-0.02, text=f"Invert Y: {'On' if g.player.invert_y else 'Off'}", position=(-0.2, y), scale=(0.3, 0.05),
-                   color=PANEL_LIGHT, radius=0.25)
-
-        def _inv():
-            g.player.invert_y = not g.player.invert_y
-            b.text = f"Invert Y: {'On' if g.player.invert_y else 'Off'}"
-        b.on_click = _inv
-        from .game import QUALITY_NAMES
-        from .engine import shading as _sh
-
-        def q_label():
-            extra = "  (no shadows)" if not _sh.SHADOWS_SUPPORTED and g.quality != "low" else ""
-            return f"Graphics: {QUALITY_NAMES[g.quality]}{extra}"
-        b3 = Button(parent=r, z=-0.02, text=q_label(), position=(0.2, y), scale=(0.3, 0.05), color=PANEL_LIGHT,
-                    radius=0.25)
-
-        def _quality():
-            g.cycle_quality()
-            b3.text = q_label()
-        b3.on_click = _quality
-        y -= 0.065
-        b2 = Button(parent=r, z=-0.02, text="Toggle fullscreen (F11)", position=(0, y), scale=(0.34, 0.05), color=PANEL_LIGHT, radius=0.25)
-        b2.on_click = g.toggle_fullscreen
-        bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.345), scale=(0.3, 0.055), color=PANEL_LIGHT, radius=0.25)
+        if tab == "sound":
+            rows = [("Master volume", "master"), ("Music", "music"), ("Sound effects", "sfx"),
+                    ("Voices (moos)", "voice"), ("Ambience", "ambient")]
+            for i, (label, key) in enumerate(rows):
+                slider(label, 0.265 - i * 0.062, 0, 1, g.audio.volumes[key], 0.05,
+                       lambda value, key=key: g.audio.volumes.__setitem__(key, value))
+            slider("Mouse sensitivity", -0.045, 0.2, 3.0, g.player.sensitivity, 0.05,
+                   lambda value: setattr(g.player, "sensitivity", value))
+            cycle("Invert mouse Y", -0.108, g.player, "invert_y", [False, True], ["Off", "On"])
+            from .game import QUALITY_NAMES
+            from .engine import shading as _sh
+            txt(r, "Graphics quality", left, -0.171, 0.95, CREAM, origin=(-0.5, 0))
+            b = Button(parent=r, position=(w / 2 - 0.19, -0.171), scale=(0.3, 0.043),
+                       color=PANEL_LIGHT, z=-0.02, radius=0.2)
+            b.text_size = 0.9
+            def quality_label():
+                b.text = QUALITY_NAMES[g.quality]
+            def quality():
+                g.cycle_quality()
+                quality_label()
+            b.on_click = quality
+            quality_label()
+            if not _sh.SHADOWS_SUPPORTED:
+                txt(r, "Shadows unavailable on this device", left, -0.21, 0.68, DIM)
+            b = Button(parent=r, text="Toggle fullscreen (F11)", position=(0, -0.269),
+                       scale=(0.4, 0.045), color=PANEL_LIGHT, z=-0.02, radius=0.2)
+            b.text_size = 0.9
+            b.on_click = g.toggle_fullscreen
+        else:
+            slider("Field of view", 0.265, 60, 110, g.player.fov_base, 5,
+                   lambda value: setattr(g.player, "fov_base", value), "°")
+            levels, names = [0.0, 0.5, 1.0], ["Off", "Reduced", "Full"]
+            cycle("Camera bob", 0.192, g.player, "camera_bob", levels, names)
+            cycle("Camera roll", 0.119, g.player, "camera_roll", levels, names)
+            cycle("Camera shake & lunge", 0.046, g.player, "camera_shake", levels, names)
+            cycle("Wider view while sprinting", -0.027, g.player, "sprint_fov", [False, True], ["Off", "On"])
+            cycle("Reading text size", -0.1, self, "reading_scale", [1.0, 1.15, 1.3], ["100%", "115%", "130%"])
+            body = wrap_to("Text size applies to dialogue, documents, mail and the journal. Long text has pages.",
+                           w - 0.1, 0.9)
+            txt(r, body, left, -0.17, 0.9, DIM)
+        bb = Button(parent=r, z=-0.02, text="Back", position=(0, -0.382), scale=(0.3, 0.05), color=PANEL_LIGHT, radius=0.25)
+        bb.text_size = 0.9
 
         def _back():
             g.save_settings()
             on_close()
         bb.on_click = _back
-        self._modal_state = {"back_cb": _back}
+        self._modal_state = {"back_cb": _back, "tab": tab, "close_cb": on_close}
 
     def open_shop(self, title, entries, clovers, on_buy, on_close):
         """entries: list of (key, label, price, desc, owned)."""
@@ -918,9 +1100,7 @@ class UI:
         return max(16, int(width / (self.CHAR_W * scale)))
 
     def open_journal(self, g):
-        """Three columns sized from the window's aspect: objectives and favours, inventory, map. Every block
-        is wrapped to its column and advances by the number of lines it actually took, so nothing overlaps
-        (the old fixed offsets ran together on a 3:2 screen)."""
+        """Measured columns with pages, so every objective and item stays readable at the chosen size."""
         r = self.open_modal("journal")
         self.hud.enabled = False        # the HUD's day and objectives would show through the journal's title
         A = self.aspect
@@ -932,86 +1112,69 @@ class UI:
         x1 = self.L + margin
         x2 = x1 + colw + gap
         txt(r, "JOURNAL", x1, 0.47, 1.8, BRASS, font=self.fonts.get("title"))
-        txt(r, g.day_title + "  ·  " + g.day_sub, x1, 0.405, 1.0, DIM)
-        floor = -0.43
+        reading = self.reading_scale
+        subtitle = wrap_to(g.day_title + "  ·  " + g.day_sub, W, 0.95 * reading)
+        txt(r, subtitle, x1, 0.405, 0.95 * reading, DIM)
+        top = 0.405 - (subtitle.count("\n") + 1) * 0.031 * 0.95 * reading - 0.025
+        txt(r, "OBJECTIVES", x1, top, 0.95 * reading, BRASS, font=self.fonts.get("ui"))
+        txt(r, "INVENTORY", x2, top, 1.05 * reading, BRASS, font=self.fonts.get("ui"))
+        body_top, floor = top - 0.05 * reading, -0.365
 
-        def block(x, y, text, scale, col, lh, width=colw):
-            text = wrap_to(text, width, scale)
-            txt(r, text, x, y, scale, col)
-            return y - lh * (text.count("\n") + 1)
+        def column_pages(x, blocks, inset=0):
+            groups, group, y = [], Entity(parent=r), body_top
+            groups.append(group)
+            for j, (text, base_scale, col, icon) in enumerate(blocks):
+                scale = base_scale * reading
+                wrapped = wrap_to(text, colw - inset, scale)
+                line_h = 0.031 * scale
+                lines = wrapped.split("\n")
+                need = len(lines) * line_h + 0.009
+                # Keep an item's name with its description whenever the pair fits on one page.
+                if icon and j + 1 < len(blocks):
+                    desc, desc_scale, _, _ = blocks[j + 1]
+                    desc_scale *= reading
+                    need += (wrap_to(desc, colw - inset, desc_scale).count("\n") + 1) * 0.031 * desc_scale + 0.009
+                if need < body_top - floor and y - need < floor:
+                    group, y = Entity(parent=r), body_top
+                    groups.append(group)
+                for i, line in enumerate(lines):
+                    if y - line_h < floor:
+                        group, y = Entity(parent=r), body_top
+                        groups.append(group)
+                    txt(group, line, x + inset, y, scale, col)
+                    if i == 0 and icon and tex("icon_" + icon):
+                        Entity(parent=group, model="quad", texture=tex("icon_" + icon), scale=0.043,
+                               position=(x + 0.022, y - 0.014))
+                    y -= line_h
+                y -= 0.009
+            return groups
 
-        def lines(text, scale, width):
-            return wrap_to(text, width, scale).count("\n") + 1
-
-        y = 0.34
-        txt(r, "OBJECTIVES", x1, y, 1.05, BRASS, font=self.fonts.get("ui"))
-        y -= 0.045
-        for text, done in g.objective_lines():
-            if y < floor:
-                break
-            y = block(x1, y, ("[x] " if done else "- ") + text.strip(), 0.92, DIM if done else CREAM, 0.03) - 0.006
-        y -= 0.025
+        blocks = [(("[x] " if done else "- ") + text.strip(), 0.92, DIM if done else CREAM, None)
+                  for text, done in g.objective_lines()]
         side = g.side_quest_lines()
-        if side and y > floor + 0.08:
-            txt(r, "FAVOURS", x1, y, 1.05, BRASS, font=self.fonts.get("ui"))
-            y -= 0.045
-            for text, state in side:
-                if y < floor:
-                    break
-                y = block(x1, y, ("[x] " if state == "done" else "- ") + text, 0.88,
-                          GREEN if state == "done" else CREAM, 0.029) - 0.006
-        # inventory: icon, name and description, if they all fit; otherwise just icons and names (in two
-        # columns if need be). Measured first, so the list never runs off the bottom of the screen.
-        yy = 0.34
-        txt(r, "INVENTORY", x2, yy, 1.05, BRASS, font=self.fonts.get("ui"))
-        yy -= 0.05
-        items = g.inventory_lines()
-        if not items:
-            txt(r, "Nothing. You are a cow.", x2, yy, 0.85, DIM)
-        tw = colw - 0.055
-        names = [label + (f" x{count}" if count > 1 else "") for _, label, count, _ in items]
-        room = yy - floor
-        # largest text that fits everything; failing that, a compact two-column list
-        fit = None
-        for ns, ds in ((0.92, 0.72), (0.86, 0.66), (0.8, 0.6)):
-            need = sum(lines(n, ns, tw) * 0.032 * ns + lines(it[3], ds, tw) * 0.033 * ds + 0.012
-                       for n, it in zip(names, items))
-            if need <= room:
-                fit = (ns, ds)
-                break
-        if items and fit:
-            ns, ds = fit
-            for name, (key, label, count, desc) in zip(names, items):
-                if tex("icon_" + key):
-                    Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.045,
-                           position=(x2 + 0.022, yy - 0.016))
-                yy = block(x2 + 0.055, yy, name, ns, CREAM, 0.032 * ns, tw)
-                yy = block(x2 + 0.055, yy + 0.004, desc, ds, DIM, 0.033 * ds, tw) - 0.012
-        elif items:
-            row = 0.062
-            per_col = max(1, int(room / row))
-            ncols = 1 if len(items) <= per_col else 2
-            cw = colw / ncols
-            shown = min(len(items), per_col * ncols - (1 if len(items) > per_col * ncols else 0))
-
-            def clip(t, scale, width):
-                t = t.split("\n")[0]
-                if text_width(t, scale) <= width:
-                    return t
-                while len(t) > 4 and text_width(t + "…", scale) > width:
-                    t = t[:-1]
-                return t.rstrip(" .,:;") + "…"
-            for i in range(shown):
-                key, label, count, desc = items[i]
-                cx, cy = x2 + (i // per_col) * cw, yy - (i % per_col) * row
-                if tex("icon_" + key):
-                    Entity(parent=r, model="quad", texture=tex("icon_" + key), scale=0.042,
-                           position=(cx + 0.021, cy - 0.02))
-                txt(r, clip(names[i], 0.86, cw - 0.065), cx + 0.05, cy, 0.86, CREAM)
-                txt(r, clip(desc, 0.64, cw - 0.065), cx + 0.05, cy - 0.028, 0.64, DIM)
-            if shown < len(items):
-                cx, cy = x2 + (shown // per_col) * cw, yy - (shown % per_col) * row
-                txt(r, f"...and {len(items) - shown} more", cx + 0.05, cy, 0.8, DIM)
+        if side:
+            blocks.append(("FAVOURS", 1.0, BRASS, None))
+            blocks.extend((("[x] " if state == "done" else "- ") + text, 0.92,
+                           GREEN if state == "done" else CREAM, None) for text, state in side)
+        objective_pages = column_pages(x1, blocks)
+        inventory = []
+        for key, label, count, desc in g.inventory_lines():
+            inventory.append((label + (f" x{count}" if count > 1 else ""), 0.92, CREAM, key))
+            inventory.append((desc, 0.76, DIM, None))
+        if not inventory:
+            inventory.append(("Nothing. You are a cow.", 0.85, DIM, None))
+        inventory_pages = column_pages(x2, inventory, 0.055)
+        st = {"columns": [objective_pages, inventory_pages], "page": 0,
+              "count": max(len(objective_pages), len(inventory_pages)), "nav": []}
+        st["label"] = txt(r, "", 0, -0.423, 0.85, DIM, origin=(0, 0))
+        for label, delta, bx in (("Previous", -1, -0.34), ("Next", 1, 0.34)):
+            b = Button(parent=r, text=label, position=(bx, -0.423), scale=(0.2, 0.045),
+                       color=PANEL_LIGHT, z=-0.02, radius=0.2)
+            b.text_size = 0.8
+            b.on_click = (lambda delta=delta: self._journal_page(delta))
+            st["nav"].append(b)
+        self._modal_state = st
+        self._journal_page(0)
         # map
         if self.map_tex is None:
             self.map_tex = Texture(build_map_image())
@@ -1038,11 +1201,29 @@ class UI:
         Entity(parent=r, model=Quad(radius=0.1), color=RED, scale=(0.012, 0.03), position=(px, py, -0.02),
                rotation_z=g.player.yaw)
         txt(r, "You", px + 0.012, py - 0.012, 0.7, RED)
-        txt(r, "[Tab] close", 0, -0.47, 0.9, DIM, origin=(0, 0))
+        txt(r, "[Tab] close    Left/Right or mouse wheel: pages", 0, -0.477, 0.8, DIM, origin=(0, 0))
         st = g.stats
         stats = (f"Caught: {st.get('caught', 0)}    Moos: {st.get('moos', 0)}    "
                  f"Moo-dals: {g.moodals.count_unlocked()} (pause menu)")
-        txt(r, stats, mx - mw / 2, map_bottom - 0.065, 0.76, DIM, wrap=self._wrap_for(mw, 0.76))
+        txt(r, wrap_to(stats, mw, 0.76 * reading), mx - mw / 2, map_bottom - 0.065, 0.76 * reading, DIM)
+
+    def _journal_page(self, delta):
+        st = self._modal_state
+        st["page"] = max(0, min(st["count"] - 1, st["page"] + delta))
+        for groups in st["columns"]:
+            for i, group in enumerate(groups):
+                group.enabled = i == min(st["page"], len(groups) - 1)
+        st["label"].text = f"Page {st['page'] + 1} of {st['count']}" if st["count"] > 1 else ""
+        for i, b in enumerate(st["nav"]):
+            b.enabled = st["count"] > 1
+            b.disabled = st["page"] == (0 if i == 0 else st["count"] - 1)
+
+    def journal_input(self, key):
+        if key in ("right arrow", "page down", "scroll down"):
+            self._journal_page(1)
+        elif key in ("left arrow", "page up", "scroll up"):
+            self._journal_page(-1)
+        return key in ("tab", "j", "escape")
 
     # ------------------------------------------------------------------
     def update(self, dt):
@@ -1057,7 +1238,7 @@ class UI:
                 if n % 3 == 0:
                     self.g.audio.play("type", vol=0.08, pitch=1.4)
         if self.dlg.enabled:
-            self.dlg_hint.enabled = self.dlg_revealed() and not self.choice_root.enabled
+            self.dlg_hint.enabled = self.dlg_page_revealed() and not self.choice_root.enabled
         # popup: above the dialogue box while one is up (they used to print over each other)
         py = (self.dlg_top + 0.02 + self.popup_bg.scale_y / 2) if self.dlg.enabled else -0.3
         if abs(self.popup.y - py) > 1e-4:

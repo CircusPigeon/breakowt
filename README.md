@@ -84,7 +84,9 @@ In the tractor: W/S throttle, A/D steer.
 
 ## Good to know
 
-- **It saves by itself** at every checkpoint. **Continue** picks up from the last one.
+- **It saves by itself** at every checkpoint and at milestones within Monday's introductions and Friday's
+  and Saturday's longer objectives. **Continue** picks up from the last one. Saves keep a backup, and a
+  failed write shows a notice instead of quietly losing progress.
 - **Chuck can only catch you where a cow shouldn't be.** The pasture is safe. Sneak, stay out of his
   line of sight, sneak into tall grass to hide, and throw rocks to make him look the other way. When
   he's asleep, only sneaking is quiet enough: walk past his bed and he'll get up.
@@ -97,7 +99,12 @@ In the tractor: W/S throttle, A/D steer.
   playthroughs (except the coffee and the shells, which get used up).
 - **Stuck?** Press H. Moocrates answers with a question first; press H again for a straighter answer.
 - **Settings** (on the title screen or pause menu): volumes, mouse sensitivity, invert Y, fullscreen, and
-  **Graphics** Low / Medium / High. On a slower laptop, pick Low.
+  **Graphics** Low / Medium / High. On a slower laptop, pick Low. **Comfort & reading** lets you adjust
+  the field of view, reduce or disable camera bob, roll and shake, turn off the wider view while sprinting,
+  and enlarge reading text to 115% or 130%. Long dialogue and documents have pages; Space advances dialogue,
+  and arrow keys or Page Up / Page Down turn reading pages.
+- **Shop purchases survive restarting a checkpoint.** Shells and coffee belong to the current playthrough;
+  coffee lasts until the next day. Equipment still carries into later playthroughs.
 
 ## Where your data lives
 

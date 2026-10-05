@@ -211,16 +211,19 @@ class Physics:
                     d2 = dx * dx + dz * dz
                     rr = r + s.r
                     if d2 < rr * rr:
-                        d = math.sqrt(d2) if d2 > 1e-10 else 1e-5
-                        push = rr - d
-                        if d2 <= 1e-10:
+                        d = math.hypot(dx, dz)
+                        if d > 0:
+                            dx, dz = dx / d, dz / d
+                        else:
+                            # Coincident centers have no direction: use a unit vector, not a tiny divisor.
                             dx, dz = 1.0, 0.0
-                        x += dx / d * push
-                        z += dz / d * push
+                        push = rr - d
+                        x += dx * push
+                        z += dz * push
                         moved = True
             if include_dynamic:
                 for s in self.dynamic:
-                    if not s.enabled or not s.solid or s is ignore or s.owner is ignore:
+                    if not s.enabled or not s.solid or s is ignore or (ignore is not None and s.owner is ignore):
                         continue
                     if s.y1 <= y + 0.05 or s.y0 >= y + h:
                         continue
@@ -228,12 +231,14 @@ class Physics:
                     d2 = dx * dx + dz * dz
                     rr = r + s.r
                     if d2 < rr * rr:
-                        d = math.sqrt(d2) if d2 > 1e-10 else 1e-5
-                        if d2 <= 1e-10:
+                        d = math.hypot(dx, dz)
+                        if d > 0:
+                            dx, dz = dx / d, dz / d
+                        else:
                             dx, dz = 1.0, 0.0
                         push = (rr - d) * 0.6
-                        x += dx / d * push
-                        z += dz / d * push
+                        x += dx * push
+                        z += dz * push
                         moved = True
             if not moved:
                 break

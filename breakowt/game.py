@@ -1,11 +1,11 @@
 """The game: owns every system and exposes the scripting API used by the story."""
 from __future__ import annotations
 
-import json
 import math
 import random
 import sys
 import time as _time
+import uuid
 
 from ursina import Button, Entity, Text, application, camera, color, destroy, mouse, scene, window
 import time
@@ -13,6 +13,7 @@ import time
 from .engine.assets import SAVE_DIR, SHOT_DIR, tex, FONT_DIR
 from .engine.audio import AudioManager
 from .engine.physics import Physics
+from .engine.persistence import read_json, write_json
 from .engine.script import ScriptRunner
 from .engine.shading import Environment, FARM_SHADER
 from .engine.meshbuilder import MeshBuilder
@@ -20,7 +21,7 @@ from .interact import Handler, InteractionSystem, Interactable
 from .items import ITEMS, SLOT_KEYS, Inventory
 from .npc import FRIENDS, HerdCow, Hen, NPCCow
 from .farmer import Farmer
-from .player import Player, THROWABLE
+from .player import Player, REUSABLE, THROWABLE
 from .ui import UI, C, CREAM, BRASS, DIM
 from .world import World, PASTURE, in_pond
 from . import models
@@ -310,48 +311,82 @@ class Game(Entity):
     # ------------------------------------------------------------------
     def save_settings(self):
         try:
-            SAVE_DIR.mkdir(parents=True, exist_ok=True)
             d = {"volumes": self.audio.volumes, "sens": self.player.sensitivity, "invert": self.player.invert_y,
-                 "quality": self.quality}
-            (SAVE_DIR / "settings.json").write_text(json.dumps(d, indent=1))
-        except OSError:
-            pass
+                 "quality": self.quality, "fov": self.player.fov_base,
+                 "camera_bob": self.player.camera_bob, "camera_roll": self.player.camera_roll,
+                 "camera_shake": self.player.camera_shake, "sprint_fov": self.player.sprint_fov,
+                 "reading_scale": self.ui.reading_scale}
+            write_json(SAVE_DIR / "settings.json", d)
+            return True
+        except OSError as error:
+            self.save_failed("settings", error)
+            return False
 
     def load_settings(self):
         try:
-            d = json.loads((SAVE_DIR / "settings.json").read_text())
+            d = read_json(SAVE_DIR / "settings.json") or {}
             self.audio.volumes.update(d.get("volumes", {}))
             self.player.sensitivity = d.get("sens", 1.0)
             self.player.invert_y = d.get("invert", False)
+            self.player.fov_base = min(110.0, max(60.0, float(d.get("fov", 80.0))))
+            for name in ("camera_bob", "camera_roll", "camera_shake"):
+                setattr(self.player, name, min(1.0, max(0.0, float(d.get(name, 1.0)))))
+            self.player.sprint_fov = bool(d.get("sprint_fov", True))
+            self.ui.reading_scale = min(1.3, max(1.0, float(d.get("reading_scale", 1.0))))
             q = d.get("quality")
             if q in QUALITY:
                 self.quality = q
             elif d.get("shadows") is False:
                 self.quality = "low"     # settings from before the presets: shadows were turned off
-        except (OSError, ValueError):
+        except (OSError, ValueError, TypeError):
             pass
+
+    def save_failed(self, label, error):
+        """Surface a failed write once, rather than silently claiming progress was saved."""
+        now = _time.monotonic()
+        if now - getattr(self, "_save_error_at", -100.0) > 10:
+            self._save_error_at = now
+            print(f"Could not save {label}: {error}", file=sys.stderr)
+            self.ui.toast(f"Couldn't save {label}. Check free disk space and folder access.")
+
+    def checkpoint_inventory(self):
+        """Recover temporary world items when a checkpoint rebuilds the day."""
+        inventory = self.inv.to_dict()
+        recover = {key for key in REUSABLE if f"dropped_{key}" in self.world.items}
+        recover.update(p.kind for p in self.player.projectiles if p.alive and p.kind in REUSABLE)
+        if self.story.radio_on:
+            recover.add("radio")
+        for key in sorted(recover):
+            if not inventory["items"].get(key):
+                inventory["items"][key] = 1
+                if key not in inventory["order"]:
+                    inventory["order"].append(key)
+        return inventory
 
     def save_checkpoint(self):
         prev = self.load_save() or {}
         d = {"day": self.day, "step": self.step_i, "flags": self.flags, "stats": self.stats,
-             "inv": self.inv.to_dict(), "bell": self.player.has_bell,
+             "inv": self.checkpoint_inventory(), "bell": self.player.has_bell,
+             "talk": self.story.talk_i,
              "max_day": max(self.day, prev.get("max_day", 1))}
         try:
-            SAVE_DIR.mkdir(parents=True, exist_ok=True)
-            (SAVE_DIR / "save.json").write_text(json.dumps(d, indent=1, default=list))
-        except OSError:
-            pass
+            write_json(SAVE_DIR / "save.json", d)
+            return True
+        except OSError as error:
+            self.save_failed("progress", error)
+            return False
 
     def load_save(self):
-        try:
-            return json.loads((SAVE_DIR / "save.json").read_text())
-        except (OSError, ValueError):
-            return None
+        return read_json(SAVE_DIR / "save.json")
 
     def apply_save(self, d):
         self.flags = dict(d.get("flags", {}))
+        self.flags.setdefault("_run_id", uuid.uuid4().hex)
+        if self.flags.get("coffee"):
+            self.flags.setdefault("_coffee_day", d.get("day", 1))
         self.stats = dict(d.get("stats", {}))
         self.inv.from_dict(d.get("inv", {}))
+        self.story.talk_i = dict(d.get("talk", {}))
         self.player.has_bell = d.get("bell", True)
         self.refresh_hotbar()
 
@@ -1173,9 +1208,9 @@ class Game(Entity):
                 ui.choice_input(key)
                 return
             if key in ("space", "e", "left mouse down", "enter"):
-                if not ui.dlg_revealed():
+                if not ui.dlg_page_revealed():
                     ui.dlg_complete()
-                else:
+                elif not ui.dlg_next_page():
                     self._advance = True
             if key == "escape":
                 self.open_pause()
@@ -1255,7 +1290,7 @@ class Game(Entity):
         ui = self.ui
         m = ui.modal
         if m == "document":
-            if key in ("e", "space", "escape", "enter", "left mouse down"):
+            if ui.document_input(key):
                 ui.close_modal()
                 self.set_mouse(True)
                 self._doc_closed = True
@@ -1266,7 +1301,7 @@ class Game(Entity):
         elif m == "password":
             ui.password_input(key)
         elif m == "journal":
-            if key in ("tab", "j", "escape"):
+            if ui.journal_input(key):
                 ui.close_modal()
                 self.set_mouse(True)
         elif m in ("pause", "settings", "shop", "menu", "moodals"):
@@ -1332,6 +1367,7 @@ class Game(Entity):
         self.story.to_title()
 
     def _quit_game(self):
+        self.moodals.save()
         self.save_settings()
         application.quit()
 

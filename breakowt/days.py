@@ -874,6 +874,14 @@ class DayScripts:
         g = self.g
         self.morning()
         self.wake_in_stall()
+        self.chuck_monday()
+        g.farmer.teleport((-15.2, 0, -44), 0)
+        if not self.done("d1_oak"):
+            self.prop("page_tree", models.item_model("page", position=(-49.2, 6.2, -34.1), rotation=(20, 40, 10)))
+        self.dhook("update", self.base_update)
+        self.dhook("use", self.radio_use)
+
+    def chuck_monday(self):
         self.chuck_routine([
             ("tool", "hammer"),
             ("go", (-15.2, 0, -50), 1.8), ("wait", 9, "work", FENCE_LINES, (-18, -50)),
@@ -883,11 +891,6 @@ class DayScripts:
             ("go", (-2, 0, -22), 2.0), ("wait", 3, "look"),
             ("go", (-15.2, 0, -36), 1.8), ("wait", 6, "look"),
         ])
-        g.farmer.teleport((-15.2, 0, -44), 0)
-        if not self.done("d1_oak"):
-            self.prop("page_tree", models.item_model("page", position=(-49.2, 6.2, -34.1), rotation=(20, 40, 10)))
-        self.dhook("update", self.base_update)
-        self.dhook("use", self.radio_use)
 
     def day1(self):
         yield from self.step("d1_wake", self.d1_wake)
@@ -895,13 +898,13 @@ class DayScripts:
                              hint="The page is stuck up in the Old Oak. Stand next to the trunk and headbutt it (left click).")
         yield from self.step("d1_page", self.d1_page,
                              hint="The page landed in the pond. Walk into the water and pick it up with E.")
+        yield from self.step("d1_pencil", self.d1_pencil,
+                             hint="Get behind Chuck while he counts (crouch with C or Ctrl) and press E to take the "
+                                  "pencil. If he spots you close up he'll shoo you off, no harm done.")
         yield from self.step("d1_crew", self.d1_crew,
                              hint="Tell the others. Archimoodes is by the pond, Moogenes at the salt lick, Moothagoras under the "
                                   "oak, Epicowrus in the hay bales in the far corner, Heifercleitus by the trough.")
         yield from self.step("d1_meeting", self.d1_meeting, hint="Everyone's meeting under the Old Oak.")
-        yield from self.step("d1_pencil", self.d1_pencil,
-                             hint="Get behind Chuck while he counts (crouch with C or Ctrl) and press E to take the "
-                                  "pencil. If he spots you close up he'll shoo you off, no harm done.")
         yield from self.step("d1_sleep", self.sleep_step, hint="Bed. Stall 47, in the cowshed.")
         yield from self._run_day(2)
 
@@ -1011,10 +1014,11 @@ class DayScripts:
             ("cowleen", "Everybody says that on Monday. You eat the grass, the grass grows back, somebody eats you. It's a "
                         "circle. By Sunday it'll feel like one."),
             ("you", "Moo. (Somebody eating you isn't part of the circle. It's where the circle stops.)"),
-            ("cowleen", "Hm. Go and tell the others, then, and see what they say. Then the oak at sundown: Archimoodes "
-                        "will want to argue about it. He always argues."),
-            ("cowleen", "Archimoodes is by the pond. Moogenes is at the salt lick, Moothagoras under the oak, Epicowrus "
-                        "in his hay bales in the far corner, Heifercleitus at the trough."),
+            ("cowleen", "Hm. Here comes Chuck to count us. He writes every number down. Do you suppose he knows how "
+                        "many he's got without the pencil?"),
+            ("you", "Moo. (We could find out.)"),
+            ("cowleen", "His eyes cover about a hundred degrees in front. Behind him there's nothing at all. Sneak "
+                        "round behind him: C or Ctrl. Borrow the pencil. Let's see what happens."),
         ])
         c.look = "player"
 
@@ -1048,6 +1052,7 @@ class DayScripts:
                     g.audio.play("ding", vol=0.5)
                     if after:
                         after()
+                    self.save_progress()
                     refresh()
                 return res
             return fn
@@ -1186,12 +1191,12 @@ class DayScripts:
                         "barn. It weighs four tons, and Chuck calls it 'baby'."),
             ("sirloin", "He means the tractor."),
             ("moozart", "I mean the tractor. Somebody drives it through the gate, and everybody walks out behind it."),
-            ("moozart", "The first step is tonight. Here comes Chuck for the headcount. Moodysseus: get behind him and take his pencil. A man who can't write things down "
-                        "has to remember them, and Chuck can't."),
-            ("cowpernicus", "His eyes cover about a hundred degrees in front of him. Behind him there's nothing at all. "
-                            "Sneak in it: C or Ctrl."),
+            ("moozart", "You've already taken his pencil. Forty-nine, and he'll write down fifty. Nobody checks "
+                        "Chuck's arithmetic, Chuck least of all. Remember that."),
+            ("moozart", "Keep the pencil, Moodysseus. A plan ought to be written down. Tomorrow, the shed."),
         ])
         g.cutscene_end_now()
+        self.monday_night()
 
     def d1_pencil(self):
         g = self.g
@@ -1246,24 +1251,34 @@ class DayScripts:
         f.pose = "count"
         yield from g.talk([
             ("chuck", "Forty-four, forty-five, forty-f... hey. Where'd my pencil go?"),
-            ("chuck", "Aw, heck. Lost count. Again. Every night I lose count. It's like they MOVE."),
+            ("chuck", "Aw, heck. Lost count. Again. Every time I lose count. It's like they MOVE."),
             ("chuck", "...Forty-nine. Close enough. Nobody ever audits a cow."),
         ])
         f.set_tool(None)
+        f.hearing = HEARING
+        self.chuck_monday()
+        yield from g.talk([
+            ("cowleen", "Forty-nine. Close enough. Does that sound like a man who's sure of anything?"),
+            ("cowleen", "Go and tell the others about the page, then, and see what they say. Then the oak at sundown: "
+                        "Archimoodes will want to argue about it. He always argues."),
+            ("cowleen", "Archimoodes is by the pond. Moogenes is at the salt lick, Moothagoras under the oak, Epicowrus "
+                        "in his hay bales in the far corner, Heifercleitus at the trough."),
+        ])
+        # Older checkpoints can already have finished the meeting in the previous Monday order.
+        if self.done("d1_meeting"):
+            self.monday_night()
+
+    def monday_night(self):
+        g = self.g
+        g.farmer.set_tool(None)
         self.chuck_routine([
             ("go", (-21, 0, -35), 2.2), ("call", lambda: g.world.doors["pasture_gate"].set_open(True)),
             ("go", (-14, 0, -35.5), 2.2), ("call", lambda: g.world.doors["pasture_gate"].set_open(False)),
             ("go", (40, 0, 18), 2.4), ("go", (56, 0, 23), 2.4), ("hide",), ("stop", "idle"),
         ])
-        f.hearing = HEARING
         g.set_time("dusk", 12)
         g.ambience("night")
         self.base_music = "music_night"
-        yield from g.talk([
-            ("moozart", "Forty-nine, and he'll write down fifty. Nobody checks Chuck's arithmetic, Chuck least of all. "
-                        "Remember that."),
-            ("moozart", "Sleep, Moodysseus. Tomorrow, the shed."),
-        ])
 
     # ==================================================================
     # TUESDAY
@@ -2685,6 +2700,7 @@ class DayScripts:
                 gg.inv.add("sparkplug")
                 self.setf("sparkplug_taken")
                 gg.complete("plug")
+                self.save_progress()
             self.item("sparkplug", "sparkplug", (60.35, Y + 0.93, 34.25), "Spark plug (in vinegar)",
                       "Fish the spark plug out of the vinegar", plug, radius=0.25, reach=2.4)
         if not self.done("photo_taken"):
@@ -2702,6 +2718,7 @@ class DayScripts:
                 gg.ia.remove("st_photo")
                 gg.inv.add("photo")
                 self.setf("photo_taken")
+                self.save_progress()
             ia.handlers.append(Handler("Look at the photo", lambda gg: gg.examine(
                 "A framed photo: 'Me & Big Ajax, Best in Show 2009.' Chuck has his arm round a huge, unimpressed bull. "
                 "Chuck is beaming. It's the only photo in the house."), None, "global"))
@@ -2712,6 +2729,7 @@ class DayScripts:
                 self.remove_item("shoes")
                 gg.inv.add("shoes")
                 self.setf("shoes_taken")
+                self.save_progress()
             self.item("shoes", "shoes", (45.8, Y + 0.05, 37.4), "Bowling shoes", "Take the bowling shoes", shoes,
                       rot=30, radius=0.3)
 
@@ -2815,6 +2833,7 @@ class DayScripts:
             if self.flags.get("d5_keystate", 0) < stage:
                 self.flags["d5_keystate"] = stage
                 show()
+                self.save_progress()
 
         def mat(gg):
             yield from gg.show_document("Under the doormat", "A sticky note, a bit damp:\n\n"
@@ -2856,6 +2875,7 @@ class DayScripts:
             else:
                 gg.ui.popup_sub("The gnome topples over and cracks open. Nothing inside but more gnome. That wasn't "
                                 "Gary.", 4)
+            self.save_progress()
 
         def smash(gg, i):
             # E does the same as a left click here: the prompt tells you what's going to happen
@@ -2945,6 +2965,7 @@ class DayScripts:
             self.setf("emails_read")
             used["d"] = True
             gg.complete("pc")
+            self.save_progress()
         g.on("computer", "Use the computer", computer, cond=lambda gg: not used["d"])
         yield lambda: self.done("sparkplug_taken") and used["d"] and not g.busy
 
@@ -3277,6 +3298,7 @@ class DayScripts:
             gg.audio.play("metal_clang", vol=0.4, pitch=1.8)
             gg.examine("You screw the spark plug in with your teeth. It tastes like vinegar.")
             gg.complete("plug")
+            self.save_progress()
         g.on("tractor", "Screw in the spark plug", plug, cond=lambda gg: gg.inv.has("sparkplug"))
         g.on("tractor", "Look at the tractor",
              lambda gg: gg.examine("Key: you have it. Diesel: full. Spark plug: in. Ready for tomorrow."),
@@ -3298,6 +3320,7 @@ class DayScripts:
             gg.inv.select_key("plank")
             gg.audio.play("wood_crack", vol=0.3, pitch=1.5)
             gg.ui.toast(f"Plank ({gg.inv.count('plank')} in your mouth)", "plank")
+            self.save_progress()
 
         def take_plank(gg):
             if enough(gg):
@@ -3332,6 +3355,7 @@ class DayScripts:
             refresh()
             if planks["n"] >= 3:
                 gg.audio.play("ding", vol=0.6)
+            self.save_progress()
         g.on("cattle_grid", "Lay a plank across the grid", lay, cond=lambda gg: gg.inv.has("plank"))
         g.on("cattle_grid", "Look at the cattle grid", lambda gg: gg.examine(
             "Steel bars over a pit, each gap exactly one hoof wide. A floor laid across it would fix that. Something "
@@ -3353,6 +3377,7 @@ class DayScripts:
             refresh()
             if herd_n["n"] == 5:
                 g.audio.play("ding", vol=0.6)
+            self.save_progress()
             return True
         self.hook("herd_talk", rally)
         yield lambda: self.done("sparkplug_in") and planks["n"] >= 3 and herd_n["n"] >= 5 and not g.busy
@@ -3398,6 +3423,7 @@ class DayScripts:
             gg.noise((60.9, Y, 47.1), 5, "drawer")
             gg.inv.add("cabinet_key")
             gg.complete("ckey")
+            self.save_progress()
         g.on("nightstand", lambda gg: "Open the drawer (quietly)" if gg.player.crouching else
              "Open the drawer (sneak first: C, or it'll creak)", drawer,
              cond=lambda gg: not gg.inv.has("cabinet_key") and not self.done("cabinet_open"))
@@ -3413,6 +3439,7 @@ class DayScripts:
             if not gg.flags["shells"]:
                 gg.ui.popup_sub("She's empty. No shells in the cabinet either. Chuck keeps the ammunition somewhere "
                                 "separate, like a responsible man. It's the only responsible thing in the house.", 7)
+            self.save_progress()
         g.on("gun_cabinet", "Unlock the cabinet and take Ol' Bessie", cabinet,
              cond=lambda gg: gg.inv.has("cabinet_key"))
         g.on("gun_cabinet", "Try the gun cabinet", lambda gg: gg.examine("Locked. A small brass keyhole, and "
@@ -3987,14 +4014,28 @@ class DayScripts:
             ("chuck", "Cows don't know how to work a shotgun. Right? Cows don't THINK. That's the whole... that's "
                       "the whole deal. That's why it's okay."),
             ("you", "Moo. (We've done nothing but think all week, Chuck. By your own rule, you owe us. Stay down and "
-                    "we'll call it even.)"),
+                    "listen for once.)"),
         ])
         g.cutscene_end_now()
         g.cutscene_start(letterbox=True)
         g.player.frozen = True
         p.look_at_point((f.x, 0.5, f.z))
-        if g.inv.count("shells"):
-            # the bonus ending: you found the shells, and you kept one
+        yield from self.chuck_verdict()
+        f.set_visible(False)
+        g.player.frozen = False
+        self.setf("chuck_done")
+
+    def chuck_verdict(self):
+        """The herd is already out. A loaded gun leaves the last decision to the player."""
+        g = self.g
+        loaded = bool(g.inv.count("shells"))
+        shoot = False
+        if loaded:
+            choice = yield from g.say("you", "Moo. (He's down. The herd's through the gate. Ol' Bessie still has a "
+                                      "shell.)", choices=["Lower Ol' Bessie and leave", "Shoot Chuck"], look=False)
+            g.end_talk()
+            shoot = choice == 1
+        if shoot:
             yield from g.talk([("you", "Moo. (Well done, Chuck.)")])
             g.inv.remove("shells")
             g.audio.play("shotgun", vol=1.0)
@@ -4004,17 +4045,20 @@ class DayScripts:
             g.event("chuck_shot")
             yield 2.5
         else:
-            g.audio.play("blip_lo", vol=0.8)
-            yield 0.6
-            yield from g.talk([
-                ("chuck", "...Click. Told ya. She ain't loaded."),
-                ("you", "Moo. (Then you get to live, Chuck. And think about it. Ask any of us: that's the hard part.)"),
-            ])
+            g.player.hold(None)
+            if loaded:
+                yield from g.talk([
+                    ("you", "Moo. (Stay down and we'll call it even. You get to live, Chuck. And think about it. "
+                            "Ask any of us: that's the hard part.)"),
+                ])
+            else:
+                yield from g.talk([
+                    ("chuck", "She ain't loaded."),
+                    ("you", "Moo. (And you're still down. We can leave without another shot. You get to live, Chuck. "
+                            "And think about it. Ask any of us: that's the hard part.)"),
+                ])
             g.ui.set_fade(1.0, (0, 0, 0))
             yield 2.0
-        f.set_visible(False)
-        g.player.frozen = False
-        self.setf("chuck_done")
 
     def _cluck_attack(self, boss):
         g = self.g

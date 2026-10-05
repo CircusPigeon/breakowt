@@ -13,8 +13,8 @@ def main():
     # skip the day's intro: advance dialogue until the player has had control for a second
     free = 0
     for _ in range(3000):
-        if g.in_dialogue and g.ui.dlg_revealed():
-            g._advance = True
+        if g.in_dialogue and g.ui.dlg_page_revealed():
+            g.input("space")
         app.step()
         free = free + 1 if (g.controls_enabled() and not g.in_dialogue and not g.busy) else 0
         if free > 30:
