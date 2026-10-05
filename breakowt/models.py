@@ -805,6 +805,17 @@ def item_model(name, parent=None, **kw):
     elif name == "hat":
         mb.cylinder((0, 0, 0), 0.3, 0.02, color=(0.86, 0.75, 0.45, 1), segs=12)
         mb.cylinder((0, 0.02, 0), 0.16, 0.14, color=(0.9, 0.78, 0.48, 1), segs=10)
+    elif name == "escape_rope":
+        for ring in range(3):
+            for segment in range(16):
+                a = segment * math.tau / 16
+                mb.sphere((math.sin(a) * (0.12 + ring * 0.025), ring * 0.025,
+                           math.cos(a) * (0.12 + ring * 0.025)), 0.026,
+                          color=(0.62, 0.46, 0.25, 1), segs=5, rings=3)
+    elif name == "latch_kit":
+        mb.box((0, 0, 0), (0.18, 0.035, 0.26), color=METAL, uv_rect=WHITE)
+        mb.box((0, 0.04, 0.09), (0.14, 0.08, 0.025), color=METAL, uv_rect=WHITE)
+        mb.cylinder((0, 0.025, -0.025), 0.018, 0.23, color=BRASS, segs=6, rot=(0, 0, 90))
     elif name == "wrench":
         mb.box((0, 0, 0), (0.03, 0.02, 0.24), color=METAL, uv_rect=WHITE)
     elif name == "ammo_tin":

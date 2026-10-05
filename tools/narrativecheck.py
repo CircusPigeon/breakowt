@@ -102,6 +102,9 @@ class CrewStory:
         self.idle.append(key)
         yield None
 
+    def character_introduction(self, key):
+        yield from self.g.talk([(key, "An introduction, with optional discussion.")])
+
 
 class NarrativeChecks(unittest.TestCase):
     def verdict(self, shells, choice):

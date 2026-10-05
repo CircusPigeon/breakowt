@@ -129,7 +129,7 @@ DEFAULT_TEXT = {
     "doormat": ["WELCOME, it says. You don't believe it."],
     "front_door": ["Chuck's front door. Locked."],
     "back_door": ["The back door. Locked. It has a little doggy flap, much too small for you."],
-    "woodpile": ["A pile of lumber. Offcuts, mostly, and a couple of good long planks."],
+    "woodpile": ["A pile of lumber. One long sound board, a shorter piece, and a great many splinters."],
     "coop": ["The chicken coop. Twelve hens and one rooster, and the rooster is in charge."],
     "hens": ["A hen. She stares at you without blinking."],
     "barn_door": ["The big barn doors. Closed."],

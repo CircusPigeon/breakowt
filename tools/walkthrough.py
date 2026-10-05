@@ -701,7 +701,7 @@ class Bot:
         if not g.flags.get("sparkplug_in"):
             yield from self.interact("tractor")
         yield from self.until(lambda: g.flags.get("sparkplug_in"), 5, "plug")
-        # two long planks from the pile, and the shed board you knocked in on Tuesday (in through the hole)
+        # Salvage the long board and two short pieces, including Tuesday's shed board.
         laid = g.flags.get("planks_laid", 0)
         while g.flags.get("pile_taken", 0) < 2 and g.inv.count("plank") + laid < 3:
             yield from self.interact("woodpile")
@@ -717,8 +717,18 @@ class Bot:
         yield from self.wait_ready()
         self.place(0, 60, 0)
         yield from self.walk_to(0, 77)
-        while g.inv.has("plank"):
-            yield from self.interact("cattle_grid")
+        wanted = {"long": "right_full", "short_a": "left_south", "short_b": "left_north"}
+        layout = g.flags.get("bridge_layout", {})
+        if any(p.get("slot") != wanted[board] or p.get("turned") for board, p in layout.items()):
+            yield from self.interact("st_bridge_reset")
+            yield from self.until(lambda: not g.busy, 30, "recover bridge boards")
+        for board, slot in wanted.items():
+            if board not in g.flags.get("bridge_layout", {}):
+                yield from self.interact("st_bridge_" + slot)
+                yield from self.until(lambda: board in g.flags.get("bridge_layout", {}) and not g.busy,
+                                      30, "place " + board)
+        if not g.story.bridge_finished():
+            raise Stuck("three placed boards did not create a supported crossing")
         for i in range(5):
             if len(g.flags.get("rallied", [])) >= 5:
                 break

@@ -139,8 +139,9 @@ class DayScripts:
             f["tractor_inspected"] = True
         elif d == 4:
             take("page")
-            take("pencil")
+            give("pencil")
             give("score")
+            f["escort_route_sketch"] = True
             f["moozart_gone"] = True
         elif d == 5:
             # the spare key stays in the front door once it's unlocked
@@ -163,6 +164,10 @@ class DayScripts:
     # world state from flags
     # ==================================================================
     def apply_world_flags(self):
+        # Older checkpoints already earned the loft scene, before its sketch
+        # became useful equipment preparation.
+        if self.done("d4_loft"):
+            self.setf("escort_route_sketch")
         g = self.g
         w = g.world
         fl = g.flags
@@ -1058,85 +1063,21 @@ class DayScripts:
             return fn
 
         def moozart_lines():
-            yield from g.talk([
-                ("moozart", "Don't step on my circles."),
-                ("you", "Moo. (Sorry. What are they?)"),
-                ("moozart", "An argument with a circle. I'm trying to pin down how far round it is, against how far across. "
-                            "A bit more than three. I've trapped it between two fractions and I'm squeezing."),
-                ("you", "Moo. (Chuck's planner. Sunday's me. Twelve goes on the truck on Thursday.)"),
-                ("moozart", "...Sunday. Right."),
-                ("moozart", "And the others told you it's just how things are, so you came to the one cow who'd disagree. "
-                            "Good. It isn't how things are. It's how Chuck arranged them, which is a different thing, and "
-                            "much easier to fix."),
-                ("you", "Moo. (Fix how?)"),
-                ("moozart", "Give me a place to stand and I'll move the world. I don't need the world. I need a gate. "
-                            "Sundown, at the oak: I'll show everyone."),
-                ("you", "Moo. (And twelve? Do you know who twelve is?)"),
-                ("moozart", "Twelve. Divisible by one, two, three, four and six. A very obliging number. Go on, Moodysseus. "
-                            "Sundown."),
-            ])
+            yield from self.character_introduction("moozart")
 
         def sirloin_lines():
-            yield from g.talk([
-                ("sirloin", "You're in my sunlight."),
-                ("you", "Moo. (It's seven in the morning.)"),
-                ("sirloin", "It's the principle. A king once stood where you're standing and asked what I wanted. I told him "
-                            "to move. He moved."),
-                ("you", "Moo. (That was a different philosopher.)"),
-                ("sirloin", "Prove it. What do you want?"),
-                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
-                ("sirloin", "And? When I go, I've left instructions: throw me over the fence for the crows. Saves Chuck a "
-                            "job and feeds a crow. Dying's only a problem if you're precious about where you end up."),
-                ("you", "Moo. (I'm precious about where I end up.)"),
-                ("sirloin", "Then you're a cow and I'm a dog. I eat in public, I sleep where I drop, and I bark at the "
-                            "powerful. Even a dog wants a kennel, mind. Find me something to live in: a jar, a barrel, a "
-                            "bucket. A home nobody can sell me."),
-            ])
+            yield from self.character_introduction("sirloin")
 
         def cowpernicus_lines():
-            yield from g.talk([
-                ("cowpernicus", "Shh. I'm counting. Fence posts: two hundred and six. Cows: fifty. Farmers: one."),
-                ("you", "Moo. (Chuck's planner. I'm on it. Sunday.)"),
-                ("cowpernicus", "Forty-seven. Prime. You can't be divided by anything but one and yourself. They'll divide you "
-                                "anyway: chuck, brisket, rib, round."),
-                ("cowpernicus", "Don't look like that. Souls go round, Forty-Seven. You'll be back: a cow again, or a hen, or "
-                                "a fly. Possibly Dale. You don't get to pick, so I don't worry about it."),
-                ("you", "Moo. (Then why won't you eat beans? You told me beans have souls.)"),
-                ("cowpernicus", "Because I don't want to eat my grandmother. Being eaten was her problem. Eating is mine."),
-                ("cowpernicus", "Archimoodes has a meeting at the oak? He'll have diagrams. I'll come for the diagrams. And: "
-                                "Chuck owns spare reading glasses. Every triangle I've drawn for four years has been a guess. "
-                                "Find them and I'll draw you the whole farm."),
-            ])
+            yield from self.character_introduction("cowpernicus")
 
         def mooriarty_lines():
-            yield from g.talk([
-                ("mooriarty", "Psst. In here. Welcome to the Garden."),
-                ("you", "Moo. (It's a pile of hay bales.)"),
-                ("mooriarty", "It's a philosophy. Friends, simple food, no fear. Also a shop."),
-                ("you", "Moo. (Chuck's going to eat me on Sunday.)"),
-                ("mooriarty", "Then have the best thing I sell, free: death is nothing to us. Where death is, you aren't, "
-                              "and where you are, it isn't. You never actually meet it. Nobody does."),
-                ("you", "Moo. (I'd still rather not be a burger.)"),
-                ("mooriarty", "Nobody said anything about rather. Still, if you're going to spend the week fighting it, "
-                              "you'll want equipment. Rocks, rubber, a disguise. Golden Clovers only. They come to cows who do "
-                              "things worth talking about, and a few grow where nobody's thought to look."),
-            ])
+            yield from self.character_introduction("mooriarty")
             self.setf("mooriarty_met")
 
         def moomaw_lines():
-            yield from g.talk([
-                ("moomaw", "Morning, dear. You can't step into the same pasture twice. It's always a slightly different "
-                           "pasture, and you're always a slightly older cow."),
-                ("you", "Moo. (He wrote my number next to Sunday. And 'barbecue'.)"),
-                ("moomaw", "Oh, sweetheart. Everything flows. Grass into cow, cow into Chuck. I've watched that river eleven "
-                           "years, and it only ever runs one way."),
-                ("moomaw", "He did it to my Ajax. Circled him on the calendar with a little smiley face. Chuck called him Big "
-                           "Ajax, after the floor cleaner. There was a hero called Ajax first. Chuck has never once wondered "
-                           "what anything was called before he named it."),
-                ("you", "Moo. (Did nobody try to stop it?)"),
-                ("moomaw", "You don't stop a river, dear. You stand in it and get wet. He keeps Ajax's photo in his office. "
-                           "I'd like it back. Small things can go upstream, now and then."),
-            ])
+            yield from self.character_introduction("moomaw")
+
         self.hook("talk:moozart", teller("moozart", moozart_lines))
         self.hook("talk:sirloin", teller("sirloin", sirloin_lines,
                                          lambda: g.side_quest("helm", "Find Moogenes something to live in",
@@ -1395,6 +1336,7 @@ class DayScripts:
             fa["armed"] = False
             fa["asked"] = False
             fa["active"] = True
+            g.stats["faints"] = g.stats.get("faints", 0) + 1
             fa["t"] = 11.0
             c.model.lying_target = 1.0
             c.bubble("MOOOoooo...", 2.5)
@@ -2267,6 +2209,9 @@ class DayScripts:
         yield from g.talk([
             ("cowleen", "The truck comes at dusk. So he's going up into the hayloft, Forty-Seven? Your idea."),
             ("you", "Moo. (He's going up into the hayloft.)"),
+            ("cowleen", "The driver gets paid for a cow, not for Twelve. An empty truck means Chuck picks another "
+                        "number. Hiding him buys us time. It doesn't cancel Thursday."),
+            ("you", "Moo. (Then we'd better use the time.)"),
             ("cowleen", "When he's thinking hard he counts primes out loud. Chuck will hear that. If he starts, moo at him."),
             ("moozart", "I don't count primes out loud."),
             ("cowleen", "You're doing it now."),
@@ -2382,15 +2327,18 @@ class DayScripts:
             ("moozart", "Give me that page from Chuck's planner. The back's blank. And the pencil you stole at the "
                         "headcount."),
         ])
-        for k in ("page", "pencil"):
-            if g.inv.has(k):
-                g.inv.remove(k)
+        if g.inv.has("page"):
+            g.inv.remove("page")
         g.audio.play("paper", vol=0.7)
         yield 1.2
         g.inv.add("score")
+        self.setf("escort_route_sketch")
         yield from g.talk([
             ("moozart", "There. The whole plan, in order: fence, signal, tractor, gate, road. Written down, so it doesn't "
                         "live in one cow's head."),
+            ("moozart", "And the gate's hinge clearance, here in the margin. Rope and a release latch would hold a "
+                        "gap for a cow to charge through. If Chuck stands in our way, he'll meet more than one of us."),
+            ("moozart", "Keep the pencil. The measurements are mine; finishing the apparatus is yours."),
             ("moozart", "Read it to the herd if you ever need a distraction. They'll argue for an hour about whether to "
                         "bother, very loudly. They'll still be arguing about it on the road."),
             ("you", "Moo. (Why write it down? You'll be there.)"),
@@ -3243,10 +3191,13 @@ class DayScripts:
     def day6(self):
         yield from self.step("d6_wake", self.d6_wake)
         yield from self.step("d6_prep", self.d6_prep, hint=(
-            "What's the tractor still missing? What makes a floor across bars? And who still hasn't been told?",
+            "What's the tractor still missing? Can both hoof lanes reach the road on supported boards? Who "
+            "can help you tell the herd?",
             "Spark plug: in the tractor, in the barn. Planks: two from the lumber pile south of the shed, and the "
             "board you knocked out of the shed wall on Tuesday (it's still on the shed floor). Carry them to the "
-            "cattle grid at the main gate. Herd: talk to five of the herd cows."))
+            "cattle grid at the main gate. Aim at the yellow pegs: one long board spans one lane, two short "
+            "boards meet at the middle support in the other. Turn or lift misplaced boards. Herd: talk to "
+            "five herd cows, or ask Heifercleitus to help. The other philosophers can help with preparation."))
         yield from self.step("d6_night", self.d6_night, hint=(
             "Where does a man who never gets out of bed keep a key? And what wakes a sleeping farmer?",
             "The cabinet key's in the nightstand by Chuck's bed; the gun cabinet is in the office. Sneak (C) the "
@@ -3279,16 +3230,19 @@ class DayScripts:
         planks = {"n": self.flags.get("planks_laid", 0)}
 
         def refresh():
+            herd_n["n"] = len(self.flags.get("rallied", []))
+            planks["n"] = self.flags.get("planks_laid", 0)
             self.objectives(("plug", "Get the tractor running"),
                             ("planks", "Make the cattle grid safe for hooves" +
                              (f" ({planks['n']}/3 planks)" if planks["n"] else "")),
                             ("herd", f"Tell the herd ({min(5, herd_n['n'])}/5)"))
             if self.done("sparkplug_in"):
                 g.complete("plug", sound=False)
-            if planks["n"] >= 3:
+            if self.bridge_finished():
                 g.complete("planks", sound=False)
             if herd_n["n"] >= 5:
                 g.complete("herd", sound=False)
+        self._prep_refresh = refresh
         refresh()
         self.mark((22, 1, "Tractor"), (0, 82.5, "Cattle grid"))
 
@@ -3304,8 +3258,8 @@ class DayScripts:
              lambda gg: gg.examine("Key: you have it. Diesel: full. Spark plug: in. Ready for tomorrow."),
              cond=lambda gg: gg.flags.get("sparkplug_in"))
 
-        # the lumber pile has two planks long enough to span the grid; the third is the board you knocked out of
-        # the shed wall on Tuesday, still lying on the shed floor
+        # The pile and Tuesday's shed board supply one long board and two shorter
+        # pieces. Their placement on the support lines matters, not their count.
         board = self.done("board_broken")
         pile_max = 2 if board else 3
 
@@ -3326,8 +3280,8 @@ class DayScripts:
             if enough(gg):
                 return
             if self.flags.get("pile_taken", 0) >= pile_max:
-                gg.examine("Only short offcuts left: nothing that would span the grid. You need one more long, flat "
-                           "board. You've seen one lying on a floor this week. You put it there.")
+                gg.examine("Only splintered offcuts left. There's a sound board on the shed floor: the one you "
+                           "knocked out on Tuesday.")
                 return
             self.flags["pile_taken"] = self.flags.get("pile_taken", 0) + 1
             got_plank(gg)
@@ -3340,27 +3294,12 @@ class DayScripts:
             self.remove_prop("board_fallen")
             gg.ia.get("shed_plank").enabled = False
             got_plank(gg)
-            gg.examine("The board you knocked out of the wall on Tuesday. Long, flat, and exactly as wide as a hoof "
-                       "needs. Chuck never put it back. Chuck never puts anything back.")
+            gg.examine("The board you knocked out of the wall on Tuesday. Short enough to meet another at the "
+                       "middle support. Chuck never put it back. Chuck never puts anything back.")
         g.on("shed_plank", "Take the board", take_board,
              cond=lambda gg: planks["n"] < 3 and not self.done("shed_plank_taken"))
 
-        def lay(gg):
-            gg.inv.remove("plank")
-            planks["n"] += 1
-            self.flags["planks_laid"] = planks["n"]
-            self.lay_planks(planks["n"])
-            gg.audio.play("thump", vol=0.7, pos=(0, 0.3, 82.5), rng=30)
-            gg.noise((0, 0, 82.5), 8, "plank")
-            refresh()
-            if planks["n"] >= 3:
-                gg.audio.play("ding", vol=0.6)
-            self.save_progress()
-        g.on("cattle_grid", "Lay a plank across the grid", lay, cond=lambda gg: gg.inv.has("plank"))
-        g.on("cattle_grid", "Look at the cattle grid", lambda gg: gg.examine(
-            "Steel bars over a pit, each gap exactly one hoof wide. A floor laid across it would fix that. Something "
-            "long and flat. Three of something long and flat."),
-            cond=lambda gg: not gg.inv.has("plank") and planks["n"] < 3)
+        self.setup_bridge(on_change=refresh)
 
         def rally(cow):
             rl = set(self.flags.get("rallied", []))
@@ -3380,8 +3319,9 @@ class DayScripts:
             self.save_progress()
             return True
         self.hook("herd_talk", rally)
-        yield lambda: self.done("sparkplug_in") and planks["n"] >= 3 and herd_n["n"] >= 5 and not g.busy
+        yield lambda: self.done("sparkplug_in") and self.bridge_finished() and herd_n["n"] >= 5 and not g.busy
         self.setf("herd_rallied")
+        self._prep_refresh = None
 
     def d6_night(self):
         g = self.g
@@ -3908,14 +3848,16 @@ class DayScripts:
         f.set_tool("pitchfork")
         g.enemies.append(boss)
         self.enemy = boss
+        self.begin_fight_prep(boss)
         # whatever shells you've found (or bought) for Ol' Bessie
         p.health = p.max_health
         start_shells = g.inv.count("shells") if g.inv.has("shotgun") else 0
         g.ui.set_boss("CHUCK", 1.0)
         g.ui.set_health(p.health, p.max_health, True)
         bessie = f"   Q fire Ol' Bessie ({start_shells} shell{'s' if start_shells != 1 else ''})" if start_shells else ""
+        rig_hint = "\nGate rig: lure Chuck near the release post, then E to release Moothagoras." if self.prep_ready() else ""
         g.ui.popup_sub("Left click headbutt   Right click kick   Q throw / fire" + bessie +
-                       "\nHit him when he's stuck or winded", 8)
+                       "\nHit him when he's stuck or winded" + rig_hint, 10 if rig_hint else 8)
         self.hook("defeated", lambda: res.__setitem__("lost", True))
         allies = {"cluck_t": 14.0, "loin_t": 24.0, "cluck": None}
         while not res["phase3"]:
@@ -3943,6 +3885,7 @@ class DayScripts:
                 res["lost"] = False
                 g.cutscene_start(letterbox=True)
                 yield from g.fade_out(0.6)
+                self.end_fight_prep()
                 boss.remove()
                 boss.hp = boss.MAX_HP
                 boss.phase = 1
@@ -3960,10 +3903,12 @@ class DayScripts:
                 g.ui.set_boss("CHUCK", 1.0)
                 yield from g.fade_in(0.6)
                 g.cutscene_end_now()
+                self.begin_fight_prep(boss)
                 f.say("Had enough? 'Cause I'm just gettin' STARTED.", force=True)
-                g.ui.popup_sub("Round two. From the top.", 3)
+                g.ui.popup_sub("Round two. From the top." + rig_hint, 7 if rig_hint else 3)
             yield None
         self.hooks.pop("defeated", None)
+        self.end_fight_prep()
         # the cowbell
         g.cutscene_start(letterbox=True)
         boss.remove()
@@ -4472,8 +4417,8 @@ CHATTER = {
                      "stopped. Archimoodes wouldn't have."]],
         "sirloin": [["Tomorrow I charge. I've been practising on the trough. The trough has lost every time. It's "
                      "starting to feel unsporting."]],
-        "cowpernicus": [["Three planks across the grid. Two and somebody breaks a leg. One and somebody breaks two. "
-                         "Zero is just a hole with good intentions."]],
+        "cowpernicus": [["Two hoof lanes, three support lines. A board with an end in the air is an argument with "
+                         "a missing premise. Three of those is still a hole with good intentions."]],
         "mooriarty": [["Bessie's no use empty. Chuck hid the shells from himself after the last barbecue. Where "
                        "does a man hide things from himself? Somewhere he swore he'd go and never does."]],
         "moomaw": [["Eleven years I said the river only runs one way. Then a black cow drew some circles in the "
