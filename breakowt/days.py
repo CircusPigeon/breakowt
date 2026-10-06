@@ -1047,8 +1047,9 @@ class DayScripts:
         def teller(key, lines, after=None):
             def fn():
                 if key in told:
-                    # already heard it: today's ordinary chat, not the whole introduction again
-                    res = yield from self.idle_talk(key)
+                    # already heard it: the ordinary conversation (Epicowrus' is his shop), not the whole
+                    # introduction again
+                    res = yield from self.ordinary_talk(key)
                     return res
                 res = yield from lines()
                 if key not in told:
@@ -4293,7 +4294,7 @@ BRUSH_OFF = {
                 "Still here. Still not for sale."],
     "cowpernicus": ["Shh. I'm counting. Don't make me start again.",
                     "Come back later. Souls go round. So do conversations."],
-    "mooriarty": ["The philosophy's free, but you've had today's. The shop's open."],
+    "mooriarty": ["That's today's philosophy. Tomorrow's is also free. I'm told it's a terrible business model."],
     "moomaw": ["I've said it, dear. Saying it twice won't make the river run any faster.",
                "Off you go, dear. The river doesn't wait, and neither do I."],
 }

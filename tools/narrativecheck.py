@@ -98,7 +98,8 @@ class CrewStory:
     def save_progress(self):
         self.saves.append(copy.deepcopy(self.flags))
 
-    def idle_talk(self, key):
+    def ordinary_talk(self, key):
+        # an already-introduced friend gets the ordinary conversation (chatter, or Epicowrus' shop)
         self.idle.append(key)
         yield None
 

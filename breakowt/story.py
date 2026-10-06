@@ -807,6 +807,13 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
         if fn:
             res = yield from fn()
             return res
+        res = yield from self.ordinary_talk(key)
+        return res
+
+    def ordinary_talk(self, key):
+        """Everything but a step's own conversation: favours, the philosophers' comments, Epicowrus' shop, and
+        the day's chatter."""
+        g = self.g
         res = yield from self.side_quest_talk(key)
         if res:
             return True
