@@ -2872,19 +2872,17 @@ class DayScripts:
                 self.save_progress()
 
         def mat(gg):
-            yield from gg.show_document("Under the doormat", "A sticky note, a bit damp:\n\n"
-                                                             "    Spare key is under the FLOWERPOT.\n"
-                                                             "    (Burglars: it's not. Go away.)")
+            # the heading says where it was; the note itself is only what Chuck wrote
+            yield from gg.show_document("Under the doormat", "Spare key is under the FLOWERPOT.\n\n"
+                                                             "(Burglars: it's not. Go away.)")
             found(1)
 
         def pot(gg):
             gg.audio.play("rock_land", vol=0.6, pitch=0.7)
-            yield from gg.show_document("Under the flowerpot", "Another sticky note:\n\n"
-                                                               "    Moved it. Spare key is in GARY.\n"
-                                                               "    (Gary's the fisherman who's never\n"
-                                                               "     caught a thing. Break him open.\n"
-                                                               "     He knew the risks.)\n"
-                                                               "                              - Chuck")
+            yield from gg.show_document("Under the flowerpot", "Moved it. Spare key is in GARY.\n\n"
+                                                               "(Gary's the fisherman who's never caught a thing. "
+                                                               "Break him open. He knew the risks.)\n\n"
+                                                               "- Chuck")
             found(2)
         g.on("doormat", "Lift the doormat", mat)
         g.on("flowerpot", "Tip the flowerpot", pot)
