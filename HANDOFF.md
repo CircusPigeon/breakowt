@@ -38,33 +38,7 @@ rounds below, newest first). This file tracks what the game is now.
 - [x] Ending + epilogue cards (the player asked for no credits roll)
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
-### Character agency and physical puzzles round (latest, `main`)
-- The final Chuck fight remains required. Optional preparation grants one player-triggered Moothagoras
-  charge per fight attempt; it stuns Chuck briefly and leaves the player to finish the fight and verdict.
-- `characters.py` supplies shorter Monday introductions, practical/challenge/evidence responses,
-  optional philosophical arguments, and reactions to catches, fainting, favours and quiet escapes.
-  Saturday helpers inspect the grid, supply a board, distract Chuck or recruit herd cows. Moothagoras
-  can hold the weight plate from Wednesday onward. Helper recruitment saves exact targets for reloads.
-- `puzzles.py` owns day-scoped props, colliders and interactions. The weight store opens for a cow,
-  one heavy crate or two sacks; reset handles and an inside release prevent dead ends. The maintenance
-  cabinet opens when Chuck fetches a wrench for a jammed hopper; distract him before taking the kit.
-  Alternatively push the service crate to the high hatch and climb it.
-- The Saturday grid uses one long board and two short boards on two hoof lanes with three yellow support
-  lines. Aim at the physical pegs to place, turn or lift boards. Board count alone cannot finish the step.
-  `engine/puzzle_rules.py` validates geometry; legacy plank-count checkpoints rebuild a valid layout.
-- Thursday foreshadows Chuck substituting another cow for an empty truck. Reaching the loft earns the
-  gate-post sketch on Archimoodes' plan; he returns the pencil. Existing completed loft saves earn the
-  sketch too. `escape.py` combines the sketch, plant ledger/maintenance clipboard and both puzzle rewards
-  into a gate release rig. Every Sunday story step and the existing endings remain in place.
-- `tools/puzzlecheck.py` and `tools/fightprepcheck.py` exercise the new puzzles and optional combat assist
-  in the real engine; `tools/test_characters.py`, `test_puzzles.py` and `test_fight_prep.py` cover the rules
-  without rendering. The walkthrough now places boards at pegs and checks the supported crossing.
-- Verified on this Windows machine with isolated offscreen saves: 55 rule/persistence/character checks,
-  5 narrative checks, full seven-day campaign with detection, all 17 Saturday checkpoint resumes,
-  the persistence harness, actual puzzle/helper interactions, and gate-assist defeat/retry plus verdicts.
-  Puzzle and combat-assist screenshots were inspected for layout and readability.
-
-### Reliability and comfort round (`main`)
+### Reliability and comfort round (latest, `main`)
 - **Monday**: the pencil theft follows the planner, before the five introductions and sunset meeting.
   Moocrates introduces the stealth trick; Chuck returns to his daytime routine afterwards. Old saves
   with the meeting already done still resume correctly. Each introduction saves its reward and flag.

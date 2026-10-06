@@ -58,12 +58,7 @@ ITEMS = {
                 "very carefully.", "shotgun", False, False, True),
     "shells": ("Shotgun Shells", "Shells for Ol' Bessie. Chuck hid them from himself. [Q] with Bessie fires one.",
                "shells", True, False, False),
-    "plank": ("Bridge Board", "The three salvaged boards have different lengths. Rest both ends on the yellow "
-              "supports and cover both hoof lanes across the cattle grid.", "plank", True, False, True),
-    "escape_rope": ("Counterweight Rope", "Strong rope from the weighted store gate. Archimoodes' gate sketch "
-                    "shows where it can hold a gap for an ally's charge.", "horseshoe", False, False, False),
-    "latch_kit": ("Release Latch Kit", "A bracket and release pin from Chuck's maintenance cabinet. Combine with "
-                  "rope and Archimoodes' measurements at the main gate.", "pliers", False, False, False),
+    "plank": ("Plank", "A long plank. Three of these could bridge a cattle grid.", "plank", True, False, True),
     "chimes": ("Wind Chimes", "Seashells on strings.", "chimes", False, False, True),
 }
 

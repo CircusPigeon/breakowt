@@ -14,9 +14,6 @@ import uuid
 from ursina import BoxCollider, Button, Entity, Quad, Text, Vec3, application, camera, color, destroy, mouse
 
 from .days import BRUSH_OFF, DayScripts, DAYS
-from .characters import CharacterAgency
-from .puzzles import FarmPuzzles
-from .escape import FightPreparation
 from .farmer import HEARING, OWN_DOORS, SIGHT_DAY
 from .game import aim_camera
 from .interact import Handler, Interactable
@@ -157,7 +154,7 @@ HERD_SAYS = {
 }
 
 
-class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
+class Story(DayScripts):
     def __init__(self, g):
         self.g = g
         self.music_locked = False
@@ -331,8 +328,6 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
         g.event("day_start", day=n)
         self.apply_world_flags()
         getattr(self, f"setup_day{n}")()
-        self.setup_farm_puzzles(n)
-        self.setup_fight_prep(n)
         g.refresh_hotbar()
         g.save_checkpoint()
         g.cutscene_start(letterbox=False)
@@ -346,9 +341,6 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
     def clear_day(self):
         """Tear down everything a day created."""
         g = self.g
-        self.end_fight_prep()
-        self.clear_farm_puzzles()
-        self._prep_refresh = None
         g.ia.clear_scope("step")
         g.ia.clear_scope("day")
         self.hooks = {}
@@ -667,7 +659,6 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
         fn = self._hook("update")
         if fn:
             fn(dt)
-        self.update_farm_puzzles(dt)
         for f in self.fx:
             if hasattr(f, "update"):
                 f.update(dt)
@@ -817,9 +808,6 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
         res = yield from self.side_quest_talk(key)
         if res:
             return True
-        res = yield from self.character_talk(key)
-        if res:
-            return True
         if key == "mooriarty" and self.done("mooriarty_met"):
             # today's word from Epicowrus first (once), then the shop
             intro = None
@@ -842,8 +830,6 @@ class Story(CharacterAgency, FarmPuzzles, FightPreparation, DayScripts):
 
     def idle_talk(self, key):
         """Today's conversations, each once; after that a short brush-off, never the same conversation again."""
-        if (yield from self.character_reaction(key)):
-            return True
         yield from self.g.talk(self._next_chat(key))
         return True
 

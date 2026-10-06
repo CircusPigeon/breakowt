@@ -90,8 +90,6 @@ class PersistenceCheck:
             return original(title, entries, clovers, on_buy, on_close)
 
         with patch.object(g.ui, "open_shop", side_effect=capture):
-            if g.story.cur == "d6_prep":
-                self.bot.choice_queue = [1]  # Browse the shop after the board-help offer.
             g.interact(g.ia.get("cow_mooriarty"))
             self.wait(lambda: "buy" in callbacks, "shop menu")
             before = {
@@ -179,9 +177,8 @@ class PersistenceCheck:
         self.run_plan(self.bot.interact("woodpile"))
         self.check.assertEqual(g.load_save()["flags"].get("pile_taken"), 1)
         self.check.assertEqual(g.load_save()["inv"]["items"].get("plank"), 1)
-        self.run_plan(self.bot.interact("st_bridge_right_full", direct_ok=False))
+        self.run_plan(self.bot.interact("cattle_grid"))
         self.check.assertEqual(g.load_save()["flags"].get("planks_laid"), 1)
-        self.check.assertEqual(g.load_save()["flags"]["bridge_layout"]["long"]["slot"], "right_full")
         self.run_plan(self.bot.interact("herd_0"))
         self.wait(self.bot.ready, "herd conversation")
         partial = copy.deepcopy(g.load_save())
