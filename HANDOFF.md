@@ -38,7 +38,17 @@ rounds below, newest first). This file tracks what the game is now.
 - [x] Ending + epilogue cards (the player asked for no credits roll)
 - [x] Automated walkthrough test: every day passes (`tools/walkthrough.py`)
 
-### Reliability and comfort round (latest, `main`)
+### After the ChatGPT rounds (latest, `main`)
+- 010a033 (character menus, the counterweight store and maintenance cabinet sheds, the peg bridge, the
+  gate rig and boss assist) was reverted in b34a573 at the player's request: the sheds stood in open yard
+  with no tie to the farm or story. f967d87 is kept, including its two story changes (Monday's pencil
+  theft comes first; a loaded Ol' Bessie offers spare or shoot at the end).
+- Monday: reaching for the pencil standing up is a real catch (`caught_line` / `after_caught` hooks in
+  `d1_pencil`: CAUGHT, back ten metres, Chuck restarts the count). Crouched from behind takes it. Being
+  spotted on the way in is still only a shoo. Told friends get `Story.ordinary_talk`, so Epicowrus' second
+  talk on Monday opens the shop.
+
+### Reliability and comfort round (`main`)
 - **Monday**: the pencil theft follows the planner, before the five introductions and sunset meeting.
   Moocrates introduces the stealth trick; Chuck returns to his daytime routine afterwards. Old saves
   with the meeting already done still resume correctly. Each introduction saves its reward and flag.

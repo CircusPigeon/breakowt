@@ -899,8 +899,9 @@ class DayScripts:
         yield from self.step("d1_page", self.d1_page,
                              hint="The page landed in the pond. Walk into the water and pick it up with E.")
         yield from self.step("d1_pencil", self.d1_pencil,
-                             hint="Get behind Chuck while he counts (crouch with C or Ctrl) and press E to take the "
-                                  "pencil. If he spots you close up he'll shoo you off, no harm done.")
+                             hint="Get behind Chuck while he counts, crouch (C or Ctrl), and press E to take the "
+                                  "pencil. Reach for it standing up and he'll catch you. If he only spots you "
+                                  "coming, he'll shoo you off.")
         yield from self.step("d1_crew", self.d1_crew,
                              hint="Tell the others. Archimoodes is by the pond, Moogenes at the salt lick, Moothagoras under the "
                                   "oak, Epicowrus in the hay bales in the far corner, Heifercleitus by the trough.")
@@ -1217,7 +1218,11 @@ class DayScripts:
         self.hook("hint", lambda: None)
         g.restricted_fn = lambda gg: True if math.hypot(gg.player.x - f.x, gg.player.z - f.z) < 7 else None
 
+        grab = {"now": False}
+
         def shooed():
+            if grab["now"]:
+                return False        # a grab for the pencil is a real catch, not a shoo
             p = g.player
             f.say("Forty-seven, quit crowdin' me. Go stand with the others.", force=True)
             dx, dz = p.x - f.x, p.z - f.z
@@ -1235,13 +1240,43 @@ class DayScripts:
             if not self.behind_chuck():
                 gg.examine("Not from the front. He'd see you. Circle round behind him.")
                 return
+            if not gg.player.crouching:
+                # a cow standing at full height, breathing on his neck: he notices
+                grab["now"] = True
+                f.susp = 1.0
+                f.set_marker("!")
+                f.state = "catch"
+                f.path = []
+                gg.on_caught(f)
+                return
             got["d"] = True
+
+        def grab_line():
+            return "HEY! That's MY pencil, Forty-Seven! Cows don't write!" if grab["now"] else None
+        self.hook("caught_line", grab_line)
+
+        def grabbed():
+            if not grab["now"]:
+                return False
+            # back with the herd, a good way off, and Chuck starts his count again
+            grab["now"] = False
+            p = g.player
+            dx, dz = p.x - f.x, p.z - f.z
+            d = math.hypot(dx, dz) or 1
+            p.teleport(f.x + dx / d * 10, 0, f.z + dz / d * 10, p.yaw)
+            f.say("From the top. One...", force=True)
+            f.resume_routine()
+            g.ui.popup_sub("He felt you breathing down his neck. Crouch (C or Ctrl) before you reach for it.", 6)
+            return True
+        self.hook("after_caught", grabbed)
         self.chuck_ia("Take his pencil", steal)
         self.mark((f.x, f.z, "Chuck"))
 
         def upd(dt):
             self.base_update(dt)
             self.marks = [(f.x, f.z, "Chuck")]
+            if grab["now"] and not g.runner.running("caught"):
+                grab["now"] = False     # (Big Ajax's horseshoe tripped him instead)
         self.hook("update", upd)
         yield lambda: got["d"]
         g.ia.remove("st_chuck")
